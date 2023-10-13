@@ -83,3 +83,6 @@ if not host or host == "Not listed":
 
 # Run SSH
 execute(['ssh', '-p', f"{port}", f"{user}@{host}"])
+
+# Terminating
+info("Terminating.")
