@@ -75,4 +75,6 @@ nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerInstall'
 read -p "Install docker? " value
 if [ "_$value" != "_n" ] && [ "_$value" != "_N" ]; then
     sudo apt install -y docker docker-compose
+    sudo groupadd docker
+    sudo usermod -aG docker $USER
 fi
