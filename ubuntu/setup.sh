@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LOG_FILE="/tmp/setup.log"
+LOG_FILE="/tmp/setup_$(date +%Y_%m_%d_%H_%M_%S).log"
 
 # Color codes
 NONE="\e[0m"
