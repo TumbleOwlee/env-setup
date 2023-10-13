@@ -71,3 +71,8 @@ curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua >
 banner "Install Neovim Config"
 nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerInstall'
 
+# Install docker
+read -p "Install docker? " value
+if [ "_$value" != "_n" ] && [ "_$value" != "_N" ]; then
+    sudo apt install -y docker docker-compose
+fi
