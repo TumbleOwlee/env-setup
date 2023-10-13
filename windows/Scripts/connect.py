@@ -22,8 +22,13 @@ host_list = [
     'some-domain',
 ]
 
+# Print info
+def info(msg: str):
+    print(f"[{term.aqua}+{term.normal}] {msg}")
+
 # Signal handler for graceful termination
 def signal_handler(sig, frame):
+    info(f"Received signal {sig}. Terminating.")
     sys.exit(0)
 signal.signal(signal.SIGINT, signal_handler)
 
@@ -50,7 +55,7 @@ def ask_list(prompt: str, choices: [str], theme=themes.Default(), extract=None):
         value = extract(answer['input']) if extract else answer['input']
         info(f"Received value '{value}'.")
         return value
-    elif answer: 
+    elif answer:
         return None
     else:
         sys.exit(1)
@@ -60,10 +65,6 @@ def execute(cmd=[str]):
     cmd_line = " ".join(cmd)
     print(f"[{term.orangered}!{term.normal}] Execute '{cmd_line}'")
     subprocess.run(cmd)
-
-# Print info
-def info(msg: str):
-    print(f"[{term.aqua}+{term.normal}] {msg}")
 
 # Customize theme of inquirer
 term = Terminal()
