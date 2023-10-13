@@ -22,7 +22,7 @@ function info {
 
 # Print notify
 function notify {
-    echo -e "[${RED}!${NONE}] $@"
+    echo -e "[${GREEN}!${NONE}] $@"
     echo -e "[!] $@" >>$LOG_FILE
 }
 
