@@ -41,7 +41,7 @@ echo "  size: 8.0" >> ~/.config/alacritty/alacritty.yml
 
 # Install fish
 banner "Install Fish Shell"
-sudo apt install fish
+sudo apt install -y fish
 sudo chsh -s $(which fish)
 sudo usermod -s /usr/bin/fish $(whoami)
 
@@ -51,7 +51,7 @@ echo -e "function fish_prompt --description 'Write out the prompt'\n    set -l l
 
 # Install tmux
 banner "Install Tmux"
-sudo apt install tmux
+sudo apt install -y tmux
 
 # Create tmux configuration
 echo "set -g status off" > ~/.tmux.conf
