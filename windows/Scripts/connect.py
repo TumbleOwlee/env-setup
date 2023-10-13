@@ -1,3 +1,5 @@
+#!/bin/python3
+
 # for exit
 import sys
 # inquirer for user interaction
