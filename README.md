@@ -1,2 +1,3 @@
-# setup_env
-Simple scripts to setup the personal space.
+# Setup Environments
+
+This repository is a collection of various scripts utilized for fast environment setup on newly installed OSes.
