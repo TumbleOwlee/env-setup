@@ -24,7 +24,7 @@ sudo apt upgrade -y
 
 # Install requirements
 banner "Install Requirements"
-sudo apt install -y git curl
+sudo apt install -y git curl python3 python3-pip
 
 # Install alacritty
 banner "Install Alacritty"
