@@ -82,7 +82,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     notify "Execute 'apt install'.."
     sudo apt install -y fish >>$LOG_FILE 2>&1 || exit
     notify "Set 'fish' as default shell."
-    sudo chsh -s $(which fish) && sudo usermod -s /usr/bin/fish $(whoami) || exit
+    sudo chsh -s $(which fish) >$LOG_FILE 2>&1 && sudo usermod -s /usr/bin/fish $(whoami) >$LOG_FILE 2>&1 || exit
 
     # Create fish configuration
     notify "Create 'fish_greeting.fish'"
@@ -119,7 +119,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Get neovim configuration
     notify "Create 'init.lua' and install packer."
     mkdir -p ~/.config/nvim >/dev/null 2>&1
-    git clone https://github.com/wbthomason/packer.nvim ~/.local/share/nvim/site/pack/packer/start/packer.nvim >>$LOG_FILE 2>&1 || (cd ~/.local/share/nvim/site/pack/packer/start/packer.nvim && git pull) || exit
+    git clone https://github.com/wbthomason/packer.nvim ~/.local/share/nvim/site/pack/packer/start/packer.nvim >>$LOG_FILE 2>&1 || (cd ~/.local/share/nvim/site/pack/packer/start/packer.nvim && git pull >$LOG_FILE 2>&1) || exit
     curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua > ~/.config/nvim/init.lua 2>>$LOG_FILE || exit
 
     # Install neovim plugins
