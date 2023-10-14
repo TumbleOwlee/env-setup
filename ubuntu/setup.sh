@@ -86,7 +86,7 @@ done
 info "Install requirements."
 while true; do
     notify "Execute 'apt install'.."
-    sudo apt install -y git curl python3 pipx >>$LOG_FILE 2>&1 && break || retry || terminate || break
+    sudo apt install -y git curl python3 pipx unzip >>$LOG_FILE 2>&1 && break || retry || terminate || break
 done
 
 # Install alacritty
