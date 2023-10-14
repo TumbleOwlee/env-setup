@@ -202,15 +202,15 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     # Install toolchain
     while true; do
         notify "Install toolchain.."
-        rustup toolchain install stable >$LOG_FILE 2>&1 && break || retry || terminate || break
-        rustup default stable >$LOG_FILE 2>&1 && break || retry || terminate || break
-        rustup component add rust-src rust-analyzer >$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup toolchain install stable >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup default stable >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup component add rust-src rust-analyzer >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
 
     if [ $NEOVIM ]; then
         while true; do
             notify "Install neovim rust-analyzer LSP support"
-            nvim --headless -c "MasonInstall rust-analyzer" -c "quitall"  >>$LOG_FILE 2>&1 && break || retry || terminate || break
+            nvim --headless -c "MasonInstall rust-analyzer" -c "quitall" >>$LOG_FILE 2>&1 && break || retry || terminate || break
         done
     fi
 fi
@@ -227,7 +227,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     if [ $NEOVIM ]; then
         while true; do
             notify "Install neovim clangd LSP support"
-            nvim --headless -c "MasonInstall clangd" -c "quitall"  >>$LOG_FILE 2>&1 && break || retry || terminate || break
+            nvim --headless -c "MasonInstall clangd" -c "quitall" >>$LOG_FILE 2>&1 && break || retry || terminate || break
         done
     fi
     
@@ -235,8 +235,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         while true; do
             notify "Execute 'pipx install'.."
-            pipx install conan >$LOG_FILE 2>&1 && break || retry || terminate || break
-            warn "Make sure '~/.local/bin' is in \$PATH"
+            pipx install conan >>$LOG_FILE 2>&1 && warn "Make sure '~/.local/bin' is in \$PATH" && break || retry || terminate || break
         done
     fi
 fi
