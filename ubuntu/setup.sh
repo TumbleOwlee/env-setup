@@ -197,6 +197,10 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         sudo apt install -y docker docker-compose >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
     while true; do
+        notify "Enable and start docker service"
+        sudo systemctl enable --now docker >>$LOG_FILE 2>&1 && break || retry || terminate || break
+    done
+    while true; do
         notify "Add user to docker group."
         sudo groupadd docker >>$LOG_FILE 2>&1
         sudo usermod -aG docker $USER >>$LOG_FILE 2>&1 && break || retry || terminate || break
