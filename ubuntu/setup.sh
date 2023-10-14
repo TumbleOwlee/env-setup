@@ -225,13 +225,14 @@ resp=$(ask "Install C++ environment? [y/N]" "N")
 if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     info "Install clang, clang-format, gcc, cmake"
     while true; do
-        notify "Execute 'yay -S'.."
+        notify "Execute 'apt install'.."
         sudo apt install clang clang-format gcc cmake >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
     
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         while true; do
+            notify "Execute 'pipx install'.."
             pipx install conan >$LOG_FILE 2>&1 && break || retry || terminate || break
             warn "Make sure '~/.local/bin' is in \$PATH"
         done
