@@ -179,8 +179,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 fi
 
 # Install rust environment
-resp=$(ask "Install rust environment? [Y/n]" "Y")
-if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+resp=$(ask "Install rust environment? [y/N]" "N")
+if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
     info "Install rustup"
     resp=$(ask "Install bleeding edge? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
@@ -203,8 +203,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 fi
 
 # Install C++ environment
-resp=$(ask "Install C++ environment? [Y/n]" "Y")
-if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+resp=$(ask "Install C++ environment? [y/N]" "N")
+if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
     info "Install clang, gcc, cmake"
     while true; do
         notify "Execute 'yay -S'.."
