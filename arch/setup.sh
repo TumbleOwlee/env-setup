@@ -67,6 +67,28 @@ function warn {
 info "Check for sudo privileges.."
 sudo echo -n "" || exit
 
+# Ask for proxy
+resp=$(ask "Behind a proxy? [y/N]" "N")
+if [ "_$resp" == "_y" ] || [ "_$resp" != "_Y" ]; then
+    let missing=1
+    if [ "_$http_proxy" == "_" ]; then
+        missing=0
+        warn "Environment '\$http_proxy' is empty!"
+    else
+        info "Environment '\$http_proxy' is '$http_proxy'"
+    fi
+    if [ "_$https_proxy" == "_" ]; then
+        missing=0
+        warn "Environment '\$https_proxy' is empty!"
+    else
+        info "Environment '\$https_proxy' is '$https_proxy'"
+    fi
+    if [ $missing ]; then
+        warn "Fill missing proxy environment variables."
+        exit 0
+    fi
+fi
+
 # Initialize log
 touch $LOG_FILE
 info "Logging into ${LOG_FILE}."
