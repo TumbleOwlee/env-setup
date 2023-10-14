@@ -69,7 +69,7 @@ sudo echo -n "" || exit
 
 # Ask for proxy
 resp=$(ask "Behind a proxy? [y/N]" "N")
-if [ "_$resp" == "_y" ] || [ "_$resp" != "_Y" ]; then
+if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     let missing=1
     if [ "_$http_proxy" == "_" ]; then
         missing=0
