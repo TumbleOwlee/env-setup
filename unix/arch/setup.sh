@@ -119,11 +119,9 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Create alacritty configuration
     while true; do
         notify "Create 'alacritty.yml'"
-        mkdir -p ~/.config/alacritty >/dev/null 2>&1 && break || retry || terminate || break
-        echo "window:" > ~/.config/alacritty/alacritty.yml 2>>$LOG_FILE && break || retry || terminate || break
-        echo "  opacity: 0.9" >> ~/.config/alacritty/alacritty.yml 2>>$LOG_FILE && break || retry || terminate || break
-        echo "font:" >> ~/.config/alacritty/alacritty.yml 2>>$LOG_FILE && break || retry || terminate || break
-        echo "  size: 8.0" >> ~/.config/alacritty/alacritty.yml 2>>$LOG_FILE && break || retry || terminate || break
+        mkdir -p ~/.config/alacritty >/dev/null 2>&1 && \
+            curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/alacritty/alacritty.yml > ~/.config/alacritty/alacritty.yml 2>/dev/null && \
+            break || retry || terminate || break
     done
 fi
 
@@ -141,12 +139,14 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     done
 
     # Create fish configuration
-    while true; do
-        mkdir -p ~/.config/fish/functions >/dev/null 2>&1
-        notify "Create 'fish_greeting.fish'"
-        echo -e "function fish_greeting\nend" > ~/.config/fish/functions/fish_greeting.fish 2>>$LOG_FILE && break || retry || terminate || break
-        notify "Create 'fish_prompt.fish'"
-        echo -e "function fish_prompt --description 'Write out the prompt'\n    set -l laststatus \$status\n\n    set -l git_info\n    if set -l git_branch (command git symbolic-ref HEAD 2>/dev/null | string replace refs/heads/ '')\n        set git_branch (set_color -o blue)\"\$git_branch\"\n        set -l git_status\n        if not command git diff-index --quiet HEAD --\n            if set -l count (command git rev-list --count --left-right \$upstream...HEAD 2>/dev/null)\n                echo \$count | read -l ahead behind\n   if test \"\$ahead\" -gt 0\n                    set git_status \"\$git_status\"(set_color red)⬆\n                end\nif test \"\$behind\" -gt 0\n set git_status \"\$git_status\"(set_color red)⬇\n                end\n            end\n            for i in (git status --porcelain | string sub -l 2 | sort | uniq)\n                switch \$i\n                    case \".\"\n set git_status \"\$git_status\"(set_color green)'+'\n                    case \" D\"\n set git_status \"\$git_status\"(set_color red)'x'\n      case \"*M*\"\n                        set git_status \"\$git_status\"(set_color green)'*'\n                    case \"*R*\"\n                        set git_status \"\$git_status\"(set_color purple)'>'\n                    case \"*U*\"\n                        set git_status \"\$git_status\"(set_color brown)'='\n                    case \"??\"\n                        set git_status \"\$git_status\"(set_color red)'!='\n                end\n            end\n        else\n            set git_status (set_color green):\n        end\n        set git_info \"(git\$git_status\$git_branch\"(set_color white)\")\"\n    end\n\n    # Disable PWD shortening by default.\n    set -q fish_prompt_pwd_dir_length\n    or set -lx fish_prompt_pwd_dir_length 0\n\n    set_color -b black\n    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s' (set_color -o white) '(' (set_color brcyan) \$USER (set_color white) '|' (set_color yellow) (prompt_pwd) (set_color white) \$git_info (set_color white) ')' (set_color white)\n    if test \$laststatus -eq 0\n        printf \"%s[0]%s>%s \" (set_color -o green) (set_color white) (set_color normal)\n    else\n        printf \"%s[%s]%s>%s \" (set_color -o red) \$laststatus (set_color white) (set_color normal)\n    end\nend" > ~/.config/fish/functions/fish_prompt.fish 2>>$LOG_FILE && break || retry || terminate || break
+    scripts=('fish_greeting' 'fish_prompt')
+    for $sc in ${scripts[@]}; do
+        while true; do
+            mkdir -p ~/.config/fish/functions >/dev/null 2>&1
+            notify "Create '$sc.fish'"
+            curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/fish/$sc.fish > ~/.config/fish/$sc.fish 2>/dev/null && \ 
+                break || retry || terminate || break
+        done
     done
 fi
 
@@ -162,7 +162,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Create tmux configuration
     while true; do
         notify "Create '.tmux.conf'"
-        echo "set -g status off" > ~/.tmux.conf && break || retry || terminate || break
+        curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/tmux/tmux.conf > ~/.tmux.conf 2>/dev/null && \ 
+            break || retry || terminate || break
     done
 fi
 
@@ -178,10 +179,16 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     # Get neovim configuration
     while true; do
-        notify "Create 'init.lua' and install packer."
+        notify "Install packer."
         mkdir -p ~/.config/nvim >/dev/null 2>&1
-        git clone https://github.com/wbthomason/packer.nvim ~/.local/share/nvim/site/pack/packer/start/packer.nvim >>$LOG_FILE 2>&1 || (cd ~/.local/share/nvim/site/pack/packer/start/packer.nvim && git pull >>$LOG_FILE 2>&1) && break || retry || terminate || break
-        curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua > ~/.config/nvim/init.lua 2>>$LOG_FILE && break || retry || terminate || break
+        git clone https://github.com/wbthomason/packer.nvim ~/.local/share/nvim/site/pack/packer/start/packer.nvim >>$LOG_FILE 2>&1 || (cd ~/.local/share/nvim/site/pack/packer/start/packer.nvim && git pull >>$LOG_FILE 2>&1) && \
+             break || retry || terminate || break
+    done
+    while true; do
+        notify "Create 'init.lua'."
+        mkdir -p ~/.config/nvim >/dev/null 2>&1
+        curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua > ~/.config/nvim/init.lua 2>>$LOG_FILE && \
+            break || retry || terminate || break
     done
 
     # Install neovim plugins
@@ -228,9 +235,10 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     # Install toolchain
     while true; do
         notify "Install toolchain.."
-        rustup toolchain install stable >>$LOG_FILE 2>&1 && break || retry || terminate || break
-        rustup default stable >>$LOG_FILE 2>&1 && break || retry || terminate || break
-        rustup component add rust-src rust-analyzer >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup toolchain install stable >>$LOG_FILE 2>&1 && \
+            rustup default stable >>$LOG_FILE 2>&1 && \
+            rustup component add rust-src rust-analyzer >>$LOG_FILE 2>&1 && \
+            break || retry || terminate || break
     done
 
     if [ $NEOVIM ]; then
