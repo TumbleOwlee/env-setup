@@ -216,9 +216,9 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     while [ -f "$HOME/.cargo/env" ]; do
         source "$HOME/.cargo/env"
         notify "Install toolchain.."
-        rustup toolchain install stable >$LOG_FILE 2>&1 && break || retry || terminate || break
-        rustup default stable >$LOG_FILE 2>&1 && break || retry || terminate || break
-        rustup component add rust-src rust-analyzer >$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup toolchain install stable >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup default stable >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup component add rust-src rust-analyzer >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
 
     if [ $NEOVIM ]; then
