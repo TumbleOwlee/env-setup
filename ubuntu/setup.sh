@@ -233,7 +233,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         while true; do
             notify "Execute 'pipx install'.."
-            pipx install conan >$LOG_FILE 2>&1 && break || retry || terminate || break
+            pipx install conan >>$LOG_FILE 2>&1 && break || retry || terminate || break
             warn "Make sure '~/.local/bin' is in \$PATH"
         done
     fi
