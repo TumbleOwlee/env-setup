@@ -199,7 +199,7 @@ fi
 
 # Install rust environment
 resp=$(ask "Install rust environment? [y/N]" "N")
-if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     info "Install rustup"
     while true; do
         notify "Execute 'curl https://sh.rustup.rs | bash'.."
@@ -217,7 +217,7 @@ fi
 
 # Install C++ environment
 resp=$(ask "Install C++ environment? [y/N]" "N")
-if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     info "Install clang, clang-format, gcc, cmake"
     while true; do
         notify "Execute 'yay -S'.."
@@ -225,7 +225,7 @@ if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
     done
     
     resp=$(ask "Install Conan? [y/N]" "N")
-    if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+    if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         while true; do
             python -m pip install conan >$LOG_FILE 2>&1 && break || retry || terminate || break
         done
