@@ -178,7 +178,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Install neovim plugins
     while true; do
         notify "Install neovim plugins.."
-        nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerInstall'
+        nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerInstall' && break || retry || terminate || break
     done
 fi
 
