@@ -1,26 +1,26 @@
 #!/bin/bash
 
 function is_arch {
-    if type "yay" > /dev/null; then
-        true
+    if type "yay" 2>/dev/null >/dev/null; then
+        return 0
     else
-        false
+        return 1
     fi
 }
 
 function is_ubuntu {
-    if type "apt" > /dev/null; then
-        true
+    if type "apt" 2>/dev/null >/dev/null; then
+        return 0
     else
-        false
+        return 1
     fi
 }
 
 
 if ! type "curl" > /dev/null; then
-    if [ is_arch ]; then
+    if is_arch; then
         yay -S --noconfirm curl
-    elif [ is_ubuntu ]; then
+    elif is_ubuntu; then
         sudo apt install -y curl
     else
         echo "Unsupported operating system." 1>&2
@@ -28,8 +28,8 @@ if ! type "curl" > /dev/null; then
     fi
 fi
 
-if [ is_arch ]; then
-    curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/arch/setup.sh 2>/dev/null | /bin/bash
-elif [ is_ubuntu ]; then
-    curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/ubuntu/setup.sh 2>/dev/null | /bin/bash
+if is_arch; then
+    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/arch/setup.sh 2>/dev/null)"
+elif is_ubuntu; then
+    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/ubuntu/setup.sh 2>/dev/null)"
 fi
