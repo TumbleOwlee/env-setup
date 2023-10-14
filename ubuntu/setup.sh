@@ -22,8 +22,8 @@ function info {
 
 # Print notify
 function notify {
-    echo -e "[${GREEN}!${NONE}] $@"
-    echo -e "[!] $@" >>$LOG_FILE
+    echo -e "  [${GREEN}!${NONE}] $@"
+    echo -e "  [!] $@" >>$LOG_FILE
 }
 
 # Ask for input
