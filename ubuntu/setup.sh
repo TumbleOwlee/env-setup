@@ -156,6 +156,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 fi
 
 # Install neovim
+NEOVIM=1
 resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
@@ -169,7 +170,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     done
     while true; do
         notify "Execute 'apt install'.."
-        sudo apt install -y neovim >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        sudo apt install -y neovim >>$LOG_FILE 2>&1 && NEOVIM=1 && break || retry || terminate || break
     done
 
     # Get neovim configuration
@@ -219,6 +220,13 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         rustup default stable >$LOG_FILE 2>&1 && break || retry || terminate || break
         rustup component add rust-src rust-analyzer >$LOG_FILE 2>&1 && break || retry || terminate || break
     done
+
+    if [ $NEOVIM ]; then
+        while true; do
+            notify "Install neovim rust-analyzer LSP support"
+            nvim --headless -c "MasonInstall rust-analyzer" -c "quitall"  >$LOG_FILE 2>&1 && break || retry || terminate || break
+        done
+    fi
 fi
 
 # Install C++ environment
@@ -229,6 +237,13 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         notify "Execute 'apt install'.."
         sudo apt install -y clang clang-format gcc cmake >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
+
+    if [ $NEOVIM ]; then
+        while true; do
+            notify "Install neovim clangd LSP support"
+            nvim --headless -c "MasonInstall clangd" -c "quitall"  >$LOG_FILE 2>&1 && break || retry || terminate || break
+        done
+    fi
     
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
