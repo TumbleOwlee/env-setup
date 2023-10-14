@@ -40,6 +40,10 @@ function ask {
     fi
 }
 
+# Cache sudo privileges
+info "Check for sudo privileges.."
+sudo echo -n "" || exit
+
 # Initialize log
 touch $LOG_FILE
 info "Logging into ${LOG_FILE}."
