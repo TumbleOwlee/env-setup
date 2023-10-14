@@ -152,11 +152,11 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     # Create fish configuration
     scripts=('fish_greeting' 'fish_prompt')
-    for $sc in ${scripts[@]}; do
+    for sc in ${scripts[@]}; do
         while true; do
             mkdir -p ~/.config/fish/functions >/dev/null 2>&1
             notify "Create '$sc.fish'"
-            curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/fish/$sc.fish > ~/.config/fish/$sc.fish 2>/dev/null && \ 
+            curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/fish/$sc.fish > ~/.config/fish/functions/$sc.fish 2>/dev/null && \
                 break || retry || terminate || break
         done
     done
@@ -174,7 +174,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Create tmux configuration
     while true; do
         notify "Create '.tmux.conf'"
-        curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/tmux/tmux.conf > ~/.tmux.conf 2>/dev/null && \ 
+        curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/tmux/tmux.conf > ~/.tmux.conf 2>/dev/null && \
             break || retry || terminate || break
     done
 fi
@@ -279,7 +279,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
             nvim --headless -c "MasonInstall clangd" -c "quitall" >>$LOG_FILE 2>&1 && break || retry || terminate || break
         done
     fi
-    
+
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         while true; do
