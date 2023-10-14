@@ -196,3 +196,38 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         sudo usermod -aG docker $USER >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
 fi
+
+# Install rust environment
+resp=$(ask "Install rust environment? [y/N]" "N")
+if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+    info "Install rustup"
+    while true; do
+        notify "Execute 'curl https://sh.rustup.rs | bash'.."
+        (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y) >>$LOG_FILE 2>&1 && break || retry || terminate || break
+    done
+
+    # Install toolchain
+    while true; do
+        notify "Install toolchain.."
+        rustup toolchain install stable >$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup default stable >$LOG_FILE 2>&1 && break || retry || terminate || break
+        rustup component add rust-src rust-analyzer >$LOG_FILE 2>&1 && break || retry || terminate || break
+    done
+fi
+
+# Install C++ environment
+resp=$(ask "Install C++ environment? [y/N]" "N")
+if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+    info "Install clang, clang-format, gcc, cmake"
+    while true; do
+        notify "Execute 'yay -S'.."
+        sudo apt install clang clang-format gcc cmake >>$LOG_FILE 2>&1 && break || retry || terminate || break
+    done
+    
+    resp=$(ask "Install Conan? [y/N]" "N")
+    if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+        while true; do
+            python -m pip install conan >$LOG_FILE 2>&1 && break || retry || terminate || break
+        done
+    fi
+fi
