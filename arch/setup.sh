@@ -165,7 +165,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Install neovim plugins
     while true; do
         notify "Install neovim plugins.."
-        nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerInstall' >$LOG_FILE 2>&1 && break || retry || terminate || break
+        nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerInstall' >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
 fi
 
@@ -210,7 +210,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     if [ $NEOVIM ]; then
         while true; do
             notify "Install neovim rust-analyzer LSP support"
-            nvim --headless -c "MasonInstall rust-analyzer" -c "quitall"  >$LOG_FILE 2>&1 && break || retry || terminate || break
+            nvim --headless -c "MasonInstall rust-analyzer" -c "quitall"  >>$LOG_FILE 2>&1 && break || retry || terminate || break
         done
     fi
 fi
@@ -227,7 +227,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     if [ $NEOVIM ]; then
         while true; do
             notify "Install neovim clangd LSP support"
-            nvim --headless -c "MasonInstall clangd" -c "quitall"  >$LOG_FILE 2>&1 && break || retry || terminate || break
+            nvim --headless -c "MasonInstall clangd" -c "quitall"  >>$LOG_FILE 2>&1 && break || retry || terminate || break
         done
     fi
     
