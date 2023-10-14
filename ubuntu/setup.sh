@@ -58,6 +58,11 @@ function terminate {
     fi
 }
 
+# Warn the user
+function warn {
+    echo -e "[${RED}!${NONE}] $1"
+}
+
 # Cache sudo privileges
 info "Check for sudo privileges.."
 sudo echo -n "" || exit
@@ -81,7 +86,7 @@ done
 info "Install requirements."
 while true; do
     notify "Execute 'apt install'.."
-    sudo apt install -y git curl python3 python3-pip >>$LOG_FILE 2>&1 && break || retry || terminate || break
+    sudo apt install -y git curl python3 pipx >>$LOG_FILE 2>&1 && break || retry || terminate || break
 done
 
 # Install alacritty
@@ -227,7 +232,8 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         while true; do
-            python -m pip install conan >$LOG_FILE 2>&1 && break || retry || terminate || break
+            pipx install conan >$LOG_FILE 2>&1 && break || retry || terminate || break
+            warn "Make sure '~/.local/bin' is in \$PATH"
         done
     fi
 fi
