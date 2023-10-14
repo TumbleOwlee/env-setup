@@ -212,7 +212,8 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     done
 
     # Install toolchain
-    while true; do
+    while [ -f "$HOME/.cargo/env" ]; do
+        source "$HOME/.cargo/env"
         notify "Install toolchain.."
         rustup toolchain install stable >$LOG_FILE 2>&1 && break || retry || terminate || break
         rustup default stable >$LOG_FILE 2>&1 && break || retry || terminate || break
