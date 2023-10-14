@@ -79,6 +79,7 @@ fi
 # Install fish
 resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+    info "Install fish shell"
     notify "Execute 'apt install'.."
     sudo apt install -y fish >>$LOG_FILE 2>&1 || exit
     notify "Set 'fish' as default shell."
@@ -94,6 +95,7 @@ fi
 # Install tmux
 resp=$(ask "Install tmux? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+    info "Install tmux"
     notify "Execute 'apt install'.."
     sudo apt install -y tmux >>$LOG_FILE 2>&1 || exit
 
