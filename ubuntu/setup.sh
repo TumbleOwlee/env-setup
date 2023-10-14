@@ -3,14 +3,8 @@
 LOG_FILE="/tmp/setup_$(date +%Y_%m_%d_%H_%M_%S).log"
 
 # Color codes
-NONE="\e[0m"
-BLACK="\e[30m"
-RED="\e[31m"
-GREEN="\e[32m"
-YELLOW="\e[33m"
-BLUE="\e[34m"
-PURPLE="\e[35m"
-CYAN="\e[36m"
+NONE="\e[0m";    BLACK="\e[30m"; RED="\e[31m";    GREEN="\e[32m"
+YELLOW="\e[33m"; BLUE="\e[34m";  PURPLE="\e[35m"; CYAN="\e[36m"
 
 trap "exit 1" SIGINT
 
