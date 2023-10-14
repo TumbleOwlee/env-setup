@@ -226,7 +226,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     info "Install clang, clang-format, gcc, cmake"
     while true; do
         notify "Execute 'apt install'.."
-        sudo apt install clang clang-format gcc cmake >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        sudo apt install -y clang clang-format gcc cmake >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
     
     resp=$(ask "Install Conan? [y/N]" "N")
