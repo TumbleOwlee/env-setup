@@ -63,42 +63,140 @@ function warn {
     echo -e "[${RED}!${NONE}] $1"
 }
 
-# Install neovim LSP
-NEOVIM=1
-function nvim_install_lsp {
-    if [ $NEOVIM ]; then
+function run_with_retry {
+    local cmd=""
+    for idx in $(seq $#); do
+        if [ "_$cmd" == "_" ]; then
+            cmd="$cmd${!idx}"
+        else
+            cmd="$cmd+${!idx}"
+        fi
+    done
+    local pipe=""
+    for idx in $(seq ${#PIPE[@]}); do
+        if [ "_$pipe" == "_" ]; then
+            pipe="$pipe${PIPE[$idx]}"
+        else
+            pipe="$pipe+${PIPE[$idx]}"
+        fi
+    done
+
+    if [ $DRY_RUN ]; then
+        notify "Execute '$@'"
+    elif [ "_$pipe" != "_" ]; then
+        local IFS='+'
         while true; do
-            notify "Install neovim $1 LSP support"
-            nvim --headless -c "MasonInstall $1" -c "quitall" >>$LOG_FILE 2>&1 && break || retry || terminate || break
+            notify "Execute piped '$@'"
+            $cmd | $pipe && break || retry || terminate || break
+        done
+    else
+        if [ "_$STDOUT" == "_" ]; then
+            STDOUT="$LOG_FILE"
+        fi
+        if [ "_$STDERR" == "_" ]; then
+            STDERR="$LOG_FILE"
+        fi
+
+        local IFS='+'
+        while true; do
+            notify "Execute '$@'"
+            if [ "_$STDOUT" == "_$STDERR" ]; then
+                $cmd >>"$STDOUT" 2>&1 && break || retry || terminate || break
+            else
+                $cmd >>"$STDOUT" 2>>"$STDERR" && break || retry || terminate || break
+            fi
         done
     fi
 }
 
+function run_once {
+    local cmd=""
+    for idx in $(seq $#); do
+        if [ "_$cmd" == "_" ]; then
+            cmd="$cmd${!idx}"
+        else
+            cmd="$cmd+${!idx}"
+        fi
+    done
+    local pipe=""
+    for idx in $(seq ${#PIPE[@]}); do
+        if [ "_$pipe" == "_" ]; then
+            pipe="$pipe${PIPE[$idx]}"
+        else
+            pipe="$pipe+${PIPE[$idx]}"
+        fi
+    done
+
+    if [ "_$STDOUT" == "_" ]; then
+        STDOUT="$LOG_FILE"
+    fi
+    if [ "_$STDERR" == "_" ]; then
+        STDERR="$LOG_FILE"
+    fi
+
+    if [ $DRY_RUN ]; then
+        notify "Execute '$@'"
+    elif [ "_$pipe" != "_" ]; then
+        notify "Execute '$@'"
+        if [ "_$STDOUT" == "_$STDERR" ]; then
+            $cmd | $pipe >>"$STDOUT" 2>&1
+        else
+            $cmd | $pipe >>"$STDOUT" 2>>"$STDERR"
+        fi
+    else
+        local IFS='+'
+        notify "Execute '$@'"
+        if [ "_$STDOUT" == "_$STDERR" ]; then
+            $cmd >>"$STDOUT" 2>&1
+        else
+            $cmd >>"$STDOUT" 2>>"$STDERR"
+        fi
+    fi
+}
+
+# Install neovim LSP
+NEOVIM=1
+function nvim_install_lsp {
+    if [ $NEOVIM ]; then
+        run_with_retry nvim --headless -c "MasonInstall $1" -c "quitall"
+    fi
+}
+
+# Check for proxy
+function check_proxy {
+    resp=$(ask "Behind a proxy? [y/N]" "N")
+    if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+        let missing=1
+        if [ "_$http_proxy" == "_" ]; then
+            missing=0
+            warn "Environment '\$http_proxy' is empty!"
+        else
+            info "Environment '\$http_proxy' is '$http_proxy'"
+        fi
+        if [ "_$https_proxy" == "_" ]; then
+            missing=0
+            warn "Environment '\$https_proxy' is empty!"
+        else
+            info "Environment '\$https_proxy' is '$https_proxy'"
+        fi
+        if [ $missing ]; then
+            warn "Fill missing proxy environment variables."
+            exit 0
+        fi
+    fi
+}
+
+# Check for sudo
+function check_sudo {
+    info "Check for sudo privileges.."
+    sudo echo -n "" || exit
+}
+
 # Cache sudo privileges
-info "Check for sudo privileges.."
-sudo echo -n "" || exit
+check_sudo
 
 # Ask for proxy
-resp=$(ask "Behind a proxy? [y/N]" "N")
-if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
-    let missing=1
-    if [ "_$http_proxy" == "_" ]; then
-        missing=0
-        warn "Environment '\$http_proxy' is empty!"
-    else
-        info "Environment '\$http_proxy' is '$http_proxy'"
-    fi
-    if [ "_$https_proxy" == "_" ]; then
-        missing=0
-        warn "Environment '\$https_proxy' is empty!"
-    else
-        info "Environment '\$https_proxy' is '$https_proxy'"
-    fi
-    if [ $missing ]; then
-        warn "Fill missing proxy environment variables."
-        exit 0
-    fi
-fi
+check_proxy
 
 # Initialize log
 touch $LOG_FILE
@@ -106,70 +204,41 @@ info "Logging into ${LOG_FILE}."
 
 # Update and upgrade
 info "Update and upgrade."
-while true; do
-    notify "Execute 'apt update'.."
-    sudo apt update >>$LOG_FILE 2>&1 && break || retry || terminate || break
-done
-while true; do
-    notify "Execute 'apt upgrade'.."
-    sudo apt upgrade -y >>$LOG_FILE 2>&1 && break || retry || terminate || break
-done
+run_with_retry sudo apt update
+run_with_retry sudo apt upgrade -y
 
 # Install requirements
 info "Install requirements."
-while true; do
-    notify "Execute 'apt install'.."
-    sudo apt install -y git curl python3 pipx unzip >>$LOG_FILE 2>&1 && break || retry || terminate || break
-done
+run_with_retry sudo apt install -y git curl python3 pipx unzip
 
 # Install alacritty
 resp=$(ask "Install alacritty? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install alacritty"
-    while true; do
-        notify "Add 'ppa:aslatter/ppa'.."
-        sudo add-apt-repository ppa:aslatter/ppa -y >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
-    while true; do
-        notify "Execute 'apt update'.."
-        sudo apt update >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
-    while true; do
-        notify "Execute 'apt install'.."
-        sudo apt install -y alacritty >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
+    run_with_retry sudo add-apt-repository ppa:aslatter/ppa -y
+    run_with_retry sudo apt update
+    run_with_retry sudo apt install -y alacritty
 
     # Create alacritty configuration
-    while true; do
-        notify "Create 'alacritty.yml'"
-        mkdir -p ~/.config/alacritty >/dev/null 2>&1 && \
-            curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/alacritty/alacritty.yml > ~/.config/alacritty/alacritty.yml 2>/dev/null && \
-            break || retry || terminate || break
-    done
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/alacritty"
+    STDOUT="/home/$USER/.config/alacritty/alacritty.yml" \
+        run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/alacritty/alacritty.yml"
 fi
 
 # Install fish
 resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install fish shell"
-    while true; do
-        notify "Execute 'apt install'.."
-        sudo apt install -y fish >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
-    while true; do
-        notify "Set 'fish' as default shell."
-        sudo chsh -s $(which fish) >>$LOG_FILE 2>&1 && sudo usermod -s /usr/bin/fish $(whoami) >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
+    run_with_retry sudo apt install -y fish 
+    run_with_retry sudo chsh -s $(which fish)
+    run_with_retry sudo usermod -s /usr/bin/fish $(whoami)
 
     # Create fish configuration
     scripts=('fish_greeting' 'fish_prompt')
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/fish/functions"
     for sc in ${scripts[@]}; do
-        while true; do
-            mkdir -p ~/.config/fish/functions >/dev/null 2>&1
-            notify "Create '$sc.fish'"
-            curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/fish/$sc.fish > ~/.config/fish/functions/$sc.fish 2>/dev/null && \
-                break || retry || terminate || break
-        done
+        STDOUT="/home/$USER/.config/fish/functions/$sc.fish" \
+            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/fish/$sc.fish"
     done
 fi
 
@@ -177,94 +246,56 @@ fi
 resp=$(ask "Install tmux? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install tmux"
-    while true; do
-        notify "Execute 'apt install'.."
-        sudo apt install -y tmux >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
+    run_with_retry sudo apt install -y tmux
 
     # Create tmux configuration
-    while true; do
-        notify "Create '.tmux.conf'"
-        curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/tmux/tmux.conf > ~/.tmux.conf 2>/dev/null && \
-            break || retry || terminate || break
-    done
+    STDOUT="/home/$USER/.tmux.conf" \
+        run_with_retry curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/tmux/tmux.conf
 fi
 
 # Install neovim
 resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
-    while true; do
-        notify "Add 'neovim-ppa/unstable'."
-        sudo add-apt-repository ppa:neovim-ppa/unstable -y >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
-    while true; do
-        notify "Execute 'apt update'.."
-        sudo apt update >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
-    while true; do
-        notify "Execute 'apt install'.."
-        sudo apt install -y neovim >>$LOG_FILE 2>&1 && NEOVIM=0 && break || retry || terminate || break
-    done
+    run_with_retry sudo add-apt-repository ppa:neovim-ppa/unstable -y
+    run_with_retry sudo apt update
+    run_with_retry sudo apt install -y neovim 
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/nvim"
 
     # Get neovim configuration
-    while true; do
-        notify "Install packer."
-        mkdir -p ~/.config/nvim >/dev/null 2>&1
-        git clone https://github.com/wbthomason/packer.nvim ~/.local/share/nvim/site/pack/packer/start/packer.nvim >>$LOG_FILE 2>&1 || (cd ~/.local/share/nvim/site/pack/packer/start/packer.nvim && git pull >>$LOG_FILE 2>&1) && \
-             break || retry || terminate || break
-    done
-    while true; do
-        notify "Create 'init.lua'."
-        mkdir -p ~/.config/nvim >/dev/null 2>&1
-        curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua > ~/.config/nvim/init.lua 2>>$LOG_FILE && \
-            break || retry || terminate || break
-    done
-
+    info "Install packer"
+    if [ -d "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim/.git" ]; then
+        run_with_retry git pull
+    else
+        run_with_retry git clone https://github.com/wbthomason/packer.nvim "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim"
+    fi
+    STDOUT="/home/$USER/.config/nvim/init.lua" \
+        run_with_retry curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua
     # Install neovim plugins
-    while true; do
-        notify "Install neovim plugins.."
-        nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerInstall' >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
+    run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerInstall"
 fi
 
 # Install docker
 resp=$(ask "Install docker? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
-    while true; do
-        notify "Execute 'apt install'"
-        sudo apt install -y docker docker-compose >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
-    while true; do
-        notify "Enable and start docker service"
-        sudo systemctl enable --now docker >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
-    while true; do
-        notify "Add user to docker group."
-        sudo groupadd docker >>$LOG_FILE 2>&1
-        sudo usermod -aG docker $USER >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
+    run_with_retry sudo apt install -y docker docker-compose 
+    run_with_retry sudo systemctl enable --now docker 
+    run_once sudo groupadd docker 
+    run_with_retry sudo usermod -aG docker $USER
 fi
 
 # Install rust environment
 resp=$(ask "Install rust environment? [y/N]" "N")
 if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     info "Install rustup"
-    while true; do
-        notify "Execute 'curl https://sh.rustup.rs | bash'.."
-        (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y) >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
+    PIPE=(bash -s -- -y) run_with_retry curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
 
     # Install toolchain
-    while [ -f "$HOME/.cargo/env" ]; do
-        source "$HOME/.cargo/env"
-        notify "Install toolchain.."
-        rustup toolchain install stable >>$LOG_FILE 2>&1 && \
-            rustup default stable >>$LOG_FILE 2>&1 && \
-            rustup component add rust-src rust-analyzer >>$LOG_FILE 2>&1 && \
-            break || retry || terminate || break
-    done
+    run_with_retry source "$HOME/.cargo/env"
+    run_with_retry rustup toolchain install stable
+    run_with_retry rustup default stable
+    run_with_retry rustup component add rust-src rust-analyzer
 
     # Install nvim lsp
     nvim_install_lsp "rust-analyzer"
@@ -274,19 +305,14 @@ fi
 resp=$(ask "Install C++ environment? [y/N]" "N")
 if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     info "Install clang, clang-format, gcc, cmake"
-    while true; do
-        notify "Execute 'apt install'.."
-        sudo apt install -y clang clang-format gcc cmake >>$LOG_FILE 2>&1 && break || retry || terminate || break
-    done
+    run_with_retry sudo apt install -y clang clang-format gcc cmake
 
     # Install nvim lsp
     nvim_install_lsp "clangd"
 
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
-        while true; do
-            notify "Execute 'pipx install'.."
-            pipx install conan >>$LOG_FILE 2>&1 && warn "Make sure '~/.local/bin' is in \$PATH" && break || retry || terminate || break
-        done
+        run_with_retry pipx install conan 
+        warn "Make sure '/home/$USER/.local/bin' is in \$PATH"
     fi
 fi
