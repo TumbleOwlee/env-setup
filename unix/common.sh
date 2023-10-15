@@ -81,13 +81,17 @@ function run_with_retry {
         fi
     done
 
+    if [ "_$DIR" == "" ]; then
+        DIR="$(pwd)"
+    fi
+
     if [ $DRY_RUN ]; then
         notify "Execute '$@'"
     elif [ "_$pipe" != "_" ]; then
         local IFS='+'
         while true; do
             notify "Execute piped '$@'"
-            $cmd | $pipe && break || retry || terminate || break
+            cd "$DIR" && $cmd | $pipe && break || retry || terminate || break
         done
     else
         if [ "_$STDOUT" == "_" ]; then
@@ -101,9 +105,9 @@ function run_with_retry {
         while true; do
             notify "Execute '$@'"
             if [ "_$STDOUT" == "_$STDERR" ]; then
-                $cmd >>"$STDOUT" 2>&1 && break || retry || terminate || break
+                cd "$DIR" && $cmd >>"$STDOUT" 2>&1 && break || retry || terminate || break
             else
-                $cmd >>"$STDOUT" 2>>"$STDERR" && break || retry || terminate || break
+                cd "$DIR" && $cmd >>"$STDOUT" 2>>"$STDERR" && break || retry || terminate || break
             fi
         done
     fi
@@ -127,6 +131,10 @@ function run_once {
         fi
     done
 
+    if [ "_$DIR" == "" ]; then
+        DIR="$(pwd)"
+    fi
+
     if [ "_$STDOUT" == "_" ]; then
         STDOUT="$LOG_FILE"
     fi
@@ -139,17 +147,17 @@ function run_once {
     elif [ "_$pipe" != "_" ]; then
         notify "Execute '$@'"
         if [ "_$STDOUT" == "_$STDERR" ]; then
-            $cmd | $pipe >>"$STDOUT" 2>&1
+            cd "$DIR" && $cmd | $pipe >>"$STDOUT" 2>&1
         else
-            $cmd | $pipe >>"$STDOUT" 2>>"$STDERR"
+            cd "$DIR" && $cmd | $pipe >>"$STDOUT" 2>>"$STDERR"
         fi
     else
         local IFS='+'
         notify "Execute '$@'"
         if [ "_$STDOUT" == "_$STDERR" ]; then
-            $cmd >>"$STDOUT" 2>&1
+            cd "$DIR" && $cmd >>"$STDOUT" 2>&1
         else
-            $cmd >>"$STDOUT" 2>>"$STDERR"
+            cd "$DIR" && $cmd >>"$STDOUT" 2>>"$STDERR"
         fi
     fi
 }

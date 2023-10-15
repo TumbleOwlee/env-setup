@@ -76,7 +76,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Get neovim configuration
     info "Install packer"
     if [ -d "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim/.git" ]; then
-        run_with_retry git pull
+        DIR="/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim/" run_with_retry git pull
     else
         run_with_retry git clone https://github.com/wbthomason/packer.nvim "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim"
     fi
