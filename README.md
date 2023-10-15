@@ -23,8 +23,8 @@ To get the provided helper function in your PowerShell environment, just install
 mkdir $home\Scripts
 
 # Wrapper to provide `Connect-SSH` in PowerShell for easy SSH connection
-curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/windows/Scripts/connect.py > $home\Scripts\connect.py
+curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/windows/Scripts/connect.py -o $home\Scripts\connect.py
 
 # Install PowerShell profile that provides the aliases for all functions
-curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/windows/Documents/WindowsPowerShell/profile.ps1 > $home\Documents\WindowsPowerShell\profile.ps1
+curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/windows/Documents/WindowsPowerShell/profile.ps1 -o $home\Documents\WindowsPowerShell\profile.ps1
 ```
