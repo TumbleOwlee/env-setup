@@ -63,6 +63,17 @@ function warn {
     echo -e "[${RED}!${NONE}] $1"
 }
 
+# Install neovim LSP
+NEOVIM=1
+function nvim_install_lsp {
+    if [ $NEOVIM ]; then
+        while true; do
+            notify "Install neovim $1 LSP support"
+            nvim --headless -c "MasonInstall $1" -c "quitall" >>$LOG_FILE 2>&1 && break || retry || terminate || break
+        done
+    fi
+}
+
 # Cache sudo privileges
 info "Check for sudo privileges.."
 sudo echo -n "" || exit
@@ -180,7 +191,6 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 fi
 
 # Install neovim
-NEOVIM=1
 resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
@@ -194,7 +204,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     done
     while true; do
         notify "Execute 'apt install'.."
-        sudo apt install -y neovim >>$LOG_FILE 2>&1 && NEOVIM=1 && break || retry || terminate || break
+        sudo apt install -y neovim >>$LOG_FILE 2>&1 && NEOVIM=0 && break || retry || terminate || break
     done
 
     # Get neovim configuration
@@ -256,12 +266,8 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
             break || retry || terminate || break
     done
 
-    if [ $NEOVIM ]; then
-        while true; do
-            notify "Install neovim rust-analyzer LSP support"
-            nvim --headless -c "MasonInstall rust-analyzer" -c "quitall" >>$LOG_FILE 2>&1 && break || retry || terminate || break
-        done
-    fi
+    # Install nvim lsp
+    nvim_install_lsp "rust-analyzer"
 fi
 
 # Install C++ environment
@@ -273,12 +279,8 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         sudo apt install -y clang clang-format gcc cmake >>$LOG_FILE 2>&1 && break || retry || terminate || break
     done
 
-    if [ $NEOVIM ]; then
-        while true; do
-            notify "Install neovim clangd LSP support"
-            nvim --headless -c "MasonInstall clangd" -c "quitall" >>$LOG_FILE 2>&1 && break || retry || terminate || break
-        done
-    fi
+    # Install nvim lsp
+    nvim_install_lsp "clangd"
 
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
