@@ -8,7 +8,7 @@ I created this collection since I'm usally working with various virtual machine 
 The script `./unix/setup.sh` provides a simple but clear entry point to setup any Unix environment (currently arch and ubuntu is supported). Everything can be set up by executing the following command - an internet connection is required since the script will get other scripts and configurations from this repository.
 
 ```bash
-bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/setup.sh 2>/dev/null)" 
+bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh 2>/dev/null)" 
 ```
 
 If you are behind a proxy, keep in mind to set `http_proxy` and `https_proxy` accordingly. Currently no offline installation is supported.
@@ -23,8 +23,8 @@ To get the provided helper function in your PowerShell environment, just install
 mkdir $home\Scripts
 
 # Wrapper to provide `Connect-SSH` in PowerShell for easy SSH connection
-curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/windows/Scripts/connect.py -o $home\Scripts\connect.py
+curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Scripts/connect.py -o $home\Scripts\connect.py
 
 # Install PowerShell profile that provides the aliases for all functions
-curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/windows/Documents/WindowsPowerShell/profile.ps1 -o $home\Documents\WindowsPowerShell\profile.ps1
+curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Documents/WindowsPowerShell/profile.ps1 -o $home\Documents\WindowsPowerShell\profile.ps1
 ```
