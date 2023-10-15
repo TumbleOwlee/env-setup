@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Include helpers
-source <(curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/common.sh" 2>/dev/null)
+source <(curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/common.sh" 2>/dev/null) || exit
 
 # Cache sudo privileges
 check_sudo
@@ -15,7 +15,7 @@ run_with_retry yay -Syyu --noconfirm
 
 # Install requirements
 info "Install requirements."
-run_with_retry yay -S --noconfirm git curl python python-pipx
+run_with_retry yay -S --noconfirm git python python-pipx
 
 # Install alacritty
 resp=$(ask "Install alacritty? [Y/n]" "Y")
@@ -25,8 +25,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     # Create alacritty configuration
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/alacritty"
-    STDOUT="/home/$USER/.config/alacritty/alacritty.yml" \
-        run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/alacritty/alacritty.yml"
+    run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/alacritty/alacritty.yml" \
+        -o "/home/$USER/.config/alacritty/alacritty.yml"
 fi
 
 # Install fish
@@ -41,8 +41,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     scripts=('fish_greeting' 'fish_prompt')
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/fish/functions"
     for sc in ${scripts[@]}; do
-        STDOUT="/home/$USER/.config/fish/functions/$sc.fish" \
-            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/fish/$sc.fish"
+        run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/fish/$sc.fish" \
+            -o "/home/$USER/.config/fish/functions/$sc.fish"
     done
 fi
 
@@ -53,8 +53,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry yay -S --noconfirm tmux
 
     # Create tmux configuration
-    STDOUT="/home/$USER/.tmux.conf" \
-        run_with_retry curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/tmux/tmux.conf
+    run_with_retry curl https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/configs/tmux/tmux.conf \
+        -o "/home/$USER/.tmux.conf"
 fi
 
 # Install neovim
@@ -70,8 +70,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     else
         run_with_retry git clone https://github.com/wbthomason/packer.nvim "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim"
     fi
-    STDOUT="/home/$USER/.config/nvim/init.lua" \
-        run_with_retry curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua
+    run_with_retry curl https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua \
+        -o "/home/$USER/.config/nvim/init.lua"
     # Install neovim plugins
     run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerInstall"
 fi
