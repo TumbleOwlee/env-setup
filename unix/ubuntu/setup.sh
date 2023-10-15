@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Include helpers
-source <(curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/common.sh")
+source <(curl "https://raw.githubusercontent.com/TumbleOwlee/setup_env/main/unix/common.sh" 2>/dev/null)
 
 # Cache sudo privileges
 check_sudo
