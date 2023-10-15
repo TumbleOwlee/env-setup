@@ -200,3 +200,7 @@ function check_sudo {
     sudo echo -n "" || exit
 }
 
+# Initialize log
+touch $LOG_FILE
+info "Logging into ${LOG_FILE}."
+

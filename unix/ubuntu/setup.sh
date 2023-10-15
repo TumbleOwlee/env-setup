@@ -9,10 +9,6 @@ check_sudo
 # Ask for proxy
 check_proxy
 
-# Initialize log
-touch $LOG_FILE
-info "Logging into ${LOG_FILE}."
-
 # Update and upgrade
 info "Update and upgrade."
 run_with_retry sudo apt update
@@ -40,7 +36,7 @@ fi
 resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install fish shell"
-    run_with_retry sudo apt install -y fish 
+    run_with_retry sudo apt install -y fish
     run_with_retry sudo chsh -s $(which fish)
     run_with_retry sudo usermod -s /usr/bin/fish $(whoami)
 
@@ -70,7 +66,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
     run_with_retry sudo add-apt-repository ppa:neovim-ppa/unstable -y
     run_with_retry sudo apt update
-    run_with_retry sudo apt install -y neovim 
+    run_with_retry sudo apt install -y neovim
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/nvim"
 
     # Get neovim configuration
@@ -90,9 +86,9 @@ fi
 resp=$(ask "Install docker? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
-    run_with_retry sudo apt install -y docker docker-compose 
-    run_with_retry sudo systemctl enable --now docker 
-    run_once sudo groupadd docker 
+    run_with_retry sudo apt install -y docker docker-compose
+    run_with_retry sudo systemctl enable --now docker
+    run_once sudo groupadd docker
     run_with_retry sudo usermod -aG docker $USER
 fi
 
@@ -123,7 +119,7 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
 
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
-        run_with_retry pipx install conan 
+        run_with_retry pipx install conan
         warn "Make sure '/home/$USER/.local/bin' is in \$PATH"
     fi
 fi
