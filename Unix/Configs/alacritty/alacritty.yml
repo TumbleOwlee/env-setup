@@ -2,3 +2,10 @@ window:
   opacity: 0.9
 font:
   size: 8.0
+colors:
+  primary:
+    foreground: '#ffffff'
+  normal:
+    white: '#eaeaea'
+  bright:
+    white: '#ffffff'
