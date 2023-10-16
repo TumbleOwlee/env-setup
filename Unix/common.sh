@@ -73,7 +73,8 @@ function run_with_retry {
         fi
     done
     local pipe=""
-    for idx in $(seq ${#PIPE[@]}); do
+    local end=$((${#PIPE[@]} - 1))
+    for idx in $(seq 0 $end); do
         if [ "_$pipe" == "_" ]; then
             pipe="$pipe${PIPE[$idx]}"
         else
@@ -90,7 +91,7 @@ function run_with_retry {
     elif [ "_$pipe" != "_" ]; then
         local IFS='+'
         while true; do
-            notify "Execute piped '$@'"
+            notify "Execute '$@'"
             cd "$DIR" && $cmd | $pipe && break || retry || terminate || break
         done
     else
@@ -123,7 +124,8 @@ function run_once {
         fi
     done
     local pipe=""
-    for idx in $(seq ${#PIPE[@]}); do
+    local end=$((${#PIPE[@]} - 1))
+    for idx in $(seq 0 $end); do
         if [ "_$pipe" == "_" ]; then
             pipe="$pipe${PIPE[$idx]}"
         else
