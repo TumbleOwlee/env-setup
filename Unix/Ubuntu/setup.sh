@@ -123,3 +123,13 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         warn "Make sure '/home/$USER/.local/bin' is in \$PATH"
     fi
 fi
+
+# Install bioinformatics environment
+resp=$(ask "Install bioinformatics environment? [y/N]" "N")
+if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+    info "Install snakemake"
+    run_with_retry sudo apt install -y snakemake
+
+    # Install snakemake formatter
+    run_with_retry pipx install snakefmt
+fi
