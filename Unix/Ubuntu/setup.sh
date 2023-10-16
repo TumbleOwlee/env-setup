@@ -96,7 +96,7 @@ fi
 resp=$(ask "Install rust environment? [y/N]" "N")
 if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     info "Install rustup"
-    PIPE=(bash -s -- -y) run_with_retry curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
+    (PIPE=(bash -s -- -y) && run_with_retry curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)
 
     # Install toolchain
     run_with_retry source "$HOME/.cargo/env"
