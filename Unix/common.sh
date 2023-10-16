@@ -112,6 +112,10 @@ function run_with_retry {
             fi
         done
     fi
+    
+    unset PIPE
+    unset STDOUT
+    unset STDERR
 }
 
 function run_once {
@@ -162,6 +166,10 @@ function run_once {
             cd "$DIR" && $cmd >>"$STDOUT" 2>>"$STDERR"
         fi
     fi
+    
+    unset PIPE
+    unset STDOUT
+    unset STDERR
 }
 
 # Install neovim LSP
