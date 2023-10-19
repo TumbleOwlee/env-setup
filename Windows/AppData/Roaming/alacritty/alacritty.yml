@@ -1,0 +1,11 @@
+window:
+  opacity: 0.97
+font:
+  size: 10.0
+colors:
+  primary:
+    foreground: '#ffffff'
+  normal:
+    white: '#eaeaea'
+  bright:
+    white: '#ffffff'
