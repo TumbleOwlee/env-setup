@@ -80,6 +80,10 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         -o "/home/$USER/.config/nvim/init.lua"
     # Install neovim plugins
     run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerInstall"
+
+    # Install nvim lsp
+    nvim_install_lsp "lua-language-server"
+    nvim_install_lsp "python-lsp-server"
 fi
 
 # Install docker
