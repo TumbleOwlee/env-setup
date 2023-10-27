@@ -38,3 +38,5 @@ function prompt {
 
     return "> "
 }
+
+Set-Alias -Name ll -Value ls
