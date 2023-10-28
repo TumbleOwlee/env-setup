@@ -1,4 +1,4 @@
-# Environment Setupp
+# Environment Setup
 
 This repository contains various scripts and configuration that I use in my various environments - private or work, bare metal or virtual machine. 
 I created this collection since I'm usally working with various virtual machine and I want to have my environment set as fast as possible while providing the same user experience on each of them.
