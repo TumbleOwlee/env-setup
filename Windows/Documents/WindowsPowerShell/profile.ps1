@@ -26,9 +26,18 @@ function prompt {
         Write-host 'elevated' -ForegroundColor DarkRed -NoNewline
 	  Write-host '|' -ForegroundColor White -NoNewline
     }
+
+    $CurrentDir = "$(Get-Location)"
+    $PromptUserName = "$($CmdPromptUser.Name.split("\")[1])"
+    if ($CurrentDir -match "^C:\\Users\\$PromptUserName") {
+        $CurrentDir = $CurrentDir -replace "C:\\Users\\$($CmdPromptUser.Name.split("\")[1])", "~"
+    }
+
+    Write-Host "$env:computername" -ForegroundColor Yellow -NoNewline
+    Write-Host "|" -ForegroundColor White -NoNewline
     Write-Host "$($CmdPromptUser.Name.split("\")[1])" -ForegroundColor Blue -NoNewline    
     Write-Host "|" -ForegroundColor White -NoNewline
-    Write-Host "$(Get-Location)"  -ForegroundColor Yellow -NoNewline
+    Write-Host "$CurrentDir"  -ForegroundColor Yellow -NoNewline
     Write-Host ")" -ForegroundColor White -NoNewline
     if ($CmdSuccessful) {
         Write-Host "[$ExitCode]" -ForegroundColor Green -NoNewline
