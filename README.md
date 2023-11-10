@@ -28,3 +28,27 @@ curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Script
 # Install PowerShell profile that provides the aliases for all functions
 curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Documents/WindowsPowerShell/profile.ps1 -o $home\Documents\WindowsPowerShell\profile.ps1
 ```
+## Using Bash
+
+The provided setup installs `fish` as the default shell. But if you're using other hosts - where you are unable to install/use `fish` - you can get the same shell prompt by adding the following code into your `~/.bashrc`. 
+
+```bash
+colorize_exit_code() {
+        exit_code="$1"
+        local red=$(tput setaf 1)
+        local green=$(tput setaf 2)
+        local reset=$(tput sgr0)
+        if [ "$exit_code" == "0" ] || [ "$exit_code" == "" ]; then
+                printf '\001%s\002[0]\001%s\002' "$green" "$reset"
+        else
+                printf '\001%s\002[%s]\001%s\002' "$red" "$exit_code" "$reset"
+        fi
+}
+
+# Most likely such an if-else block will already be present in your .bashrc. Just replace it with this.
+if [ "$color_prompt" = yes ]; then
+    PS1='${debian_chroot:+($debian_chroot)}(\[\033[0;33m\]\h\[\033[m\]|\[\033[0;34m\]\u\[\033[m\]|\[\033[0;33m\]\w\[\033[m\])$(colorize_exit_code $?)> '
+else
+    PS1='${debian_chroot:+($debian_chroot)}(\h|\u|\w)[$?]> '
+fi
+```
