@@ -60,7 +60,7 @@ function terminate {
 
 # Warn the user
 function warn {
-    echo -e "[${RED}!${NONE}] $1"
+    echo -e "[${RED}!${NONE}] ${YELLOW}$1${NONE}"
 }
 
 function run_with_retry {
