@@ -101,7 +101,6 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     run_with_retry yay -S --noconfirm $pkg
 
     # Install toolchain
-    run_with_retry source "$HOME/.cargo/env"
     run_with_retry rustup toolchain install stable
     run_with_retry rustup default stable
     run_with_retry rustup component add rust-src rust-analyzer
