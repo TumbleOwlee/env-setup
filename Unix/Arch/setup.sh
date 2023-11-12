@@ -70,6 +70,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     else
         run_with_retry git clone https://github.com/wbthomason/packer.nvim "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim"
     fi
+    
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/nvim"
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua" \
         -o "/home/$USER/.config/nvim/init.lua"
     # Install neovim plugins
