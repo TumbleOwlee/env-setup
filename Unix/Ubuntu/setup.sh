@@ -90,7 +90,7 @@ fi
 resp=$(ask "Install docker? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
-    run_with_retry sudo apt install -y docker docker-compose
+    run_with_retry sudo apt install -y docker docker-compose docker-buildx
     run_with_retry sudo systemctl enable --now docker
     run_once sudo groupadd docker
     run_with_retry sudo usermod -aG docker $USER
