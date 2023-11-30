@@ -49,7 +49,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     done
 
     if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
-        echo -e "shell:\n  program: /usr/bin/fish" >> "$HOME/.config/alacritty/alacritty.yml"
+        echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >> "$HOME/.config/alacritty/alacritty.yml"
     fi
 fi
 
@@ -62,6 +62,10 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Create tmux configuration
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/tmux/tmux.conf" \
         -o "$HOME/.tmux.conf"
+
+    if [ -d "$HOME/.config/fish" ]; then
+        echo "set -g default-shell $(which fish)" >> "$HOME/.tmux.conf"
+    fi
 fi
 
 # Install neovim
