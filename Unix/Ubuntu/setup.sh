@@ -47,6 +47,10 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/fish/$sc.fish" \
             -o "$HOME/.config/fish/functions/$sc.fish"
     done
+
+    if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
+        echo -e "shell:\n  program: /usr/bin/fish" >> "$HOME/.config/alacritty/alacritty.yml"
+    fi
 fi
 
 # Install tmux
@@ -110,6 +114,13 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
 
     # Install nvim lsp
     nvim_install_lsp "rust-analyzer"
+
+    if [ -d "$HOME/.config/fish" ]; then
+        info "Adding '$HOME/.cargo/bin' to \$PATH"
+        fish -c "fish_add_path -a '$HOME/.cargo/bin'"
+    else
+        warn "Make sure '$HOME/.cargo/bin' is in \$PATH"
+    fi
 fi
 
 # Install C++ environment
@@ -124,7 +135,12 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         run_with_retry pipx install conan
-        warn "Make sure '$HOME/.local/bin' is in \$PATH"
+        if [ -d "$HOME/.config/fish" ]; then
+            info "Adding '$HOME/.local/bin' to \$PATH"
+            fish -c "fish_add_path -a '$HOME/.local/bin'"
+        else
+            warn "Make sure '$HOME/.local/bin' is in \$PATH"
+        fi
     fi
 fi
 

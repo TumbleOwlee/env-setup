@@ -24,9 +24,9 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry yay -S --noconfirm alacritty
 
     # Create alacritty configuration
-    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/alacritty"
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/alacritty/alacritty.yml" \
-        -o "/home/$USER/.config/alacritty/alacritty.yml"
+        -o "$HOME/.config/alacritty/alacritty.yml"
 fi
 
 # Install fish
@@ -39,11 +39,15 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     # Create fish configuration
     scripts=('fish_greeting' 'fish_prompt')
-    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/fish/functions"
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/fish/functions"
     for sc in ${scripts[@]}; do
         run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/fish/$sc.fish" \
-            -o "/home/$USER/.config/fish/functions/$sc.fish"
+            -o "$HOME/.config/fish/functions/$sc.fish"
     done
+
+    if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
+        echo -e "shell:\n  program: /usr/bin/fish" >> "$HOME/.config/alacritty/alacritty.yml"
+    fi
 fi
 
 # Install tmux
@@ -54,7 +58,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     # Create tmux configuration
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/tmux/tmux.conf" \
-        -o "/home/$USER/.tmux.conf"
+        -o "$HOME/.tmux.conf"
 fi
 
 # Install neovim
@@ -65,15 +69,15 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     # Get neovim configuration
     info "Install packer"
-    if [ -d "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim/.git" ]; then
-        DIR="/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim/" run_with_retry git pull
+    if [ -d "$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim/.git" ]; then
+        DIR="$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim/" run_with_retry git pull
     else
-        run_with_retry git clone https://github.com/wbthomason/packer.nvim "/home/$USER/.local/share/nvim/site/pack/packer/start/packer.nvim"
+        run_with_retry git clone https://github.com/wbthomason/packer.nvim "$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim"
     fi
-    
-    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "/home/$USER/.config/nvim"
+
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua" \
-        -o "/home/$USER/.config/nvim/init.lua"
+        -o "$HOME/.config/nvim/init.lua"
     # Install neovim plugins
     run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerInstall"
 fi
@@ -107,6 +111,13 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
 
     # Install nvim lsp
     nvim_install_lsp "rust-analyzer"
+
+    if [ -d "$HOME/.config/fish" ]; then
+        info "Adding '$HOME/.cargo/bin' to \$PATH"
+        fish -c "fish_add_path -a '$HOME/.cargo/bin'"
+    else
+        warn "Make sure '$HOME/.cargo/bin' is in \$PATH"
+    fi
 fi
 
 # Install C++ environment
@@ -121,6 +132,11 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
     resp=$(ask "Install Conan? [y/N]" "N")
     if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         run_with_retry pipx install conan
-        warn "Make sure '/home/$USER/.local/bin' is in \$PATH"
+        if [ -d "$HOME/.config/fish" ]; then
+            info "Adding '$HOME/.local/bin' to \$PATH"
+            fish -c "fish_add_path -a '$HOME/.local/bin'"
+        else
+            warn "Make sure '$HOME/.local/bin' is in \$PATH"
+        fi
     fi
 fi
