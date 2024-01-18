@@ -70,6 +70,16 @@ resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
     run_with_retry yay -S --noconfirm neovim
+ 
+    # Install NerdFont
+    mkdir /tmp/
+    wget -P /tmp/ https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/FiraCode.zip
+    unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
+    if [ -x "$(command -v fc-cache)" ]; then
+        fc-cache -fv
+    else
+        warn "fc-cache NOT found. Font files installed but font cache NOT updated."
+    fi
 
     # Get neovim configuration
     info "Install packer"
