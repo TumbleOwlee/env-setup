@@ -1,5 +1,7 @@
 #!/bin/bash
 
+NONE="\e[0m"; YELLOW="\e[33m";
+
 function is_arch {
     if type "yay" 2>/dev/null >/dev/null; then
         return 0
@@ -28,8 +30,20 @@ if ! type "curl" > /dev/null; then
     fi
 fi
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 if is_arch; then
-    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Arch/setup.sh 2>/dev/null)"
+    if [ "_$DEBUG" == "_" ]; then
+        source <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Arch/setup.sh 2>/dev/null)
+    else
+        echo -e "[${YELLOW}?${NONE}] Debug mode active." 1>&2
+        source "$SCRIPT_DIR/Arch/setup.sh"
+    fi
 elif is_ubuntu; then
-    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Ubuntu/setup.sh 2>/dev/null)"
+    if [ "_$DEBUG" == "_" ]; then
+        source <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Ubuntu/setup.sh 2>/dev/null)
+    else
+        echo -e "[${YELLOW}?${NONE}] Debug mode active." 1>&2
+        source "$SCRIPT_DIR/Ubuntu/setup.sh"
+    fi
 fi

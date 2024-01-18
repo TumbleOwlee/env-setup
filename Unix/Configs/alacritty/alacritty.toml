@@ -1,0 +1,22 @@
+[colors.bright]
+white = "#ffffff"
+
+[colors.normal]
+white = "#eaeaea"
+
+[colors.primary]
+foreground = "#ffffff"
+
+[font]
+size = 9.0
+
+[shell]
+args = ["-c", "tmux"]
+program = "/usr/bin/fish"
+
+[window]
+opacity = 0.9
+
+[window.padding]
+x = 8
+y = 8

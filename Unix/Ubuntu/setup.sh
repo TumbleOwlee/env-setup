@@ -1,7 +1,13 @@
 #!/bin/bash
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 # Include helpers
-source <(curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/common.sh" 2>/dev/null) || exit
+if [ "_$DEBUG" == "_" ]; then
+    source <(curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/common.sh" 2>/dev/null) || exit
+else
+    source "$SCRIPT_DIR/../common.sh" || exit
+fi
 
 # Cache sudo privileges
 check_sudo
@@ -28,8 +34,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     # Create alacritty configuration
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
-    run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/alacritty/alacritty.yml" \
-        -o "$HOME/.config/alacritty/alacritty.yml"
+    if [ "_$DEBUG" == "_" ]; then
+        run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/alacritty/alacritty.toml" \
+            -o "$HOME/.config/alacritty/alacritty.toml"
+    else
+        run_with_retry cp "$SCRIPT_DIR/../Configs/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
+    fi
 fi
 
 # Install fish
@@ -44,8 +54,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     scripts=('fish_greeting' 'fish_prompt')
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/fish/functions"
     for sc in ${scripts[@]}; do
-        run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/fish/$sc.fish" \
-            -o "$HOME/.config/fish/functions/$sc.fish"
+        if [ "_$DEBUG" == "_" ]; then
+            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/fish/$sc.fish" \
+                -o "$HOME/.config/fish/functions/$sc.fish"
+        else
+            run_with_retry cp "$SCRIPT_DIR/../Configs/fish/$sc.fish" "$HOME/.config/fish/functions/$sc.fish"
+        fi
     done
 
     if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
@@ -60,8 +74,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry sudo apt install -y tmux
 
     # Create tmux configuration
-    run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/tmux/tmux.conf" \
-        -o "$HOME/.tmux.conf"
+    if [ "_$DEBUG" == "_" ]; then
+        run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/tmux/tmux.conf" \
+            -o "$HOME/.tmux.conf"
+    else
+        run_with_retry cp "$SCRIPT_DIR/../Configs/tmux/tmux.conf" "$HOME/.tmux.conf"
+    fi
 
     if [ -d "$HOME/.config/fish" ]; then
         echo "set -g default-shell $(which fish)" >> "$HOME/.tmux.conf"
@@ -80,7 +98,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Install NerdFont
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
     run_with_retry wget -P /tmp/ https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/FiraCode.zip
-    STDERR="&2" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
+    STDERR="cerr" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
     if [ -x "$(command -v fc-cache)" ]; then
         STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
     else
@@ -94,10 +112,13 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     else
         run_with_retry git clone https://github.com/wbthomason/packer.nvim "$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim"
     fi
+
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua" \
         -o "$HOME/.config/nvim/init.lua"
     # Install neovim plugins
     run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerInstall"
+    run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerSync"
 
     # Install nvim lsp
     nvim_install_lsp "lua-language-server"

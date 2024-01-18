@@ -39,7 +39,7 @@ function retry {
     echo -e -n "[${RED}!${NONE}] Failed. Show additional log? [y/N] " 1>&2
     read value1
     if [ "_$value1" == "_y" ] || [ "_$value1" == "_Y" ]; then
-        pager $LOG_FILE
+        less $LOG_FILE
     fi
     echo -e -n "[${RED}?${NONE}] Retry? [Y/n] " 1>&2
     echo -e -n "[?] $1 " >>$LOG_FILE
@@ -90,7 +90,7 @@ function run_with_retry {
     if [ "_$DIR" == "" ]; then
         DIR="$(pwd)"
     fi
-    
+
     if [ "_$STDOUT" == "_" ]; then
         STDOUT="$LOG_FILE"
     fi
@@ -104,24 +104,40 @@ function run_with_retry {
         local IFS='+'
         while true; do
             notify "Execute '$@'"
-            if [ "_$STDOUT" == "_$STDERR" ]; then
-                cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>&1 && break || retry || terminate || break
+            if [ "_$STDOUT" == "_cout" ]; then
+                if [ "_$STDERR" == "_cerr" ]; then
+                    cd "$DIR" && ($cmd | $pipe) && break || retry || terminate || break
+                else
+                    cd "$DIR" && ($cmd | $pipe) 2>>$STDERR && break || retry || terminate || break
+                fi
             else
-                cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR && break || retry || terminate || break
+                if [ "_$STDERR" == "_cerr" ]; then
+                    cd "$DIR" && ($cmd | $pipe) >>$STDOUT && break || retry || terminate || break
+                else
+                    cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR && break || retry || terminate || break
+                fi
             fi
         done
     else
         local IFS='+'
         while true; do
             notify "Execute '$@'"
-            if [ "_$STDOUT" == "_$STDERR" ]; then
-                cd "$DIR" && $cmd >>$STDOUT 2>&1 && break || retry || terminate || break
+            if [ "_$STDOUT" == "_cout" ]; then
+                if [ "_$STDERR" == "_cerr" ]; then
+                    cd "$DIR" && $cmd && break || retry || terminate || break
+                else
+                    cd "$DIR" && $cmd 2>>$STDERR && break || retry || terminate || break
+                fi
             else
-                cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR && break || retry || terminate || break
+                if [ "_$STDERR" == "_cerr" ]; then
+                    cd "$DIR" && $cmd >>$STDOUT && break || retry || terminate || break
+                else
+                    cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR && break || retry || terminate || break
+                fi
             fi
         done
     fi
-    
+
     unset PIPE
     unset STDOUT
     unset STDERR
@@ -161,21 +177,37 @@ function run_once {
         notify "Execute '$@'"
     elif [ "_$pipe" != "_" ]; then
         notify "Execute '$@'"
-        if [ "_$STDOUT" == "_$STDERR" ]; then
-            cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>&1
+        if [ "_$STDOUT" == "_cout" ]; then
+            if [ "_$STDERR" == "_cerr" ]; then
+                cd "$DIR" && ($cmd | $pipe)
+            else
+                cd "$DIR" && ($cmd | $pipe) 2>>$STDERR
+            fi
         else
-            cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR
+            if [ "_$STDERR" == "_cerr" ]; then
+                cd "$DIR" && ($cmd | $pipe) >>$STDOUT
+            else
+                cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR
+            fi
         fi
     else
         local IFS='+'
         notify "Execute '$@'"
-        if [ "_$STDOUT" == "_$STDERR" ]; then
-            cd "$DIR" && $cmd >>$STDOUT 2>&1
+        if [ "_$STDOUT" == "_cout" ]; then
+            if [ "_$STDERR" == "_cerr" ]; then
+                cd "$DIR" && $cmd
+            else
+                cd "$DIR" && $cmd 2>>$STDERR
+            fi
         else
-            cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR
+            if [ "_$STDERR" == "_cerr" ]; then
+                cd "$DIR" && $cmd >>$STDOUT
+            else
+                cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR
+            fi
         fi
     fi
-    
+
     unset PIPE
     unset STDOUT
     unset STDERR
@@ -222,4 +254,3 @@ function check_sudo {
 # Initialize log
 touch $LOG_FILE
 info "Logging into ${LOG_FILE}."
-
