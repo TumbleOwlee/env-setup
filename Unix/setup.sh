@@ -29,7 +29,7 @@ if ! type "curl" > /dev/null; then
 fi
 
 if is_arch; then
-    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Arch/setup.sh)"
+    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Arch/setup.sh 2>/dev/null)"
 elif is_ubuntu; then
-    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Ubuntu/setup.sh)"
+    bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Ubuntu/setup.sh 2>/dev/null)"
 fi
