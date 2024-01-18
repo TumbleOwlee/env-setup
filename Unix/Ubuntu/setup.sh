@@ -80,7 +80,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     # Install NerdFont
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
     run_with_retry wget -P /tmp/ https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/FiraCode.zip
-    run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
+    STDERR="&2" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
     if [ -x "$(command -v fc-cache)" ]; then
         STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
     else
