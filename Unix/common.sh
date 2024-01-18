@@ -36,10 +36,15 @@ function ask {
 
 # Ask for retry
 function retry {
+    echo -e -n "[${RED}!${NONE}] Failed. Show additional log? [y/N] " 1>&2
+    read value1
+    if [ "_$value1" == "_y" ] || [ "_$value1" == "_Y" ]; then
+        pager $LOG_FILE
+    fi
     echo -e -n "[${RED}?${NONE}] Retry? [Y/n] " 1>&2
     echo -e -n "[?] $1 " >>$LOG_FILE
-    read value
-    if [ "_$value" == "_n" ] || [ "_$value" == "_N" ]; then
+    read value2
+    if [ "_$value2" == "_n" ] || [ "_$value2" == "_N" ]; then
         false
     else
         true
@@ -157,17 +162,17 @@ function run_once {
     elif [ "_$pipe" != "_" ]; then
         notify "Execute '$@'"
         if [ "_$STDOUT" == "_$STDERR" ]; then
-            cd "$DIR" && ($cmd | $pipe) >>"$STDOUT" 2>&1
+            cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>&1
         else
-            cd "$DIR" && ($cmd | $pipe) >>"$STDOUT" 2>>"$STDERR"
+            cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR
         fi
     else
         local IFS='+'
         notify "Execute '$@'"
         if [ "_$STDOUT" == "_$STDERR" ]; then
-            cd "$DIR" && $cmd >>"$STDOUT" 2>&1
+            cd "$DIR" && $cmd >>$STDOUT 2>&1
         else
-            cd "$DIR" && $cmd >>"$STDOUT" 2>>"$STDERR"
+            cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR
         fi
     fi
     
