@@ -100,9 +100,9 @@ function run_with_retry {
         while true; do
             notify "Execute '$@'"
             if [ "_$STDOUT" == "_$STDERR" ]; then
-                cd "$DIR" && ($cmd | $pipe) >>"$STDOUT" 2>&1 && break || retry || terminate || break
+                cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>&1 && break || retry || terminate || break
             else
-                cd "$DIR" && ($cmd | $pipe) >>"$STDOUT" 2>>"$STDERR" && break || retry || terminate || break
+                cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR && break || retry || terminate || break
             fi
         done
     else
@@ -110,9 +110,9 @@ function run_with_retry {
         while true; do
             notify "Execute '$@'"
             if [ "_$STDOUT" == "_$STDERR" ]; then
-                cd "$DIR" && $cmd >>"$STDOUT" 2>&1 && break || retry || terminate || break
+                cd "$DIR" && $cmd >>$STDOUT 2>&1 && break || retry || terminate || break
             else
-                cd "$DIR" && $cmd >>"$STDOUT" 2>>"$STDERR" && break || retry || terminate || break
+                cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR && break || retry || terminate || break
             fi
         done
     fi
