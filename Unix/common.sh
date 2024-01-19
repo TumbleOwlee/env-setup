@@ -25,6 +25,7 @@ function ask {
     echo -e -n "[${YELLOW}?${NONE}] $1 " 1>&2
     echo -e -n "[?] $1 " >>$LOG_FILE
     read value
+    echo "$value" >>$LOG_FILE
     if [ "_$value" == "_" ]; then
         echo "$2"
         echo "$2" >>$LOG_FILE
@@ -37,13 +38,16 @@ function ask {
 # Ask for retry
 function retry {
     echo -e -n "[${RED}!${NONE}] Failed. Show additional log? [y/N] " 1>&2
+    echo -e -n "[!] Failed. Show additional log? [y/N] " >>$LOG_FILE
     read value1
+    echo "$value1" >>$LOG_FILE
     if [ "_$value1" == "_y" ] || [ "_$value1" == "_Y" ]; then
         less $LOG_FILE
     fi
     echo -e -n "[${RED}?${NONE}] Retry? [Y/n] " 1>&2
-    echo -e -n "[?] $1 " >>$LOG_FILE
+    echo -e -n "[?] Retry? [Y/n] " >>$LOG_FILE
     read value2
+    echo "$value2" >>$LOG_FILE
     if [ "_$value2" == "_n" ] || [ "_$value2" == "_N" ]; then
         false
     else
@@ -54,8 +58,9 @@ function retry {
 # Ask for termination
 function terminate {
     echo -e -n "[${RED}?${NONE}] Terminate? [Y/n] " 1>&2
-    echo -e -n "[?] $1 " >>$LOG_FILE
+    echo -e -n "[?] Terminate? [Y/n] " >>$LOG_FILE
     read value
+    echo "$value" >>$LOG_FILE
     if [ "_$value" == "_n" ] || [ "_$value" == "_N" ]; then
         false
     else
@@ -65,7 +70,8 @@ function terminate {
 
 # Warn the user
 function warn {
-    echo -e "[${RED}!${NONE}] ${YELLOW}$1${NONE}"
+    echo -e "[${RED}!${NONE}] ${YELLOW}$@${NONE}"
+    echo -e "[!] $@" >>$LOG_FILE
 }
 
 function run_with_retry {
