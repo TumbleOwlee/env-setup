@@ -21,6 +21,8 @@ DEBUG=y ./Unix/setup.sh
 
 This will source the other scripts instead of using `curl` to retrieve the files from the repository on Github.
 
+## Installed Applications
+
 While executing you can choose the parts you like to install and skip any you don't need. Currently the following parts are available to be installed:
 
 * Alacritty
@@ -44,7 +46,7 @@ While executing you can choose the parts you like to install and skip any you do
 * Bioinformatics Environment
     - snakemake
 
-As available the configurations from this repository are also installed. In case of Neovim, the configuration is taken from [here](https://github.com/TumbleOwlee/neovim-config). I will add additional parts as time goes on and my demands change.
+If available the configurations from this repository are also installed for the applications respectively. In case of Neovim, the configuration is taken from [here](https://github.com/TumbleOwlee/neovim-config). I will add additional parts as time goes on and my demands change.
 
 ## Set up Windows Environment
 
