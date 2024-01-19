@@ -1,7 +1,7 @@
 # Environment Setup
 
 This repository contains various scripts and configuration that I use in my various environments - private or work, bare metal or virtual machine. 
-I created this collection since I'm usally working with various virtual machine and I want to have my environment set as fast as possible while providing the same user experience on each of them.
+I created this collection since I'm usally working with various virtual machine and I want to have my environment set as fast as possible while providing the same user experience on each of them. Everything is done using only Bash since it's the common base of every Unix install. Of course it would be fancier using e.g. Python's full capabilities.
 
 ## Set up Unix Environment
 
@@ -11,7 +11,40 @@ The script `./unix/setup.sh` provides a simple but clear entry point to setup an
 bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh 2>/dev/null)" 
 ```
 
-If you are behind a proxy, keep in mind to set `http_proxy` and `https_proxy` accordingly. Currently no offline installation is supported.
+If you are behind a proxy, keep in mind to set `http_proxy` and `https_proxy` accordingly. Currently no offline installation is supported. The command only uses `bash -c` calling `bash` because the command should work by copy&paste in any shell you are currently using.
+
+In case you cloned the repository and want to execute the script `./Unix/setup.sh` directly using only local files, just use the following command instead.
+
+```bash
+DEBUG=y ./Unix/setup.sh
+```
+
+This will source the other scripts instead of using `curl` to retrieve the files from the repository on Github.
+
+While executing you can choose the parts you like to install and skip any you don't need. Currently the following parts are available to be installed:
+
+* Alacritty
+* Fish Shell
+* Tmux
+* Neovim
+    - NerdFonts
+    - Neovim Lua LSP
+    - Neovim Python LSP
+* Docker
+* Rust Environment
+    - Rustup
+    - Rust-Src
+    - Rust-Analyzer
+    - Neovim Rust LSP
+* C++ Environment
+    - Clang
+    - GCC
+    - CMake
+    - Neovim Clang LSP
+* Bioinformatics Environment
+    - snakemake
+
+As available the configurations from this repository are also installed. In case of Neovim, the configuration is taken from [here](https://github.com/TumbleOwlee/neovim-config). I will add additional parts as time goes on and my demands change.
 
 ## Set up Windows Environment
 
