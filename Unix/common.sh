@@ -27,6 +27,7 @@ function ask {
 
     if [ "_$NO_CONFIRM" != "_" ]; then
         echo "$2"
+        echo "$2" 1>&2
         echo "$2" >>$LOG_FILE
         return
     fi
@@ -48,6 +49,8 @@ function retry {
     echo -e -n "[!] Failed. Show additional log? [y/N] " >>$LOG_FILE
 
     if [ "_$NO_CONFIRM" != "_" ]; then
+        echo "N" 1>&2
+        echo "N" >>$LOG_FILE
         return false
     fi
 
@@ -71,7 +74,7 @@ function retry {
 function terminate {
     echo -e -n "[${RED}?${NONE}] Terminate? [Y/n] " 1>&2
     echo -e -n "[?] Terminate? [Y/n] " >>$LOG_FILE
-    
+
     if [ "_$NO_CONFIRM" != "_" ]; then
         return exit 1
     fi
