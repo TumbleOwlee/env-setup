@@ -177,13 +177,3 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         fi
     fi
 fi
-
-# Install bioinformatics environment
-resp=$(ask "Install bioinformatics environment? [Y/n]" "Y")
-if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-    info "Install snakemake"
-    run_with_retry yay -S --noconfirm snakemake-git
-
-    # Install snakemake formatter
-    run_with_retry pipx install snakefmt
-fi
