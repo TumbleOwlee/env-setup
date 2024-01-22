@@ -121,7 +121,7 @@ fi
 
 # Install docker
 resp=$(ask "Install docker? [Y/n]" "Y")
-if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
     run_with_retry yay -S --noconfirm docker docker-compose
     run_with_retry sudo systemctl enable --now docker
