@@ -29,17 +29,16 @@ function ask {
         echo "$2"
         echo "$2" 1>&2
         echo "$2" >>$LOG_FILE
-        return
-    fi
-
-    read value
-    echo "$value" >>$LOG_FILE
-    if [ "_$value" == "_" ]; then
-        echo "$2"
-        echo "$2" >>$LOG_FILE
     else
-        echo "$value"
+        read value
         echo "$value" >>$LOG_FILE
+        if [ "_$value" == "_" ]; then
+            echo "$2"
+            echo "$2" >>$LOG_FILE
+        else
+            echo "$value"
+            echo "$value" >>$LOG_FILE
+        fi
     fi
 }
 
@@ -51,22 +50,22 @@ function retry {
     if [ "_$NO_CONFIRM" != "_" ]; then
         echo "N" 1>&2
         echo "N" >>$LOG_FILE
-        return false
-    fi
-
-    read value1
-    echo "$value1" >>$LOG_FILE
-    if [ "_$value1" == "_y" ] || [ "_$value1" == "_Y" ]; then
-        less $LOG_FILE
-    fi
-    echo -e -n "[${RED}?${NONE}] Retry? [Y/n] " 1>&2
-    echo -e -n "[?] Retry? [Y/n] " >>$LOG_FILE
-    read value2
-    echo "$value2" >>$LOG_FILE
-    if [ "_$value2" == "_n" ] || [ "_$value2" == "_N" ]; then
         false
-    else
-        true
+    else 
+        read value1
+        echo "$value1" >>$LOG_FILE
+        if [ "_$value1" == "_y" ] || [ "_$value1" == "_Y" ]; then
+            less $LOG_FILE
+        fi
+        echo -e -n "[${RED}?${NONE}] Retry? [Y/n] " 1>&2
+        echo -e -n "[?] Retry? [Y/n] " >>$LOG_FILE
+        read value2
+        echo "$value2" >>$LOG_FILE
+        if [ "_$value2" == "_n" ] || [ "_$value2" == "_N" ]; then
+            false
+        else
+            true
+        fi
     fi
 }
 
@@ -76,7 +75,7 @@ function terminate {
     echo -e -n "[?] Terminate? [Y/n] " >>$LOG_FILE
 
     if [ "_$NO_CONFIRM" != "_" ]; then
-        return exit 1
+        exit 1
     fi
 
     read value
