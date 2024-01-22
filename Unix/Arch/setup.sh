@@ -130,11 +130,11 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 fi
 
 # Install rust environment
-resp=$(ask "Install rust environment? [y/N]" "N")
-if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+resp=$(ask "Install rust environment? [Y/n]" "Y")
+if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install rustup"
-    resp=$(ask "Install bleeding edge? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+    resp=$(ask "Install bleeding edge? [y/N]" "N")
+    if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
         pkg="rustup-git"
     else
         pkg="rustup"
@@ -158,16 +158,16 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
 fi
 
 # Install C++ environment
-resp=$(ask "Install C++ environment? [y/N]" "N")
-if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+resp=$(ask "Install C++ environment? [Y/n]" "Y")
+if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install clang, gcc, cmake"
     run_with_retry yay -S --noconfirm clang gcc cmake
 
     # Install nvim lsp
     nvim_install_lsp "clangd"
 
-    resp=$(ask "Install Conan? [y/N]" "N")
-    if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+    resp=$(ask "Install Conan? [Y/n]" "Y")
+    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry pipx install conan
         if [ -d "$HOME/.config/fish" ]; then
             info "Adding '$HOME/.local/bin' to \$PATH"
@@ -179,8 +179,8 @@ if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
 fi
 
 # Install bioinformatics environment
-resp=$(ask "Install bioinformatics environment? [y/N]" "N")
-if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+resp=$(ask "Install bioinformatics environment? [Y/n]" "Y")
+if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install snakemake"
     run_with_retry yay -S --noconfirm snakemake-git
 

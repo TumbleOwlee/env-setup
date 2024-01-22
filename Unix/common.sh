@@ -24,6 +24,13 @@ function notify {
 function ask {
     echo -e -n "[${YELLOW}?${NONE}] $1 " 1>&2
     echo -e -n "[?] $1 " >>$LOG_FILE
+
+    if [ "_$NO_CONFIRM" != "_" ]; then
+        echo "$2"
+        echo "$2" >>$LOG_FILE
+        return
+    fi
+
     read value
     echo "$value" >>$LOG_FILE
     if [ "_$value" == "_" ]; then
@@ -39,6 +46,11 @@ function ask {
 function retry {
     echo -e -n "[${RED}!${NONE}] Failed. Show additional log? [y/N] " 1>&2
     echo -e -n "[!] Failed. Show additional log? [y/N] " >>$LOG_FILE
+
+    if [ "_$NO_CONFIRM" != "_" ]; then
+        return false
+    fi
+
     read value1
     echo "$value1" >>$LOG_FILE
     if [ "_$value1" == "_y" ] || [ "_$value1" == "_Y" ]; then
@@ -59,12 +71,17 @@ function retry {
 function terminate {
     echo -e -n "[${RED}?${NONE}] Terminate? [Y/n] " 1>&2
     echo -e -n "[?] Terminate? [Y/n] " >>$LOG_FILE
+    
+    if [ "_$NO_CONFIRM" != "_" ]; then
+        return exit 1
+    fi
+
     read value
     echo "$value" >>$LOG_FILE
     if [ "_$value" == "_n" ] || [ "_$value" == "_N" ]; then
         false
     else
-        exit 0
+        exit 1
     fi
 }
 
