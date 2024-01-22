@@ -21,7 +21,7 @@ run_with_retry yay -Syyu --noconfirm
 
 # Install requirements
 info "Install requirements."
-run_with_retry yay -S --noconfirm git python python-pipx
+run_with_retry yay -S --noconfirm git python python-pipx unzip wget
 
 # Install alacritty
 resp=$(ask "Install alacritty? [Y/n]" "Y")
