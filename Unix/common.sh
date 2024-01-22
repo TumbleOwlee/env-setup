@@ -50,6 +50,7 @@ function retry {
     if [ "_$NO_CONFIRM" != "_" ]; then
         echo "N" 1>&2
         echo "N" >>$LOG_FILE
+        tail -n 40 $LOG_FILE
         false
     else 
         read value1
