@@ -1,0 +1,25 @@
+name: Formatter
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  formatter:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run shfmt
+        run: |
+          sudo apt install -y shfmt
+          find . -name "*.sh" -exec shfmt -w -i 4 {} \;
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Apply formatting
