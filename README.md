@@ -1,5 +1,7 @@
 # Environment Setup
 
+[![Formatter](https://github.com/TumbleOwlee/env-setup/actions/workflows/shfmt.yml/badge.svg)](https://github.com/TumbleOwlee/env-setup/actions/workflows/shfmt.yml)
+
 This repository contains various scripts and configuration that I use in my various environments - private or work, bare metal or virtual machine. 
 I created this collection since I'm usally working with various virtual machine and I want to have my environment set as fast as possible while providing the same user experience on each of them. Everything is done using only Bash since it's the common base of every Unix install. Of course it would be fancier using e.g. Python's full capabilities.
 
