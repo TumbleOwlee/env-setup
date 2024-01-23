@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
 # Include helpers
 if [ "_$DEBUG" == "_" ]; then
@@ -63,7 +63,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     done
 
     if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
-        echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >> "$HOME/.config/alacritty/alacritty.yml"
+        echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
     fi
 fi
 
@@ -82,7 +82,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     fi
 
     if [ -d "$HOME/.config/fish" ]; then
-        echo "set -g default-shell $(which fish)" >> "$HOME/.tmux.conf"
+        echo "set -g default-shell $(which fish)" >>"$HOME/.tmux.conf"
     fi
 fi
 

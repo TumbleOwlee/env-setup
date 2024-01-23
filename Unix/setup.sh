@@ -1,6 +1,7 @@
 #!/bin/bash
 
-NONE="\e[0m"; YELLOW="\e[33m";
+NONE="\e[0m"
+YELLOW="\e[33m"
 
 function is_arch {
     if type "yay" 2>/dev/null >/dev/null; then
@@ -18,8 +19,7 @@ function is_ubuntu {
     fi
 }
 
-
-if ! type "curl" > /dev/null; then
+if ! type "curl" >/dev/null; then
     if is_arch; then
         yay -S --noconfirm curl
     elif is_ubuntu; then
@@ -30,7 +30,7 @@ if ! type "curl" > /dev/null; then
     fi
 fi
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
 if is_arch; then
     if [ "_$DEBUG" == "_" ]; then
