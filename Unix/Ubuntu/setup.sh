@@ -120,6 +120,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerInstall"
     run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerSync"
 
+    if [ -d "$HOME/.config/fish" ]; then
+        run_with_retry fish -c "alias -s vim=nvim"
+        run_with_retry fish -c "alias -s vi=nvim"
+        run_with_retry fish -c "alias -s v=nvim"
+    fi
+
     # Install nvim lsp
     nvim_install_lsp "lua-language-server"
     nvim_install_lsp "python-lsp-server"
