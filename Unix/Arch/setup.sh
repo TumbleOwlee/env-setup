@@ -27,6 +27,13 @@ run_with_retry yay -S --noconfirm git python python-pipx unzip wget zoxide
 echo "# Init zoxide" >>$HOME/.bashrc
 echo "$(zoxide init bash)" >>$HOME/.bashrc
 
+# Update BSPWM
+if [ -d "$HOME/.config/bspwm" ]; then
+    info "Update config of BSPWM"
+    run_with_retry sed -i "s/bspc.*config.*window_gap.*/bspc config window_gap 2/g" "$HOME/.config/bspwm/bspwmrc"
+    run_with_retry sed -i "s/bspc.*config.*border_width.*/bspc config border_width 1/g" "$HOME/.config/bspwm/bspwmrc"
+fi
+
 # Install alacritty
 resp=$(ask "Install alacritty? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
