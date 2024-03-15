@@ -24,8 +24,8 @@ info "Install requirements."
 run_with_retry yay -S --noconfirm git python python-pipx unzip wget zoxide
 
 # Init zoxide for bash
-echo "# Init zoxide" >> $HOME/.bashrc
-echo "$(zoxide init bash)" >> $HOME/.bashrc
+echo "# Init zoxide" >>$HOME/.bashrc
+echo "$(zoxide init bash)" >>$HOME/.bashrc
 
 # Install alacritty
 resp=$(ask "Install alacritty? [Y/n]" "Y")
@@ -67,7 +67,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
     fi
 
-    echo "zoxide init fish | source" >> $HOME/.config/fish/config.fish
+    echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
 fi
 
 # Install tmux

@@ -31,8 +31,8 @@ run_with_retry bash "$HOME/.cache/zoxide_install.sh"
 rm "$HOME/.cache/zoxide_install.sh" &>/dev/null
 
 # Init zoxide for bash
-echo "# Init zoxide" >> $HOME/.bashrc
-echo "$(zoxide init bash)" >> $HOME/.bashrc
+echo "# Init zoxide" >>$HOME/.bashrc
+echo "$(zoxide init bash)" >>$HOME/.bashrc
 
 # Install alacritty
 resp=$(ask "Install alacritty? [Y/n]" "Y")
@@ -75,8 +75,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
         echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
     fi
-    
-    echo "zoxide init fish | source" >> $HOME/.config/fish/config.fish
+
+    echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
 fi
 
 # Install tmux
