@@ -196,3 +196,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         fi
     fi
 fi
+
+if [ -f "$HOME/.config/alacritty" ]; then
+    warn "If alacritty doesn't show rendered font, try using this: alacritty -o 'debug.renderer=\"gles2\"'"
+fi
