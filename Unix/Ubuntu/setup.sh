@@ -31,6 +31,7 @@ run_with_retry bash "$HOME/.cache/zoxide_install.sh"
 rm "$HOME/.cache/zoxide_install.sh" &>/dev/null
 
 # Init zoxide for bash
+export PATH=$PATH:$HOME/.local/bin
 echo "# Init zoxide" >>$HOME/.bashrc
 echo "$(zoxide init bash)" >>$HOME/.bashrc
 
@@ -164,6 +165,11 @@ fi
 resp=$(ask "Install rust environment? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install rustup"
+
+    if [ -d "$HOME/.config/fish" ]; then
+        mkdir -p "$HOME/.config/fish/conf.d" &>/dev/null
+    fi
+    
     PIPE=(bash -s -- -y) && run_with_retry curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
 
     # Install toolchain
