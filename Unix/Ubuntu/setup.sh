@@ -169,7 +169,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     if [ -d "$HOME/.config/fish" ]; then
         mkdir -p "$HOME/.config/fish/conf.d" &>/dev/null
     fi
-    
+
     PIPE=(bash -s -- -y) && run_with_retry curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
 
     # Install toolchain
