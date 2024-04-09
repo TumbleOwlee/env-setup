@@ -25,7 +25,7 @@ run_with_retry yay -S --noconfirm git python python-pipx unzip wget zoxide
 
 # Init zoxide for bash
 echo "# Init zoxide" >>$HOME/.bashrc
-echo "$(zoxide init bash)" >>$HOME/.bashrc
+zoxide init bash >>$HOME/.bashrc
 
 # Update BSPWM
 if [ -d "$HOME/.config/bspwm" ]; then
@@ -69,6 +69,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             run_with_retry cp "$SCRIPT_DIR/../Configs/fish/$sc.fish" "$HOME/.config/fish/functions/$sc.fish"
         fi
     done
+
+    mkdir -p $HOME/.config/fish/conf.d &>/dev/null
 
     if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
         echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
