@@ -33,7 +33,7 @@ rm "$HOME/.cache/zoxide_install.sh" &>/dev/null
 # Init zoxide for bash
 export PATH=$PATH:$HOME/.local/bin
 echo "# Init zoxide" >>$HOME/.bashrc
-echo "$(zoxide init bash)" >>$HOME/.bashrc
+zoxide init bash >>$HOME/.bashrc
 
 # Update BSPWM
 if [ -d "$HOME/.config/bspwm" ]; then
