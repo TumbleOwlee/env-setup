@@ -120,8 +120,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry wget -P /tmp/ https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
     STDERR="cerr" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
     if [ ! -x "$(command -v fc-cache)" ]; then
-        info "Install missing fontcache"
-        run_with_retry sudo apt install -y fontcache
+        info "Install missing fontconfig"
+        run_with_retry sudo apt install -y fontconfig
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
