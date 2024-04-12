@@ -9,6 +9,10 @@ foreground = "#ffffff"
 
 [font]
 size = 9.0
+normal.family = "FiraCode Nerd Font Mono"
+bold.family = "FiraCode Nerd Font Mono"
+italic.family = "FiraCode Nerd Font Mono"
+bold_italic.family = "FiraCode Nerd Font Mono"
 
 [shell]
 args = ["-c", "tmux"]

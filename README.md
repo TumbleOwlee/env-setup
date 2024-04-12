@@ -68,6 +68,8 @@ curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Docume
 
 If your Windows system has some more restriction in place (e.g. your home directory is on a network drive), the PowerShell script may not load at all. A quick and dirty solution for that is to place the `profile.ps1` into `C:\Windows\System32\WindowsPowerShell\v1.0` instead of `%USERPROFILE%\Documents\PowerShell`.
 
+Additionally it is advised to install the [`FiraCode Nerd Font`](https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip) if you have installed `alacritty` and use the provided configuration. It's also helpful in case you are using the provided `neovim` configuration file, since it requires the patched font to display additional icons.
+
 ## Using Bash
 
 The provided setup installs `fish` as the default shell. But if you're using other hosts - where you are unable to install/use `fish` - you can get the same shell prompt by adding the following code into your `~/.bashrc`. 
