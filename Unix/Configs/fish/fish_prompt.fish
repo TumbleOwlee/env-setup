@@ -46,7 +46,6 @@ function fish_prompt --description 'Write out the prompt'
         set user_color red
     end
 
-    set_color -b black
     printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s' (set_color -o white) '(' (set_color yellow) $hostname '|' (set_color $user_color) $USER (set_color white) '|' (set_color yellow) (prompt_pwd) (set_color white) $git_info (set_color white) ')' (set_color white)
     if test $laststatus -eq 0
         printf "%s[0]%s>%s " (set_color -o green) (set_color white) (set_color normal)
