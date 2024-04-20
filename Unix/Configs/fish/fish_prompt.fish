@@ -3,7 +3,7 @@ function fish_prompt --description 'Write out the prompt'
 
     set -l git_info
     if set -l git_branch (command git symbolic-ref HEAD 2>/dev/null | string replace refs/heads/ '')
-        set git_branch (set_color -o blue)"$git_branch"
+        set git_branch (set_color blue)"$git_branch"
         set -l git_status
         if not command git diff-index --quiet HEAD --
             if set -l count (command git rev-list --count --left-right $upstream...HEAD 2>/dev/null)
@@ -46,10 +46,10 @@ function fish_prompt --description 'Write out the prompt'
         set user_color red
     end
 
-    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s' (set_color -o white) '(' (set_color yellow) $hostname '|' (set_color $user_color) $USER (set_color white) '|' (set_color yellow) (prompt_pwd) (set_color white) $git_info (set_color white) ')' (set_color white)
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s' (set_color white) '(' (set_color yellow) $hostname '|' (set_color $user_color) $USER (set_color white) '|' (set_color yellow) (prompt_pwd) (set_color white) $git_info (set_color white) ')' (set_color white)
     if test $laststatus -eq 0
-        printf "%s[0]%s>%s " (set_color -o green) (set_color white) (set_color normal)
+        printf "%s[0]%s>%s " (set_color green) (set_color white) (set_color normal)
     else
-        printf "%s[%s]%s>%s " (set_color -o red) $laststatus (set_color white) (set_color normal)
+        printf "%s[%s]%s>%s " (set_color red) $laststatus (set_color white) (set_color normal)
     end
 end
