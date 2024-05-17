@@ -1,5 +1,7 @@
 #!/bin/python3
 
+# for os.environ
+import os
 # for exit
 import sys
 # inquirer for user interaction
@@ -103,4 +105,4 @@ if host.port == None:
 execute(['ssh', '-p', f"{host.port}", f"{host.user}@{host.url}"])
 
 # Terminating
-info("Terminating.")
+info("Session closed.")
