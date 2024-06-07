@@ -7,11 +7,11 @@ function __colored_cat
             echo "    Filename : $argv[$var]" >&2
             echo "  ================================================================================================" >&2
             echo "" >&2
-            set -l lines (pygmentize -g -O style=gruvbox-dark $argv[$var] | /usr/bin/cat -n)
+            set -l lines (pygmentize -g -O style=gruvbox-dark $argv[$var] 2>/dev/null | /usr/bin/cat -n)
             for line in $lines
                 set -l lineno (echo "$line" | cut -f1)
                 set -l lineco (echo "$line" | cut -f2- | sed 's/\t/    /g')
-                echo -n "$lineno  " >&2
+                echo -n "$lineno | " >&2
                 echo $lineco
             end
             echo "" >&2
@@ -19,4 +19,5 @@ function __colored_cat
     end
 end
 
-alias ccat=__colored_cat
+alias ccat=(which cat)
+alias cat=__colored_cat
