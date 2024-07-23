@@ -131,7 +131,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry sudo apt install -y fontconfig
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
-    
+
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua" \
         -o "$HOME/.config/nvim/init.lua"
