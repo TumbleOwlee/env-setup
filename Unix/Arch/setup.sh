@@ -114,20 +114,9 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
-    # Get neovim configuration
-    info "Install packer"
-    if [ -d "$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim/.git" ]; then
-        DIR="$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim/" run_with_retry git pull
-    else
-        run_with_retry git clone https://github.com/wbthomason/packer.nvim "$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim"
-    fi
-
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
     run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/neovim-config/main/init.lua" \
         -o "$HOME/.config/nvim/init.lua"
-    # Install neovim plugins
-    run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerInstall"
-    run_with_retry nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerSync"
 
     if [ -d "$HOME/.config/fish" ]; then
         run_with_retry fish -c "alias -s vim=nvim"
