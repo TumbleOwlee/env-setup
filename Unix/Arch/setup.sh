@@ -16,8 +16,11 @@ check_sudo
 check_proxy
 
 # Update and upgrade
-info "Update and upgrade."
-STDOUT="cout" STDERR="cerr" run_with_retry yay -Syyu --noconfirm
+resp=$(ask "Update and upgrade? [Y/n]" "Y")
+if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+    info "Update and upgrade."
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -Syyu
+fi
 
 # Install requirements
 info "Install requirements."
