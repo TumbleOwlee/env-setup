@@ -59,7 +59,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry sudo usermod -s /usr/bin/fish $(whoami)
 
     # Create fish configuration
-    scripts=('fish_greeting' 'fish_prompt')
+    scripts=('fish_greeting' 'fish_prompt' 'colored_cat')
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/fish/functions"
     for sc in ${scripts[@]}; do
         if [ "_$DEBUG" == "_" ]; then
@@ -76,6 +76,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
     fi
 
+    echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
+    echo "alias cat=__colored_cat" >>$HOME/.config/fish/config.fish
     echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
 fi
 

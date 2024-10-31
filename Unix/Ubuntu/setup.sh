@@ -80,17 +80,14 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         fi
     done
 
-    if [ "_$DEBUG" == "_" ]; then
-        run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/fish/config.fish" \
-            -o "$HOME/.config/fish/config.fish"
-    else
-        run_with_retry cp "$SCRIPT_DIR/../Configs/fish/config.fish" "$HOME/.config/fish/functions/config.fish"
-    fi
+    mkdir -p $HOME/.config/fish/conf.d &>/dev/null
 
     if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
         echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
     fi
 
+    echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
+    echo "alias cat=__colored_cat" >>$HOME/.config/fish/config.fish
     echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
 fi
 
