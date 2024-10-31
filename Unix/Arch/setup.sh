@@ -17,7 +17,7 @@ check_proxy
 
 # Update and upgrade
 info "Update and upgrade."
-run_with_retry yay -Syyu --noconfirm
+STDOUT="cout" STDERR="cerr" run_with_retry yay -Syyu --noconfirm
 
 # Install requirements
 info "Install requirements."
