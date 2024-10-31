@@ -24,7 +24,7 @@ fi
 
 # Install requirements
 info "Install requirements."
-STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide
+STDOUT="cout" STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide
 
 # Init zoxide for bash
 echo "# Init zoxide" >>$HOME/.bashrc
@@ -41,7 +41,7 @@ fi
 resp=$(ask "Install alacritty? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install alacritty"
-    STDERR="cerr" run_with_retry yay -S alacritty-git
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -S alacritty-git
 
     if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
         warn "Deprecated alacritty.yml file found. Move to '$HOME/.config/alacritty/old.alacritty.yml'"
@@ -62,7 +62,7 @@ fi
 resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install fish shell"
-    STDERR="cerr" run_with_retry yay -S fish
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -S fish
     run_with_retry sudo chsh -s $(which fish)
     run_with_retry sudo usermod -s /usr/bin/fish $(whoami)
 
@@ -93,7 +93,7 @@ fi
 resp=$(ask "Install tmux? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install tmux"
-    STDERR="cerr" run_with_retry yay -S tmux
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -S tmux
 
     # Create tmux configuration
     if [ "_$DEBUG" == "_" ]; then
@@ -112,7 +112,7 @@ fi
 resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
-    STDERR="cerr" run_with_retry yay -S neovim-git
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -S neovim-git
 
     # Install NerdFont
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
@@ -120,7 +120,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     STDERR="cerr" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
     if [ ! -x "$(command -v fc-cache)" ]; then
         info "Install missing fontconfig"
-        STDERR="cerr" run_with_retry yay -S fontconfig
+        STDOUT="cout" STDERR="cerr" run_with_retry yay -S fontconfig
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
@@ -158,7 +158,7 @@ fi
 resp=$(ask "Install docker? [Y/n]" "Y")
 if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
-    STDERR="cerr" run_with_retry yay -S docker docker-compose
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -S docker docker-compose
     run_with_retry sudo systemctl enable --now docker
     run_once sudo groupadd docker
     run_with_retry sudo usermod -aG docker $USER
@@ -174,7 +174,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     else
         pkg="rustup"
     fi
-    STDERR="cerr" run_with_retry yay -S $pkg
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -S $pkg
 
     # Install toolchain
     run_with_retry rustup toolchain install stable
@@ -196,7 +196,7 @@ fi
 resp=$(ask "Install C++ environment? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install clang, gcc, cmake"
-    STDERR="cerr" run_with_retry yay -S clang gcc cmake
+    STDOUT="cout" STDERR="cerr" run_with_retry yay -S clang gcc cmake
 
     # Install nvim lsp
     nvim_install_lsp "clangd"

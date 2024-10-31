@@ -14,9 +14,8 @@ bold.family = "FiraCode Nerd Font Mono"
 italic.family = "FiraCode Nerd Font Mono"
 bold_italic.family = "FiraCode Nerd Font Mono"
 
-[shell]
-args = ["-c", "tmux"]
-program = "/usr/bin/fish"
+[terminal]
+shell = { args = ["-c", "tmux"], program = "/usr/bin/fish" }
 
 [window]
 opacity = 0.9
