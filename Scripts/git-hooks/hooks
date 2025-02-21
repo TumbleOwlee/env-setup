@@ -1,0 +1,71 @@
+#!/bin/env bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+HOOK_NAMES=(
+    "applypatch-msg"
+    "commit-msg"
+    "post-applypatch"
+    "post-commit"
+    "post-merge"
+    "post-receive"
+    "post-update"
+    "post-checkout"
+    "prepare-commit-msg"
+    "pre-applypatch"
+    "pre-auto-gc"
+    "pre-commit"
+    "pre-merge-commit"
+    "pre-push"
+    "pre-rebase"
+    "pre-receive"
+    "prepare-commit"
+    "push-to-checkout"
+    "update"
+)
+
+HOOK_DIR=./.git/hooks
+
+cd "$SCRIPT_DIR/.."
+
+echo ""
+if [ -z "$1" ] || [ "$1" == "install" ]; then
+    echo -e "  \e[33mInstall git hooks\e[0m\n"
+    chmod +x .git-hooks/hooks-wrapper
+
+    for f in .git-hooks/*; do
+        chmod +x $f
+    done
+
+    for hook in ${HOOK_NAMES[@]}; do
+        echo -e "  \e[34m    Check hook $HOOK_DIR/$hook\e[0m"
+        if [ ! -h $HOOK_DIR/$hook -a -x $HOOK_DIR/$hook ]; then
+            echo -e "          Move existing hook $HOOK_DIR/$hook to $HOOK_DIR/$hook.local"
+            mv $HOOK_DIR/$hook $HOOK_DIR/$hook.local
+        fi
+        echo -e "          Create symlink from $HOOK_DIR/$hook to .git-hooks/hooks-wrapper"
+        ln -s -f "../../.git-hooks/hooks-wrapper" $HOOK_DIR/$hook
+        echo ""
+    done
+elif [ ! -z "$1" ] && [ "$1" == "uninstall" ]; then
+    echo -e "  \e[33mUninstall git hooks\e[0m\n"
+
+    for hook in ${HOOK_NAMES[@]}; do
+        echo -e "  \e[34m    Check hook $HOOK_DIR/$hook\e[0m"
+        if [ -L  $HOOK_DIR/$hook ] && [ "$(realpath $HOOK_DIR/$hook)" == "$(realpath .git-hooks/hooks-wrapper)" ]; then
+            echo -e "          Remove symlink $HOOK_DIR/$hook"
+            rm $HOOK_DIR/$hook
+
+            if [ -e $HOOK_DIR/$hook.local ]; then
+                echo -e "          Restore $HOOK_DIR/$hook.local as $HOOK_DIR/$hook"
+                mv $HOOK_DIR/$hook.local $HOOK_DIR/$hook
+            fi
+        else
+            echo -e "          Nothing to do for $HOOK_DIR/$hook"
+        fi
+        echo ""
+    done
+else
+    echo -e "  \e[31mERROR: Invalid arguments specified '$@'\e[0m\n"
+    exit 1
+fi

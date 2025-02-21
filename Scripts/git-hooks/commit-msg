@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+OUTPUT_FILE="$1"
+
+if [ -z "$OUTPUT_FILE" ]; then
+    echo -e "\e[31mERROR: Missing output file.\e[0m"
+    exit 1
+else
+    REGEX="([A-Z]+-[0-9]+)"
+    BRANCH="$(git branch --show-current)"
+
+    if [[ $BRANCH =~ $REGEX ]]; then
+        HEAD="$(head -1 $OUTPUT_FILE)"
+        echo "$HEAD" | grep -q "\[${BASH_REMATCH[1]}\]"
+        if [ $? -ne 0 ]; then
+            echo -e "\e[31mERROR: Commit aborted. Tag is missing in commit msg.\e[0m"
+            exit 1
+        fi
+
+        REGEX="^[[:space:]]*\[${BASH_REMATCH[1]}\][[:space:]]*$"
+        if [[ $HEAD =~ $REGEX ]]; then
+            echo -e "\e[31mERROR: Commit aborted. No commit message provided.\e[0m"
+            exit 1
+        fi
+    fi
+fi

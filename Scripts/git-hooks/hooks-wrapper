@@ -1,0 +1,10 @@
+#!/bin/env bash
+
+if [ -x $0.local ]; then
+    $0.local "$@" || exit $?
+fi
+
+HOOK="$(dirname $0)/../../.git-hooks/$(basename $0)"
+if [ -x "$HOOK" ]; then
+    $HOOK "$@" || exit $?
+fi

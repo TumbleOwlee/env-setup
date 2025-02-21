@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+cd "$script_dir/../"
+
+if [ -z "$(which clang-format)" ]; then
+    echo -e "\n\e[31m  ERROR: Commit aborted. Formatter clang-format is missing. Please install clang-format for style check.\e[0m\n"
+    exit 1
+fi
+
+version=$(clang-format --version | cut -f4 -d' ' | cut -f1 -d'.')
+if [ $version -lt 18 ]; then
+    echo -e "\n\e[31m  ERROR: Commit aborted. Only clang-format v18+ is supported. Please update clang-format.\e[0m\n"
+    exit 1
+fi
+
+files=()
+for file in `git diff --cached --name-only --diff-filter=ACMRT | grep -E "\.(c|cpp|cxx|cc|h|hpp|hxx)$"`; do
+    output="$(cmp -b <(git show :${file}) <(git show :${file} | clang-format --style=file:.clang-format --Werror))"
+    if [ $? -ne 0 ]; then
+        files+=("${file}")
+    fi
+done
+
+if [ -n "${files}" ]; then
+    echo -e "\n  \e[33mAffected files:\e[0m\n"
+    for file in ${files[@]}; do
+        printf "    - %s\n\n" "${files[@]}"
+
+        lnum=1
+        while IFS= read -r line; do
+            if [ $lnum -lt 3 ]; then
+                echo -e "          | \e[01;97m$line\e[0m"
+            elif [ $lnum -eq 3 ]; then
+                echo -e "          | \e[36m$line\e[0m"
+            elif [[ $line == +* ]]; then
+                echo -e "          | \e[32m$line\e[0m"
+            elif [[ $line == -* ]]; then
+                echo -e "          | \e[31m$line\e[0m"
+            else
+                echo -e "          | $line"
+            fi
+            lnum=$((lnum+1))
+        done < <(diff --color -u <(git show :${file}) <(git show :${file} | clang-format --style=file:.clang-format --Werror))
+        echo
+    done
+    echo -e "\e[31m  ERROR: Commit aborted. Changes do not match with code style. Run clang-format first.\e[0m\n"
+    exit 1
+fi
