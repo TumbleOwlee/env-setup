@@ -1,0 +1,141 @@
+#!/bin/env python3
+
+# for exit
+import sys
+# subprocess for ssh execution
+import subprocess
+# compile for input parsing
+import argparse
+# Terminal for colorization
+from blessed import Terminal
+# Rich terminal
+from rich.console import Console
+from rich.table import Table
+# Regex
+import re
+
+# Customize theme of inquirer
+term = Terminal()
+
+# console for rich
+console = Console()
+
+
+# Helper for info log
+def info(msg: str):
+    print(f"[{term.aqua}+{term.normal}] {msg}")
+
+
+# Helper for error log
+def error(msg: str):
+    print(f"[{term.red}E{term.normal}] {msg}")
+
+
+# Helper for success log
+def success(msg: str):
+    print(f"[{term.green}!{term.normal}] {msg}")
+
+
+# Helper for command execution
+def run_cmd(args: [str]):
+    proc = subprocess.run(args, stdout=subprocess.PIPE, text=True)
+    return proc.returncode, proc.stdout
+
+
+# Get all known git branches
+def get_all_known_branches(since: str | None, exclude: str | None):
+    code, output = run_cmd(["git", "branch", "--sort=committerdate",
+                           "--format=%(committerdate:short) %(refname:short)"])
+    if code != 0:
+        error("Failed to retrieve all branch names.")
+        sys.exit(1)
+
+    branches = []
+    for line in output.splitlines():
+        if line.startswith('*'):
+            line = line[1:]
+        branch = line.strip()
+        branches.append(branch.split(' '))
+    branches = [b for b in branches if not b[1] in
+                exclude and (not since or b[0] > since)]
+    branches.reverse()
+    return branches
+
+
+def get_all_merged_branches_of(branch: str):
+    if isinstance(branch, str):
+        code, output = run_cmd(["git", "branch", "--merged", branch])
+        if code != 0:
+            error("Failed to retrieve all merged branch names.")
+            sys.exit(1)
+
+        # Get all branch names
+        merged = []
+        for line in output.splitlines():
+            b = line.strip()
+            merged.append(b)
+        return merged
+    else:
+        merged = []
+        for branch in args.BRANCH:
+            merged.append((branch, get_all_merged_branches_of(branch)))
+        return merged
+
+
+def create_table(names: [str]):
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Jira ID", justify="left")
+    table.add_column("Date", justify="center")
+    table.add_column("Branch", justify="left")
+    for n in names:
+        table.add_column(n, justify="center")
+    return table
+
+
+def display_table(table: Table, branches: [(str, str)], merged: [(str, [str])]):
+    pattern = '([A-Z]+-[0-9]+)'
+    for b in branches:
+        g = re.search(pattern, b[1])
+        tag = "[yellow]" + g.group() + \
+            "[/yellow]" if g is not None else '[#444444]None[/#444444]'
+
+        row = [tag, b[0], b[1]]
+        for m in merged:
+            if b[1] in m[1]:
+                row.append("[green]Yes[/green]")
+            else:
+                row.append("[red]No[/red]")
+        table.add_row(*row)
+    console.print(table)
+
+
+def get_all_branches_with_remote():
+    code, output = run_cmd(
+        ["git", "for-each-ref", "--format=%(refname:short) %(upstream:short)"])
+    if code != 0:
+        error("Failed to retrieve assigned remote origins for branches.")
+        sys.exit(1)
+
+    origins = dict()
+    for line in output.splitlines():
+        b = line.strip().split()
+        if len(b) > 1:
+            origins[b[0]] = b[1]
+    return origins
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Display table showing if branches are merged into given branches.")
+    parser.add_argument("-s", "--since", type=str)
+    parser.add_argument(
+        "BRANCH", help="Branch name to check against.", type=str, nargs='+')
+    args = parser.parse_args()
+
+    origins = get_all_branches_with_remote()
+    branches = get_all_known_branches(args.since, args.BRANCH)
+    branches = [b for b in branches if b[1] in origins]
+    merged = get_all_merged_branches_of(args.BRANCH)
+    table = create_table([m[0] for m in merged])
+
+    display_table(table, branches, merged)
