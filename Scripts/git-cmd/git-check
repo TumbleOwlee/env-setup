@@ -42,29 +42,56 @@ def run_cmd(args: [str]):
     return proc.returncode, proc.stdout
 
 
-# Get all known git branches
-def get_all_known_branches(since: str | None, exclude: str | None):
-    code, output = run_cmd(["git", "branch", "--sort=committerdate",
+def get_sorted_branches(since: str | None, remote: bool):
+    flag = "-r" if remote else "-l"
+    code, output = run_cmd(["git", "branch", flag, "--sort=committerdate",
                            "--format=%(committerdate:short) %(refname:short)"])
     if code != 0:
         error("Failed to retrieve all branch names.")
         sys.exit(1)
 
-    branches = []
+    branches = dict()
     for line in output.splitlines():
         if line.startswith('*'):
             line = line[1:]
         branch = line.strip()
-        branches.append(branch.split(' '))
-    branches = [b for b in branches if not b[1] in
-                exclude and (not since or b[0] > since)]
-    branches.reverse()
+        b = branch.split(' ')
+        if b[0] > since:
+            if remote:
+                n = b[1].split('/')[0]
+                branches[b[1][len(n) + 1:]] = (b[0], n)
+            else:
+                branches[b[1]] = (b[0], None)
     return branches
+
+
+def get_all_known_branches(since: str | None):
+    branches = get_sorted_branches(since, False)
+    remote_branches = get_sorted_branches(since, True)
+
+    combined = []
+    for k in branches:
+        v = branches[k]
+        if k in remote_branches:
+            if v[0] > remote_branches[k][0]:
+                combined.append((v[0], remote_branches[k][1], k))
+            else:
+                combined.append(
+                    (remote_branches[k][0], remote_branches[k][1], k))
+        else:
+            combined.append((v[0], v[1], k))
+
+    for k in remote_branches:
+        v = remote_branches[k]
+        if k not in branches:
+            combined.append((v[0], v[1], k))
+
+    return sorted(combined, key=lambda value: value[0], reverse=True)
 
 
 def get_all_merged_branches_of(branch: str):
     if isinstance(branch, str):
-        code, output = run_cmd(["git", "branch", "--merged", branch])
+        code, output = run_cmd(["git", "branch", "-l", "--merged", branch])
         if code != 0:
             error("Failed to retrieve all merged branch names.")
             sys.exit(1)
@@ -74,11 +101,21 @@ def get_all_merged_branches_of(branch: str):
         for line in output.splitlines():
             b = line.strip()
             merged.append(b)
+
+        code, output = run_cmd(["git", "branch", "-r", "--merged", branch])
+        if code != 0:
+            error("Failed to retrieve all merged branch names.")
+            sys.exit(1)
+
+        # Get all branch names
+        for line in output.splitlines():
+            b = line.strip()
+            merged.append(b)
         return merged
     else:
         merged = []
-        for branch in args.BRANCH:
-            merged.append((branch, get_all_merged_branches_of(branch)))
+        for b in branch:
+            merged.append((b, get_all_merged_branches_of(b)))
         return merged
 
 
@@ -86,22 +123,26 @@ def create_table(names: [str]):
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("Jira ID", justify="left")
     table.add_column("Date", justify="center")
+    table.add_column("Remote", justify="center")
     table.add_column("Branch", justify="left")
     for n in names:
         table.add_column(n, justify="center")
     return table
 
 
-def display_table(table: Table, branches: [(str, str)], merged: [(str, [str])]):
+def display_table(table: Table, branches: [(str, str | None, str)], merged: [(str, [str])], ignore: bool):
     pattern = '([A-Z]+-[0-9]+)'
     for b in branches:
-        g = re.search(pattern, b[1])
+        g = re.search(pattern, b[2])
+        if g is None and ignore:
+            continue
         tag = "[yellow]" + g.group() + \
             "[/yellow]" if g is not None else '[#444444]None[/#444444]'
 
-        row = [tag, b[0], b[1]]
+        row = [tag, b[0], b[1], b[2]]
         for m in merged:
-            if b[1] in m[1]:
+            origin = (b[1] + "/") if b[1] is not None else ""
+            if (origin + b[2]) in m[1]:
                 row.append("[green]Yes[/green]")
             else:
                 row.append("[red]No[/red]")
@@ -127,15 +168,17 @@ def get_all_branches_with_remote():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Display table showing if branches are merged into given branches.")
-    parser.add_argument("-s", "--since", type=str)
+    parser.add_argument("-s", "--since", type=str,
+                        help="Only show branches newer than the given timestamp YYYY-MM-DD.")
+    parser.add_argument("-i", "--ignore", action="store_true",
+                        help="Ignore all branches without an associated tag.")
     parser.add_argument(
         "BRANCH", help="Branch name to check against.", type=str, nargs='+')
     args = parser.parse_args()
 
-    origins = get_all_branches_with_remote()
-    branches = get_all_known_branches(args.since, args.BRANCH)
-    branches = [b for b in branches if b[1] in origins]
+    branches = get_all_known_branches(args.since)
     merged = get_all_merged_branches_of(args.BRANCH)
-    table = create_table([m[0] for m in merged])
+    table = create_table([args.BRANCH] if isinstance(
+        args.BRANCH, str) else args.BRANCH)
 
-    display_table(table, branches, merged)
+    display_table(table, branches, merged, args.ignore)
