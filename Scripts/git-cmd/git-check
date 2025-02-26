@@ -13,6 +13,9 @@ from rich.console import Console
 from rich.table import Table
 # Regex
 import re
+# datetime parsing
+import dateutil
+import datetime
 
 # Customize theme of inquirer
 term = Terminal()
@@ -45,10 +48,14 @@ def run_cmd(args: [str]):
 def get_sorted_branches(since: str | None, remote: bool):
     flag = "-r" if remote else "-l"
     code, output = run_cmd(["git", "branch", flag, "--sort=committerdate",
-                           "--format=%(committerdate:short) %(refname:short)"])
+                           "--format=%(committerdate:iso) %(refname:short)"])
     if code != 0:
         error("Failed to retrieve all branch names.")
         sys.exit(1)
+
+    if since is not None:
+        since = dateutil.parser.parse(
+            since, default=datetime.datetime(1978, 1, 1, 0, 0))
 
     branches = dict()
     for line in output.splitlines():
@@ -56,12 +63,13 @@ def get_sorted_branches(since: str | None, remote: bool):
             line = line[1:]
         branch = line.strip()
         b = branch.split(' ')
-        if b[0] > since:
+        date = dateutil.parser.parse(' '.join(b[0:2]))
+        if since is None or date > since:
             if remote:
-                n = b[1].split('/')[0]
-                branches[b[1][len(n) + 1:]] = (b[0], n)
+                n = b[3].split('/')[0]
+                branches[b[3][len(n) + 1:]] = (date, n)
             else:
-                branches[b[1]] = (b[0], None)
+                branches[b[3]] = (date, None)
     return branches
 
 
@@ -74,17 +82,17 @@ def get_all_known_branches(since: str | None):
         v = branches[k]
         if k in remote_branches:
             if v[0] > remote_branches[k][0]:
-                combined.append((v[0], remote_branches[k][1], k))
+                combined.append((v[0], remote_branches[k][1], k, 'l'))
             else:
                 combined.append(
-                    (remote_branches[k][0], remote_branches[k][1], k))
+                    (remote_branches[k][0], remote_branches[k][1], k, 'r'))
         else:
-            combined.append((v[0], v[1], k))
+            combined.append((v[0], v[1], k, 'l'))
 
     for k in remote_branches:
         v = remote_branches[k]
         if k not in branches:
-            combined.append((v[0], v[1], k))
+            combined.append((v[0], v[1], k, 'r'))
 
     return sorted(combined, key=lambda value: value[0], reverse=True)
 
@@ -130,7 +138,7 @@ def create_table(names: [str]):
     return table
 
 
-def display_table(table: Table, branches: [(str, str | None, str)], merged: [(str, [str])], ignore: bool):
+def display_table(table: Table, branches: [(str, str | None, str, str)], merged: [(str, [str])], ignore: bool):
     pattern = '([A-Z]+-[0-9]+)'
     for b in branches:
         g = re.search(pattern, b[2])
@@ -139,13 +147,25 @@ def display_table(table: Table, branches: [(str, str | None, str)], merged: [(st
         tag = "[yellow]" + g.group() + \
             "[/yellow]" if g is not None else '[#444444]None[/#444444]'
 
-        row = [tag, b[0], b[1], b[2]]
+        row = [tag, b[0].strftime("%Y-%m-%d %H:%M:%S"), b[1], b[2]]
         for m in merged:
-            origin = (b[1] + "/") if b[1] is not None else ""
-            if (origin + b[2]) in m[1]:
-                row.append("[green]Yes[/green]")
-            else:
-                row.append("[red]No[/red]")
+            local = b[2] in m[1]
+            remote = True if b[1] is None else b[1] + "/" + b[2] in m[1]
+            if local == remote:
+                if local:
+                    entry = "[green]Yes[/green]"
+                else:
+                    entry = "[red]No[/red]"
+
+            entry = None
+
+            if b[1]:
+                br = b[1] + "/" + b[2]
+                if br in m[1]:
+                    entry = "[green]Yes[/green]" if entry is None else f"{entry} / [green]Yes[/green]"
+                else:
+                    entry = "[red]No[/red]" if entry is None else f"{entry} / [red]No[/red]"
+            row.append(entry)
         table.add_row(*row)
     console.print(table)
 
