@@ -138,12 +138,15 @@ def create_table(names: [str]):
     return table
 
 
-def display_table(table: Table, branches: [(str, str | None, str, str)], merged: [(str, [str])], ignore: bool):
+def display_table(table: Table, branches: [(str, str | None, str, str)], merged: [(str, [str])], ignore: bool, filter: str):
     pattern = '([A-Z]+-[0-9]+)'
     for b in branches:
         g = re.search(pattern, b[2])
-        if g is None and ignore:
+        if filter is None and g is None and ignore:
             continue
+        if filter is not None and (g is None or g.group().strip() != filter.strip()):
+            continue
+
         tag = "[yellow]" + g.group() + \
             "[/yellow]" if g is not None else '[#444444]None[/#444444]'
 
@@ -192,6 +195,8 @@ if __name__ == "__main__":
                         help="Only show branches newer than the given timestamp YYYY-MM-DD.")
     parser.add_argument("-i", "--ignore", action="store_true",
                         help="Ignore all branches without an associated tag.")
+    parser.add_argument("-f", "--filter",
+                        help="Filter by given tag.")
     parser.add_argument(
         "BRANCH", help="Branch name to check against.", type=str, nargs='+')
     args = parser.parse_args()
@@ -201,4 +206,4 @@ if __name__ == "__main__":
     table = create_table([args.BRANCH] if isinstance(
         args.BRANCH, str) else args.BRANCH)
 
-    display_table(table, branches, merged, args.ignore)
+    display_table(table, branches, merged, args.ignore, args.filter)
