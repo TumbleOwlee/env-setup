@@ -1,0 +1,18 @@
+[include]
+    path = ~/.config/delta/themes.gitconfig
+[core]
+    pager = delta
+    editor = nvim
+[interactive]
+    diffFilter = delta --color-only
+[delta]
+    navigate = true
+    dark = true
+    side-by-side = true
+    true-color = always
+    tabs = 4
+    width = -2
+[merge]
+    conflictstyle = zdiff3
+[gpg]
+    program = gpg

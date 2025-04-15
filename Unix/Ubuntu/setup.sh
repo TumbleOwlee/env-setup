@@ -179,6 +179,9 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     else
         warn "Make sure '$HOME/.cargo/bin' is in \$PATH"
     fi
+
+    echo 'export PATH="$PATH:~/.cargo/bin"' >> ~/.bashrc
+    export PATH="$PATH:$HOME/.cargo/bin"
 fi
 
 # Install C++ environment
@@ -199,6 +202,31 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         else
             warn "Make sure '$HOME/.local/bin' is in \$PATH"
         fi
+    fi
+fi
+
+resp=$(ask "Install delta? [Y/n]" "Y")
+if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+    if [ ! -z "$(which cargo)" ]; then
+        info "Install delta using cargo"
+        STDOUT="cout" STDERR="cerr" run_with_retry cargo install git-delta
+    else
+        info "Install delta using github release"
+        release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/dandavison/delta/releases/latest")
+        tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        STDOUT="cout" STDERR="cerr" run_with_retry wget --quiet -P "/tmp/" "https://github.com/dandavison/delta/releases/download/$tag/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
+        STDOUT="cout" STDERR="cerr" run_with_retry dpkg -i "/tmp/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
+    fi
+
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
+    STDOUT=/dev/null STDERR=/dev/null run_with_retry curl https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig -o "$HOME/.config/delta/themes.gitconfig"
+
+    STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
+        -o "$HOME/.gitconfig.new"
+    
+    if [ -f "$HOME/.gitconfig.new" ]; then
+        cat "$HOME/.gitconfig.new" >> "$HOME/.gitconfig" 2>/dev/null
+        rm .gitconfig.new
     fi
 fi
 

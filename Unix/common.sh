@@ -246,9 +246,8 @@ function run_once {
 }
 
 # Install neovim LSP
-NEOVIM=1
 function nvim_install_lsp {
-    if [ $NEOVIM ]; then
+    if [ ! -z "$(which nvim)" ]; then
         run_with_retry nvim --headless -c "MasonInstall $1" -c "quitall"
     fi
 }
