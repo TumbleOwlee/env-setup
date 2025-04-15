@@ -280,7 +280,7 @@ function check_proxy {
 function check_sudo {
     info "Check for root privileges.."
     if [ ! -z "$(which sudo)" ]; then
-        SUDO=sudo
+        export SUDO=sudo
     fi
 
     if [ ! -z "$(whoami)" ]; then
