@@ -17,12 +17,12 @@ check_proxy
 
 # Update and upgrade
 info "Update and upgrade."
-run_with_retry sudo apt update
-run_with_retry sudo apt upgrade -y
+run_with_retry $SUDO apt update
+run_with_retry $SUDO apt upgrade -y
 
 # Install requirements
 info "Install requirements."
-run_with_retry sudo apt install -y git python3 pipx unzip
+run_with_retry $SUDO apt install -y git python3 pipx unzip
 
 info "Install zoxide."
 mkdir -p "$HOME/.cache" &>/dev/null
@@ -46,9 +46,9 @@ fi
 resp=$(ask "Install alacritty? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install alacritty"
-    run_with_retry sudo add-apt-repository ppa:aslatter/ppa -y
-    run_with_retry sudo apt update
-    run_with_retry sudo apt install -y alacritty
+    run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
+    run_with_retry $SUDO apt update
+    run_with_retry $SUDO apt install -y alacritty
 
     # Create alacritty configuration
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
@@ -64,9 +64,9 @@ fi
 resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install fish shell"
-    run_with_retry sudo apt install -y fish
-    run_with_retry sudo chsh -s $(which fish)
-    run_with_retry sudo usermod -s /usr/bin/fish $(whoami)
+    run_with_retry $SUDO apt install -y fish
+    run_with_retry $SUDO chsh -s $(which fish)
+    run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
 
     # Create fish configuration
     scripts=('fish_greeting' 'fish_prompt')
@@ -95,7 +95,7 @@ fi
 resp=$(ask "Install tmux? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install tmux"
-    run_with_retry sudo apt install -y tmux
+    run_with_retry $SUDO apt install -y tmux
 
     # Create tmux configuration
     if [ "_$DEBUG" == "_" ]; then
@@ -114,9 +114,9 @@ fi
 resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
-    run_with_retry sudo add-apt-repository ppa:neovim-ppa/unstable -y
-    run_with_retry sudo apt update
-    run_with_retry sudo apt install -y neovim
+    run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
+    run_with_retry $SUDO apt update
+    run_with_retry $SUDO apt install -y neovim
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
 
     # Install NerdFont
@@ -125,7 +125,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     STDERR="cerr" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
     if [ ! -x "$(command -v fc-cache)" ]; then
         info "Install missing fontconfig"
-        run_with_retry sudo apt install -y fontconfig
+        run_with_retry $SUDO apt install -y fontconfig
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
@@ -147,10 +147,10 @@ fi
 resp=$(ask "Install docker? [Y/n]" "Y")
 if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
-    run_with_retry sudo apt install -y docker docker-compose docker-buildx
-    run_with_retry sudo systemctl enable --now docker
-    run_once sudo groupadd docker
-    run_with_retry sudo usermod -aG docker $USER
+    run_with_retry $SUDO apt install -y docker docker-compose docker-buildx
+    run_with_retry $SUDO systemctl enable --now docker
+    run_once $SUDO groupadd docker
+    run_with_retry $SUDO usermod -aG docker $USER
 fi
 
 # Install rust environment
@@ -188,7 +188,7 @@ fi
 resp=$(ask "Install C++ environment? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install clang, clang-format, gcc, cmake"
-    run_with_retry sudo apt install -y clang clang-format gcc cmake
+    run_with_retry $SUDO apt install -y clang clang-format gcc cmake
 
     # Install nvim lsp
     nvim_install_lsp "clangd"

@@ -23,7 +23,7 @@ if ! type "curl" >/dev/null; then
     if is_arch; then
         yay -S --noconfirm curl
     elif is_ubuntu; then
-        sudo apt install -y curl
+        $SUDO apt install -y curl
     else
         echo "Unsupported operating system." 1>&2
         exit 1

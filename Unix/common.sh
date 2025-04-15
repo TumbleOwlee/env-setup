@@ -278,10 +278,18 @@ function check_proxy {
 
 # Check for sudo
 function check_sudo {
-    info "Check for sudo privileges.."
+    info "Check for root privileges.."
+    if [ ! -z "$(which sudo)" ]; then
+        SUDO=sudo
+    fi
+
     if [ ! -z "$(whoami)" ]; then
         if [ "$(whoami)" != "root" ]; then
-            sudo echo -n "" || exit
+            if [ -z "$SUDO" ]; then
+                echo "Looks like you aren't root but also sudo isn't present. Proceeding for now..."
+            else
+                sudo echo -n "" || exit
+            fi
         fi
     else
         echo "Could NOT detect user. Root privileges required. Proceeding for now..."

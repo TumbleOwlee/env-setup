@@ -63,8 +63,8 @@ resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install fish shell"
     STDOUT="cout" STDERR="cerr" run_with_retry yay -S fish
-    run_with_retry sudo chsh -s $(which fish)
-    run_with_retry sudo usermod -s /usr/bin/fish $(whoami)
+    run_with_retry $SUDO chsh -s $(which fish)
+    run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
 
     # Create fish configuration
     scripts=('fish_greeting' 'fish_prompt' 'colored_cat')
@@ -159,9 +159,9 @@ resp=$(ask "Install docker? [Y/n]" "Y")
 if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
     STDOUT="cout" STDERR="cerr" run_with_retry yay -S docker docker-compose
-    run_with_retry sudo systemctl enable --now docker
-    run_once sudo groupadd docker
-    run_with_retry sudo usermod -aG docker $USER
+    run_with_retry $SUDO systemctl enable --now docker
+    run_once $SUDO groupadd docker
+    run_with_retry $SUDO usermod -aG docker $USER
 fi
 
 # Install rust environment
