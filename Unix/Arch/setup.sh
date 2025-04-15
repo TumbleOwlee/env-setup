@@ -191,7 +191,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         warn "Make sure '$HOME/.cargo/bin' is in \$PATH"
     fi
 
-    echo 'export PATH="$PATH:~/.cargo/bin"' >> ~/.bashrc
+    echo 'export PATH="$PATH:~/.cargo/bin"' >>~/.bashrc
     export PATH="$PATH:$HOME/.cargo/bin"
 fi
 
@@ -231,9 +231,9 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
         -o "$HOME/.gitconfig.new"
-    
+
     if [ -f "$HOME/.gitconfig.new" ]; then
-        cat "$HOME/.gitconfig.new" >> "$HOME/.gitconfig" 2>/dev/null
+        cat "$HOME/.gitconfig.new" >>"$HOME/.gitconfig" 2>/dev/null
         rm .gitconfig.new
     fi
 fi
