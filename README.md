@@ -7,10 +7,10 @@ I created this collection since I'm usally working with various virtual machine 
 
 ## Set up Unix Environment
 
-The script `./unix/setup.sh` provides a simple but clear entry point to setup any Unix environment (currently arch and ubuntu is supported). Everything can be set up by executing the following command - an internet connection is required since the script will get other scripts and configurations from this repository.
+The script `./unix/setup.sh` provides a simple but clear entry point to setup any Unix environment (currently arch and ubuntu are supported). Everything can be set up by executing the following command - an internet connection and `curl` are required since the script will get other scripts and configurations from this repository.
 
 ```bash
-bash -c "bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh 2>/dev/null)" 
+bash -c 'if [ -z "$(which curl)" ]; then echo "Curl missing. Aborting."; else bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh 2>/dev/null); fi'
 ```
 
 If you are behind a proxy, keep in mind to set `http_proxy` and `https_proxy` accordingly. Currently no offline installation is supported. The command only uses `bash -c` calling `bash` because the command should work by copy&paste in any shell you are currently using.
