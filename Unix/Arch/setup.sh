@@ -24,7 +24,7 @@ fi
 
 # Install requirements
 info "Install requirements."
-STDOUT="cout" STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide
+STDOUT="cout" STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide wget
 
 # Init zoxide for bash
 echo "# Init zoxide" >>$HOME/.bashrc
@@ -149,6 +149,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry fish -c "alias -s v=nvim"
     fi
 
+    run_with_retry nvim +'SyncInstall' +qall
+
     # Install nvim lsp
     nvim_install_lsp "lua-language-server"
     nvim_install_lsp "python-lsp-server"
@@ -220,10 +222,10 @@ resp=$(ask "Install delta? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     if [ ! -z "$(which cargo)" ]; then
         info "Install delta using cargo"
-        STDOUT="cout" STDERR="cerr" run_with_retry cargo install git-delta
+        STDOUT=/dev/null STDERR=/dev/null run_with_retry cargo install git-delta
     else
         info "Install delta using yay"
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S docker docker-compose
+        STDOUT=/dev/null STDERR=/dev/null run_with_retry yay -S docker docker-compose
     fi
 
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
@@ -234,7 +236,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     if [ -f "$HOME/.gitconfig.new" ]; then
         cat "$HOME/.gitconfig.new" >>"$HOME/.gitconfig" 2>/dev/null
-        rm .gitconfig.new
+        rm "$HOME/.gitconfig.new"
     fi
 fi
 

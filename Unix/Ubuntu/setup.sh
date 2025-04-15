@@ -17,12 +17,12 @@ check_proxy
 
 # Update and upgrade
 info "Update and upgrade."
-run_with_retry $SUDO apt update
-run_with_retry $SUDO apt upgrade -y
+run_with_retry $SUDO apt-get update
+run_with_retry $SUDO apt-get upgrade -y
 
 # Install requirements
 info "Install requirements."
-run_with_retry $SUDO apt install -y git python3 pipx unzip
+run_with_retry $SUDO apt-get install -y git python3 pipx unzip software-properties-common wget
 
 info "Install zoxide."
 mkdir -p "$HOME/.cache" &>/dev/null
@@ -47,8 +47,8 @@ resp=$(ask "Install alacritty? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install alacritty"
     run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
-    run_with_retry $SUDO apt update
-    run_with_retry $SUDO apt install -y alacritty
+    run_with_retry $SUDO apt-get update
+    run_with_retry $SUDO apt-get install -y alacritty
 
     # Create alacritty configuration
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
@@ -64,7 +64,7 @@ fi
 resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install fish shell"
-    run_with_retry $SUDO apt install -y fish
+    run_with_retry $SUDO apt-get install -y fish
     run_with_retry $SUDO chsh -s $(which fish)
     run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
 
@@ -95,7 +95,7 @@ fi
 resp=$(ask "Install tmux? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install tmux"
-    run_with_retry $SUDO apt install -y tmux
+    run_with_retry $SUDO apt-get install -y tmux
 
     # Create tmux configuration
     if [ "_$DEBUG" == "_" ]; then
@@ -115,8 +115,8 @@ resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
     run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
-    run_with_retry $SUDO apt update
-    run_with_retry $SUDO apt install -y neovim
+    run_with_retry $SUDO apt-get update
+    run_with_retry $SUDO apt-get install -y neovim
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
 
     # Install NerdFont
@@ -125,7 +125,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     STDERR="cerr" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
     if [ ! -x "$(command -v fc-cache)" ]; then
         info "Install missing fontconfig"
-        run_with_retry $SUDO apt install -y fontconfig
+        run_with_retry $SUDO apt-get install -y fontconfig
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
@@ -138,6 +138,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry fish -c "alias -s v=nvim"
     fi
 
+    run_with_retry nvim +'SyncInstall' +qall
+
     # Install nvim lsp
     nvim_install_lsp "lua-language-server"
     nvim_install_lsp "python-lsp-server"
@@ -147,7 +149,7 @@ fi
 resp=$(ask "Install docker? [Y/n]" "Y")
 if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
-    run_with_retry $SUDO apt install -y docker docker-compose docker-buildx
+    run_with_retry $SUDO apt-get install -y docker docker-compose docker-buildx
     run_with_retry $SUDO systemctl enable --now docker
     run_once $SUDO groupadd docker
     run_with_retry $SUDO usermod -aG docker $USER
@@ -188,7 +190,7 @@ fi
 resp=$(ask "Install C++ environment? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install clang, clang-format, gcc, cmake"
-    run_with_retry $SUDO apt install -y clang clang-format gcc cmake
+    run_with_retry $SUDO apt-get install -y clang clang-format gcc cmake
 
     # Install nvim lsp
     nvim_install_lsp "clangd"
@@ -209,13 +211,13 @@ resp=$(ask "Install delta? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     if [ ! -z "$(which cargo)" ]; then
         info "Install delta using cargo"
-        STDOUT="cout" STDERR="cerr" run_with_retry cargo install git-delta
+        STDOUT=/dev/null STDERR=/dev/null run_with_retry cargo install git-delta
     else
         info "Install delta using github release"
         release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/dandavison/delta/releases/latest")
         tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        STDOUT="cout" STDERR="cerr" run_with_retry wget --quiet -P "/tmp/" "https://github.com/dandavison/delta/releases/download/$tag/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
-        STDOUT="cout" STDERR="cerr" run_with_retry dpkg -i "/tmp/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
+        STDOUT=/dev/null STDERR=/dev/null run_with_retry wget --quiet -P "/tmp/" "https://github.com/dandavison/delta/releases/download/$tag/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
+        STDOUT=/dev/null STDERR=/dev/null run_with_retry dpkg -i "/tmp/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
     fi
 
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
@@ -226,7 +228,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     if [ -f "$HOME/.gitconfig.new" ]; then
         cat "$HOME/.gitconfig.new" >>"$HOME/.gitconfig" 2>/dev/null
-        rm .gitconfig.new
+        rm "$HOME/.gitconfig.new"
     fi
 fi
 
