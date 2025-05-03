@@ -92,7 +92,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     if [ -x "$HOME/.local/bin/zoxide" ]; then
         echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
     fi
-    
+
     export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d' ')
 fi
 
@@ -206,12 +206,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
                     if status is-login
                         contains ~/.cargo/bin \$PATH
                         or set PATH ~/.cargo/bin \$PATH
-                    end" >> $HOME/.config/fish/config.fish
+                    end" >>$HOME/.config/fish/config.fish
             fi
         fi
     fi
 
-    cat $HOME/.bashrc 2>/dev/null | grep -v 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >> $HOME/.bashrc
+    cat $HOME/.bashrc 2>/dev/null | grep -v 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
     . $HOME/.bashrc
 fi
 
@@ -238,12 +238,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
                         if status is-login
                             contains ~/.local/bin \$PATH
                             or set PATH ~/.local/bin \$PATH
-                        end" >> $HOME/.config/fish/config.fish
+                        end" >>$HOME/.config/fish/config.fish
                 fi
             fi
         fi
-    
-        cat $HOME/.bashrc 2>/dev/null | grep -v 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >> $HOME/.bashrc
+
+        cat $HOME/.bashrc 2>/dev/null | grep -v 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
         . $HOME/.bashrc
     fi
 fi
