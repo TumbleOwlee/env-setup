@@ -98,12 +98,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             if [ 4 -gt $FISH_VERSION ]; then
                 fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
             else
-                cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo -e "
+                cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo '
                     # LOCAL BIN
                     if status is-login
-                        contains ~/.local/bin \$PATH
-                        or set PATH ~/.local/bin \$PATH
-                    end" >>$HOME/.config/fish/config.fish
+                        contains ~/.local/bin $PATH
+                        or set PATH ~/.local/bin $PATH
+                    end' >>$HOME/.config/fish/config.fish
             fi
         fi
     fi
@@ -220,12 +220,12 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             if [ 4 -gt $FISH_VERSION ]; then
                 fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
             else
-                cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo -e "
+                cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo '
                     # CARGO BIN
                     if status is-login
-                        contains ~/.cargo/bin \$PATH
-                        or set PATH ~/.cargo/bin \$PATH
-                    end" >>$HOME/.config/fish/config.fish
+                        contains ~/.cargo/bin $PATH
+                        or set PATH ~/.cargo/bin $PATH
+                    end' >>$HOME/.config/fish/config.fish
             fi
         fi
     fi
