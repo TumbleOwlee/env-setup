@@ -24,9 +24,9 @@ fi
 
 # Install yay
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel
-run_with_retry git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
+run_with_retry $SUDO -u nobody git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
 cd /tmp/yay-bin
-run_with_retry makepkg -si
+run_with_retry $SUDO -u nobody makepkg -si
 cd -
 
 # Install requirements
