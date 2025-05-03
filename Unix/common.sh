@@ -279,12 +279,11 @@ function check_proxy {
 # Check for sudo
 function check_sudo {
     info "Check for root privileges.."
-    if [ ! -z "$(which sudo)" ]; then
-        export SUDO=sudo
-    fi
-
     if [ ! -z "$(whoami)" ]; then
         if [ "$(whoami)" != "root" ]; then
+            if [ ! -z "$(which sudo 2>/dev/null)" ]; then
+                export SUDO=sudo
+            fi
             if [ -z "$SUDO" ]; then
                 echo "Looks like you aren't root but also sudo isn't present. Proceeding for now..."
             else
