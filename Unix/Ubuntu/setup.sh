@@ -73,7 +73,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
 
     # Create fish configuration
-    scripts=('fish_greeting' 'fish_prompt')
+    scripts=('fish_greeting' 'fish_prompt' 'colored_cat')
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/fish/functions"
     for sc in ${scripts[@]}; do
         if [ "_$DEBUG" == "_" ]; then
@@ -100,18 +100,16 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             else
                 cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo '
                     # LOCAL BIN
-                    if status is-login
-                        contains ~/.local/bin $PATH
-                        or set PATH ~/.local/bin $PATH
-                    end' >>$HOME/.config/fish/config.fish
+                    contains ~/.local/bin $PATH
+                    or set PATH ~/.local/bin $PATH' >>$HOME/.config/fish/config.fish
             fi
         fi
     fi
 
     echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
-    echo "alias cat=__colored_cat" >>$HOME/.config/fish/config.fish
+    echo "alias cat=colored_cat" >>$HOME/.config/fish/config.fish
 
-    if [ -x "$HOME/.local/bin/zoxide" ]; then
+    if [ ! -z "$(which zoxide)" ]; then
         echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
     fi
 fi
@@ -153,21 +151,21 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
+    info "Install/update nvim configuration"
     if [ -d "$HOME/.config/nvim" ]; then
         if [ -d "$HOME/.config/nvim/.git" ]; then
-            warn "Cloned git repository already present in $HOME/.config/nvim. Clone aborted, Pull instead."
-            cd "$HOME/.config/nvim/"
-            STDOUT=/dev/null STDERR=/dev/null run_with_retry git pull
+            (cd "$HOME/.config/nvim" && run_with_retry git pull)
         else
-            warn "$HOME/.config/nvim is neither missing nor a git repository."
-            resp=$(ask "Delete and perform fresh clone? [y/N]" "N")
-            if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+            resp=$(ask "Replace existing nvim configuration [Y/n]" "Y")
+            if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
                 STDOUT=/dev/null STDERR=/dev/null run_once rm -rf "$HOME/.config/nvim"
                 run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
+            else
+                info "Skip installing nvim configuration"
             fi
         fi
     else
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
+        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config"
         run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
     fi
 
@@ -222,10 +220,8 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             else
                 cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo '
                     # CARGO BIN
-                    if status is-login
-                        contains ~/.cargo/bin $PATH
-                        or set PATH ~/.cargo/bin $PATH
-                    end' >>$HOME/.config/fish/config.fish
+                    contains ~/.cargo/bin $PATH
+                    or set PATH ~/.cargo/bin $PATH' >>$HOME/.config/fish/config.fish
             fi
         fi
     fi
