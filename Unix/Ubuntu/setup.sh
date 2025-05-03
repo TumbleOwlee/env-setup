@@ -30,8 +30,11 @@ run_with_retry curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/mai
 run_with_retry bash "$HOME/.cache/zoxide_install.sh"
 rm "$HOME/.cache/zoxide_install.sh" &>/dev/null
 
+# Add .local/bin to PATH
+cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
+. $HOME/.bashrc
+
 # Init zoxide for bash
-export PATH=$PATH:$HOME/.local/bin
 echo "# Init zoxide" >>$HOME/.bashrc
 zoxide init bash >>$HOME/.bashrc
 . "$HOME/.bashrc"
@@ -87,13 +90,30 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
     fi
 
+    export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
+
+    if [ -d "$HOME/.config/fish" ]; then
+        info "Adding '$HOME/.local/bin' to \$PATH"
+        if [ ! -z $FISH_VERSION ]; then
+            if [ 4 -gt $FISH_VERSION ]; then
+                fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
+            else
+                cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo -e "
+                    # LOCAL BIN
+                    if status is-login
+                        contains ~/.local/bin \$PATH
+                        or set PATH ~/.local/bin \$PATH
+                    end" >>$HOME/.config/fish/config.fish
+            fi
+        fi
+    fi
+
     echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
     echo "alias cat=__colored_cat" >>$HOME/.config/fish/config.fish
+    
     if [ -x "$HOME/.local/bin/zoxide" ]; then
         echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
     fi
-
-    export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
 fi
 
 # Install tmux
@@ -198,7 +218,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Adding '$HOME/.cargo/bin' to \$PATH"
         if [ ! -z $FISH_VERSION ]; then
             if [ 4 -gt $FISH_VERSION ]; then
-                fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
+                fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
             else
                 cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo -e "
                     # CARGO BIN
@@ -226,24 +246,6 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     resp=$(ask "Install Conan? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry pipx install conan
-        if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '$HOME/.local/bin' to \$PATH"
-            if [ ! -z $FISH_VERSION ]; then
-                if [ 4 -gt $FISH_VERSION ]; then
-                    fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
-                else
-                    cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo -e "
-                        # LOCAL BIN
-                        if status is-login
-                            contains ~/.local/bin \$PATH
-                            or set PATH ~/.local/bin \$PATH
-                        end" >>$HOME/.config/fish/config.fish
-                fi
-            fi
-        fi
-
-        cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
-        . $HOME/.bashrc
     fi
 fi
 
