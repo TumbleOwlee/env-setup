@@ -263,13 +263,8 @@ fi
 
 resp=$(ask "Install delta? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-    if [ ! -z "$(which cargo)" ]; then
-        info "Install delta using cargo"
-        STDOUT=/dev/null STDERR=/dev/null run_with_retry cargo install git-delta
-    else
-        info "Install delta using yay"
-        STDOUT=/dev/null STDERR=/dev/null run_with_retry yay -S docker docker-compose
-    fi
+    info "Install delta using yay"
+    STDOUT=/dev/null STDERR=/dev/null run_with_retry yay -S git-delta
 
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
     STDOUT=/dev/null STDERR=/dev/null run_with_retry curl https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig -o "$HOME/.config/delta/themes.gitconfig"
