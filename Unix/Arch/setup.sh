@@ -35,7 +35,6 @@ fi
 # Install yay
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel less
 
-
 run_with_retry git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
 DIR=/tmp/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
 STDOUT=/dev/null STDERR=/dev/null run_once rm /tmp/yay-bin/yay-bin-debug*.pkg.tar.zst
