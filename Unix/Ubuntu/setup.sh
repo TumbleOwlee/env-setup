@@ -22,7 +22,7 @@ run_with_retry $SUDO apt-get upgrade -y
 
 # Install requirements
 info "Install requirements."
-run_with_retry $SUDO apt-get install -y git python3 pipx unzip software-properties-common wget
+run_with_retry $SUDO apt-get install -y git python3 pipx unzip software-properties-common wget python3-venv
 
 info "Install zoxide."
 mkdir -p "$HOME/.cache" &>/dev/null
@@ -32,7 +32,7 @@ rm "$HOME/.cache/zoxide_install.sh" &>/dev/null
 
 # Add .local/bin to PATH
 cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
-. $HOME/.bashrc
+export PATH="$PATH:~/.local/bin"
 
 # Init zoxide for bash
 echo "# Init zoxide" >>$HOME/.bashrc
@@ -231,7 +231,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     fi
 
     cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
-    . $HOME/.bashrc
+    export PATH=$PATH:~/.cargo/bin
 fi
 
 # Install C++ environment
