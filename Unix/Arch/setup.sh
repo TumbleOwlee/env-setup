@@ -23,7 +23,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 fi
 
 # Install yay
-run_with_retry $SUDO pacman -S --needed git base-devel
+run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel
 run_with_retry git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
 cd /tmp/yay-bin
 run_with_retry makepkg -si
