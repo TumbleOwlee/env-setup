@@ -9,6 +9,12 @@ else
     source "$SCRIPT_DIR/../common.sh" || exit
 fi
 
+# Abort if root
+if [ ! -z "$(whoami)" ] && [ "$(whoami)" == "root" ]; then
+    warn "Unable to setup environment as root. Please run it as non-root user."
+    exit 1
+fi
+
 # Cache sudo privileges
 check_sudo
 
@@ -28,7 +34,7 @@ fi
 
 # Install yay
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel less
-if [ ! -z "$(whoami)" ] && [ "$(whoami)" == "root" ]; then
+
     run_with_retry sudo -u nobody git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
     DIR=/tmp/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry sudo -u nobody makepkg -s
     STDOUT=/dev/null STDERR=/dev/null run_once rm /tmp/yay-bin/yay-bin-debug*.pkg.tar.zst
