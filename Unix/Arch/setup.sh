@@ -19,7 +19,11 @@ check_proxy
 resp=$(ask "Update and upgrade? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Update and upgrade."
-    STDOUT="cout" STDERR="cerr" run_with_retry pacman -Syyu --noconfirm
+    if [ -z "$SUDO" ]; then
+        STDOUT="cout" STDERR="cerr" run_with_retry pacman -Syyu --noconfirm
+    else
+        STDOUT="cout" STDERR="cerr" run_with_retry $SUDO pacman -Syyu --noconfirm
+    fi
 fi
 
 # Install yay
