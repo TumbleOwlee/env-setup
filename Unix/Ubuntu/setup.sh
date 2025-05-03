@@ -93,7 +93,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
     fi
 
-    export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d' ')
+    export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
 fi
 
 # Install tmux
