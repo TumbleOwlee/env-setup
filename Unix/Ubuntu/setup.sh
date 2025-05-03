@@ -143,7 +143,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         else
             warn "$HOME/.config/nvim is neither missing nor a git repository."
             resp=$(ask "Delete and perform fresh clone? [y/N]" "N")
-            if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+            if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
                 STDOUT=/dev/null STDERR=/dev/null run_once rm -rf "$HOME/.config/nvim"
                 run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
             fi
