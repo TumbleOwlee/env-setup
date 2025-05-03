@@ -110,7 +110,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
     echo "alias cat=__colored_cat" >>$HOME/.config/fish/config.fish
-    
+
     if [ -x "$HOME/.local/bin/zoxide" ]; then
         echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
     fi
