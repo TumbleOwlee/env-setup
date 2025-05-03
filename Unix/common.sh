@@ -103,7 +103,7 @@ function warn {
 function run_with_retry {
     local cmd=""
     for idx in $(seq $#); do
-        if [ "_$cmd" == "_" ]; then
+        if [ -z "$cmd" ]; then
             cmd="$cmd${!idx}"
         else
             cmd="$cmd+${!idx}"
@@ -112,21 +112,21 @@ function run_with_retry {
     local pipe=""
     local end=$((${#PIPE[@]} - 1))
     for idx in $(seq 0 $end); do
-        if [ "_$pipe" == "_" ]; then
+        if [ -z "$pipe" ]; then
             pipe="$pipe${PIPE[$idx]}"
         else
             pipe="$pipe+${PIPE[$idx]}"
         fi
     done
 
-    if [ "_$DIR" == "" ]; then
+    if [ -z "$DIR" ]; then
         DIR="$(pwd)"
     fi
 
-    if [ "_$STDOUT" == "_" ]; then
+    if [ -z "$STDOUT" ]; then
         STDOUT="$LOG_FILE"
     fi
-    if [ "_$STDERR" == "_" ]; then
+    if [ -z "$STDERR" ]; then
         STDERR="$LOG_FILE"
     fi
 
@@ -194,20 +194,20 @@ function run_once {
         fi
     done
 
-    if [ "_$DIR" == "" ]; then
+    if [ -z "$DIR" ]; then
         DIR="$(pwd)"
     fi
 
-    if [ "_$STDOUT" == "_" ]; then
+    if [ -z "$STDOUT" ]; then
         STDOUT="$LOG_FILE"
     fi
-    if [ "_$STDERR" == "_" ]; then
+    if [ -z "$STDERR" ]; then
         STDERR="$LOG_FILE"
     fi
 
     if [ $DRY_RUN ]; then
         notify "Execute '$@'"
-    elif [ "_$pipe" != "_" ]; then
+    elif [ ! -z "$pipe" ]; then
         notify "Execute '$@'"
         if [ "_$STDOUT" == "_cout" ]; then
             if [ "_$STDERR" == "_cerr" ]; then
