@@ -34,6 +34,7 @@ rm "$HOME/.cache/zoxide_install.sh" &>/dev/null
 export PATH=$PATH:$HOME/.local/bin
 echo "# Init zoxide" >>$HOME/.bashrc
 zoxide init bash >>$HOME/.bashrc
+. "$HOME/.bashrc"
 
 # Update BSPWM
 if [ -d "$HOME/.config/bspwm" ]; then
@@ -88,7 +89,9 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
     echo "alias cat=__colored_cat" >>$HOME/.config/fish/config.fish
-    echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
+    if [ -x "$HOME/.local/bin/zoxide" ]; then
+        echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
+    fi
 fi
 
 # Install tmux
@@ -130,7 +133,22 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
-    run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
+    if [ -d "$HOME/.config/nvim" ]; then
+        if [ -d "$HOME/.config/nvim/.git" ]; then
+            warn "Cloned git repository already present in $HOME/.config/nvim. Clone aborted, Pull instead."
+            cd "$HOME/.config/nvim/"
+            STDOUT=/dev/null STDERR=/dev/null run_with_retry git pull
+        else
+            warn "$HOME/.config/nvim is neither missing nor a git repository."
+            resp=$(ask "Delete and perform fresh clone? [y/N]" "N")
+            if [ "_$resp" == "_y" ] && [ "_$resp" == "_Y" ]; then
+                STDOUT=/dev/null STDERR=/dev/null run_once rm -rf "$HOME/.config/nvim"
+                run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
+            fi
+        fi
+    else              
+        run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
+    fi
 
     if [ -d "$HOME/.config/fish" ]; then
         run_with_retry fish -c "alias -s vim=nvim"
@@ -138,7 +156,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry fish -c "alias -s v=nvim"
     fi
 
-    run_with_retry nvim +'SyncInstall' +qall
+    run_with_retry nvim --headless -c 'SyncInstall' -c qall
 
     # Install nvim lsp
     nvim_install_lsp "lua-language-server"
