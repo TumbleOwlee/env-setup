@@ -146,7 +146,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
                 run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
             fi
         fi
-    else              
+    else
         run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
     fi
 
