@@ -7,7 +7,11 @@ function is_arch {
     if type "yay" 2>/dev/null >/dev/null; then
         return 0
     else
-        return 1
+        if type "pacman" 2>/dev/null >/dev/null; then
+            return 0
+        else
+            return 1
+        fi
     fi
 }
 
@@ -21,7 +25,11 @@ function is_ubuntu {
 
 if ! type "curl" >/dev/null; then
     if is_arch; then
-        yay -S --noconfirm curl
+        if type "yay" 2>/dev/null >/dev/null; then
+            yay -S --noconfirm curl
+        else
+            pacman -S --noconfirm curl
+        fi
     elif is_ubuntu; then
         $SUDO apt-get install -y curl
     else
