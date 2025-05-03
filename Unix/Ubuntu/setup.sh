@@ -210,7 +210,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         fi
     fi
 
-    cat $HOME/.bashrc 2>/dev/null | grep -v 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
+    cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
     . $HOME/.bashrc
 fi
 
@@ -242,7 +242,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             fi
         fi
 
-        cat $HOME/.bashrc 2>/dev/null | grep -v 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
+        cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
         . $HOME/.bashrc
     fi
 fi
