@@ -26,19 +26,15 @@ fi
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel less
 if [ ! -z "$(whoami)" ] && [ "$(whoami)" == "root" ]; then
     run_with_retry sudo -u nobody git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-    cd /tmp/yay-bin
-    STDOUT=/dev/null STDERR=/dev/null run_with_retry sudo -u nobody makepkg -s
+    DIR=/tmp/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry sudo -u nobody makepkg -s
     STDOUT=/dev/null STDERR=/dev/null run_once rm /tmp/yay-bin/yay-bin-debug*.pkg.tar.zst
     STDOUT=/dev/null STDERR=/dev/null un_with_retry pacman -U --noconfirm /tmp/yay-bin/yay-bin-*.pkg.tar.zst
-    cd -
     rm -rf /tmp/yay-bin
 else
     run_with_retry git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-    cd /tmp/yay-bin
-    STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
+    DIR=/tmp/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
     STDOUT=/dev/null STDERR=/dev/null run_once rm /tmp/yay-bin/yay-bin-debug*.pkg.tar.zst
     STDOUT="cout" STDERR="cerr" un_with_retry $SUDO pacman -U --noconfirm /tmp/yay-bin/yay-bin-*.pkg.tar.zst
-    cd -
     rm -rf /tmp/yay-bin
 fi
 
