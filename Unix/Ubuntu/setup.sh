@@ -95,7 +95,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     if [ -d "$HOME/.config/fish" ]; then
         info "Adding '$HOME/.local/bin' to \$PATH"
         if [ ! -z $FISH_VERSION ]; then
-            if [ 4 -gt $FISH_VERSION ]; then
+            if [ $FISH_VERSION -gt 3 ]; then
                 fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
             else
                 cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo '
@@ -217,7 +217,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     if [ -d "$HOME/.config/fish" ]; then
         info "Adding '$HOME/.cargo/bin' to \$PATH"
         if [ ! -z $FISH_VERSION ]; then
-            if [ 4 -gt $FISH_VERSION ]; then
+            if [ $FISH_VERSION -gt 3 ]; then
                 fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
             else
                 cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo '
