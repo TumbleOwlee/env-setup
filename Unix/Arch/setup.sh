@@ -19,8 +19,15 @@ check_proxy
 resp=$(ask "Update and upgrade? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Update and upgrade."
-    STDOUT="cout" STDERR="cerr" run_with_retry yay -Syyu
+    STDOUT="cout" STDERR="cerr" run_with_retry pacman -Syyu --noconfirm
 fi
+
+# Install yay
+run_with_retry $SUDO pacman -S --needed git base-devel
+run_with_retry git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
+cd /tmp/yay-bin
+run_with_retry makepkg -si
+cd -
 
 # Install requirements
 info "Install requirements."
