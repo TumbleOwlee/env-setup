@@ -24,10 +24,19 @@ fi
 
 # Install yay
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel
-run_with_retry $SUDO -u nobody git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-cd /tmp/yay-bin
-run_with_retry $SUDO -u nobody makepkg -si
-cd -
+if [ ! -z "$(whoami)" ] && [ "$(whoami)" == "root" ]; then
+    run_with_retry sudo -u nobody git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
+    cd /tmp/yay-bin
+    STDOUT="cout" STDERR="cerr" run_with_retry sudo -u nobody makepkg -si
+    cd -
+    rm -rf /tmp/yay-bin
+else
+    run_with_retry git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
+    cd /tmp/yay-bin
+    STDOUT="cout" STDERR="cerr" run_with_retry makepkg -si
+    cd -
+    rm -rf /tmp/yay-bin
+fi
 
 # Install requirements
 info "Install requirements."
