@@ -26,9 +26,14 @@ fi
 info "Install requirements."
 STDOUT="cout" STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide wget
 
+# Add .local/bin to PATH
+cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
+export PATH="$PATH:~/.local/bin"
+
 # Init zoxide for bash
 echo "# Init zoxide" >>$HOME/.bashrc
 zoxide init bash >>$HOME/.bashrc
+. "$HOME/.bashrc"
 
 # Update BSPWM
 if [ -d "$HOME/.config/bspwm" ]; then
@@ -84,9 +89,28 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
     fi
 
+    export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
+
+    if [ -d "$HOME/.config/fish" ]; then
+        info "Adding '$HOME/.local/bin' to \$PATH"
+        if [ ! -z $FISH_VERSION ]; then
+            if [ $FISH_VERSION -gt 3 ]; then
+                fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
+            else
+                cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo '
+                    # LOCAL BIN
+                    contains ~/.local/bin $PATH
+                    or set PATH ~/.local/bin $PATH' >>$HOME/.config/fish/config.fish
+            fi
+        fi
+    fi
+
     echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
-    echo "alias cat=__colored_cat" >>$HOME/.config/fish/config.fish
-    echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
+    echo "alias cat=colored_cat" >>$HOME/.config/fish/config.fish
+
+    if [ ! -z "$(which zoxide)" ]; then
+        echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
+    fi
 fi
 
 # Install tmux
@@ -132,14 +156,13 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             resp=$(ask "Replace existing nvim configuration [Y/n]" "Y")
             if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
                 STDOUT=/dev/null STDERR=/dev/null run_once rm -rf "$HOME/.config/nvim"
-                STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
                 run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
             else
                 info "Skip installing nvim configuration"
             fi
         fi
     else
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
+        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config"
         run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
     fi
 
@@ -149,7 +172,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry fish -c "alias -s v=nvim"
     fi
 
-    run_with_retry nvim +'SyncInstall' +qall
+    run_with_retry nvim --headless -c 'SyncInstall' -c qall
 
     # Install nvim lsp
     nvim_install_lsp "lua-language-server"
@@ -188,13 +211,20 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
 
     if [ -d "$HOME/.config/fish" ]; then
         info "Adding '$HOME/.cargo/bin' to \$PATH"
-        fish -c "fish_add_path -a '$HOME/.cargo/bin'"
-    else
-        warn "Make sure '$HOME/.cargo/bin' is in \$PATH"
+        if [ ! -z $FISH_VERSION ]; then
+            if [ $FISH_VERSION -gt 3 ]; then
+                fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
+            else
+                cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo '
+                    # CARGO BIN
+                    contains ~/.cargo/bin $PATH
+                    or set PATH ~/.cargo/bin $PATH' >>$HOME/.config/fish/config.fish
+            fi
+        fi
     fi
 
-    echo 'export PATH="$PATH:~/.cargo/bin"' >>~/.bashrc
-    export PATH="$PATH:$HOME/.cargo/bin"
+    cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
+    export PATH=$PATH:~/.cargo/bin
 fi
 
 # Install C++ environment
@@ -209,12 +239,6 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     resp=$(ask "Install Conan? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry pipx install conan
-        if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '$HOME/.local/bin' to \$PATH"
-            fish -c "fish_add_path -a '$HOME/.local/bin'"
-        else
-            warn "Make sure '$HOME/.local/bin' is in \$PATH"
-        fi
     fi
 fi
 
