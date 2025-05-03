@@ -122,7 +122,6 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
     run_with_retry $SUDO apt-get update
     run_with_retry $SUDO apt-get install -y neovim
-    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
 
     # Install NerdFont
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
@@ -134,7 +133,6 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     fi
     STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
-    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
     if [ -d "$HOME/.config/nvim" ]; then
         if [ -d "$HOME/.config/nvim/.git" ]; then
             warn "Cloned git repository already present in $HOME/.config/nvim. Clone aborted, Pull instead."
@@ -149,6 +147,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             fi
         fi
     else
+        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/nvim"
         run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
     fi
 
