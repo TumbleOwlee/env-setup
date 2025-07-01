@@ -1,0 +1,62 @@
+#!/bin/bash
+# This script is configured for a setup of two 5120x1440 screens
+
+# Get position by name
+position=$1
+# Get active window id
+window_id=$(xdotool getwindowfocus)
+
+# Move and resize window to fit specific window location
+# The focus is kept after the move/resize
+# $1 = width
+# $2 = height
+# $3 = x position
+# $4 = y position
+apply() {
+    width=$1
+    height=$2
+    pos_x=$3
+    pos_y=$4
+
+    xdotool windowsize $window_id $width $height
+    xdotool windowmove $window_id $pos_x $pos_y
+    xdotool windowactivate $window_id
+    xdotool windowfocus $window_id
+    xdotool windowraise $window_id
+}
+
+# Configuration of the display
+display_width=5120
+display_height=1440
+
+# Top bar height
+top_bar_height=20
+# Padding between windows
+padding=4
+# Center window 
+center_width=2460
+center_height=$(($display_height-$top_bar_height-3*$padding))
+# Side window
+side_width=$((x=$display_width-$center_width-4*$padding, x/2))
+side_height=$(($display_height-$top_bar_height-3*$padding))
+
+# Apply the settings based on selection
+if [ -z "$position" ]; then
+    exit 1
+elif [ "$position" == "down_center" ]; then
+    apply $center_width $center_height $(($side_width+2*$padding)) $(($display_height+$top_bar_height+$padding))
+elif [ "$position" == "down_left" ]; then
+    apply $side_width $side_height $padding $(($top_bar_height+$padding+$display_height))
+elif [ "$position" == "down_right" ]; then
+    apply $side_width $side_height $((3*$padding+$center_width+$side_width)) $(($top_bar_height+$padding+$display_height))
+elif [ "$position" == "up_center" ]; then
+    apply $center_width $center_height $(($side_width+2*$padding)) $(($top_bar_height+$padding))
+elif [ "$position" == "up_left" ]; then
+    apply $side_width $side_height $padding $(($top_bar_height+$padding))
+elif [ "$position" == "up_right" ]; then
+    apply $side_width $side_height $((3*$padding+$center_width+$side_width)) $(($top_bar_height+$padding))
+else
+    exit 1
+fi
+
+exit 0
