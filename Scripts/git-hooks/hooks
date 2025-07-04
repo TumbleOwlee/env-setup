@@ -1,6 +1,28 @@
 #!/bin/env bash
 
+root_dir() {
+    ROOT_DIR="$(pwd)"
+    while true; do
+        if [ -f "${ROOT_DIR}/.git" ]; then
+            ROOT_DIR="$(cat "${ROOT_DIR}/.git" | grep gitdir | cut -f2 -d' ')"
+        elif [ -d "${ROOT_DIR}/.git" ]; then
+            echo $(realpath "${ROOT_DIR}")
+            break
+        else
+            ROOT_DIR="${ROOT_DIR}/.."
+        fi
+    done
+}
+
+ROOT_DIR=$(root_dir)
+
+if [ ! -d "${ROOT_DIR}/.git-hooks" ]; then
+    mkdir -p "${ROOT_DIR}/.git-hooks"
+fi
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+GIT_DIR=$(realpath "${ROOT_DIR}/.git")
+GIT_HOOK_DIR=$(realpath "${ROOT_DIR}/.git-hooks")
 
 HOOK_NAMES=(
     "applypatch-msg"
@@ -24,18 +46,23 @@ HOOK_NAMES=(
     "update"
 )
 
-HOOK_DIR=./.git/hooks
-
-cd "$SCRIPT_DIR/.."
+cd "${ROOT_DIR}"
 
 echo ""
 if [ -z "$1" ] || [ "$1" == "install" ]; then
     echo -e "  \e[33mInstall git hooks\e[0m\n"
-    chmod +x .git-hooks/hooks-wrapper
 
-    for f in .git-hooks/*; do
+    for f in ${SCRIPT_DIR}/*; do
+        file=$(basename $f)
+        cp "${SCRIPT_DIR}/$file" "${GIT_HOOK_DIR}/$file"
+    done
+
+    for f in ${GIT_HOOK_DIR}/*; do
         chmod +x $f
     done
+
+    HOOK_DIR="${GIT_DIR}/hooks"
+    cd "${HOOK_DIR}"
 
     for hook in ${HOOK_NAMES[@]}; do
         echo -e "  \e[34m    Check hook $HOOK_DIR/$hook\e[0m"
@@ -43,16 +70,22 @@ if [ -z "$1" ] || [ "$1" == "install" ]; then
             echo -e "          Move existing hook $HOOK_DIR/$hook to $HOOK_DIR/$hook.local"
             mv $HOOK_DIR/$hook $HOOK_DIR/$hook.local
         fi
-        echo -e "          Create symlink from $HOOK_DIR/$hook to .git-hooks/hooks-wrapper"
+        echo -e "          Create symlink from $HOOK_DIR/$hook to ${GIT_HOOK_DIR}/hooks-wrapper"
         ln -s -f "../../.git-hooks/hooks-wrapper" $HOOK_DIR/$hook
         echo ""
     done
 elif [ ! -z "$1" ] && [ "$1" == "uninstall" ]; then
     echo -e "  \e[33mUninstall git hooks\e[0m\n"
 
+    if [ ! -d "${GIT_HOOK_DIR}" ]; then
+        echo -e "  \e[34m   No hooks installed."
+        exit 1
+    fi
+
+    HOOK_DIR="${GIT_DIR}/hooks"
     for hook in ${HOOK_NAMES[@]}; do
         echo -e "  \e[34m    Check hook $HOOK_DIR/$hook\e[0m"
-        if [ -L  $HOOK_DIR/$hook ] && [ "$(realpath $HOOK_DIR/$hook)" == "$(realpath .git-hooks/hooks-wrapper)" ]; then
+        if [ -L  $HOOK_DIR/$hook ] && [ "$(realpath $HOOK_DIR/$hook)" == "$(realpath "$ROOT_DIR/.git-hooks/hooks-wrapper")" ]; then
             echo -e "          Remove symlink $HOOK_DIR/$hook"
             rm $HOOK_DIR/$hook
 
