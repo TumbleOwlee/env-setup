@@ -2,53 +2,53 @@
 
 function capslock() {
 
-  caps=$(xset -q | grep Caps | awk '{ print $4 }')
+    caps=$(xset -q | grep Caps | awk '{ print $4 }')
 
-  if [ $caps == 'off' ]; then
-    echo "%{T1}%{T-}"
-  else
-    echo "%{T1}בּ%{T-}"
-  fi
+    if [ $caps == 'off' ]; then
+        echo "%{T1}%{T-}"
+    else
+        echo "%{T1}בּ%{T-}"
+    fi
 
 }
 
 function numlock {
 
-  num=$(xset -q | grep Num | awk '{ print $8 }')
+    num=$(xset -q | grep Num | awk '{ print $8 }')
 
-  if [ $num == 'off' ]; then
-    echo "%{T1}%{T-}"
-  else
-    echo "%{T1}%{T-}"
-  fi
+    if [ $num == 'off' ]; then
+        echo "%{T1}%{T-}"
+    else
+        echo "%{T1}%{T-}"
+    fi
 
 }
 
 function scroll() {
 
-  scroll=$(xset -q | grep Scroll | awk '{ print $12 }')
+    scroll=$(xset -q | grep Scroll | awk '{ print $12 }')
 
-  if [ $scroll == 'off' ]; then
-    echo "%{T1}%{T-}"
-  else
-    echo "%{T1}%{T-}"
-fi
+    if [ $scroll == 'off' ]; then
+        echo "%{T1}%{T-}"
+    else
+        echo "%{T1}%{T-}"
+    fi
 
 }
 
-main () {
+main() {
 
-  if [ "$1" == "-c"  ]; then
-    capslock
-  fi
+    if [ "$1" == "-c" ]; then
+        capslock
+    fi
 
-  if [ "$1" == "-n"  ]; then
-    numlock
-  fi
+    if [ "$1" == "-n" ]; then
+        numlock
+    fi
 
-  if [ "$1" == "-s"  ]; then
-    scroll
-  fi
+    if [ "$1" == "-s" ]; then
+        scroll
+    fi
 
 }
 

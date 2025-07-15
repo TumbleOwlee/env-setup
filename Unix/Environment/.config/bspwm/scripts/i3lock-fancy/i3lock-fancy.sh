@@ -50,50 +50,79 @@ eval set -- "$temp"
 # l10n support
 text="Type password to unlock"
 case "${LANG:-}" in
-    af_* ) text="Tik wagwoord om te ontsluit" ;; # Afrikaans
-    de_* ) text="Bitte Passwort eingeben" ;; # Deutsch
-    da_* ) text="Indtast adgangskode" ;; # Danish
-    en_* ) text="Type password to unlock" ;; # English
-    es_* ) text="Ingrese su contraseña" ;; # Española
-    fr_* ) text="Entrez votre mot de passe" ;; # Français
-    he_* ) text="הליענה לטבל המסיס דלקה" ;; # Hebrew עברית (convert doesn't play bidi well)
-    hi_* ) text="अनलॉक करने के लिए पासवर्ड टाईप करें" ;; #Hindi
-    id_* ) text="Masukkan kata sandi Anda" ;; # Bahasa Indonesia
-    it_* ) text="Inserisci la password" ;; # Italian
-    ja_* ) text="パスワードを入力してください" ;; # Japanese
-    lv_* ) text="Ievadi paroli" ;; # Latvian
-    nb_* ) text="Skriv inn passord" ;; # Norwegian
-    pl_* ) text="Podaj hasło" ;; # Polish
-    pt_* ) text="Digite a senha para desbloquear" ;; # Português
-    tr_* ) text="Giriş yapmak için şifrenizi girin" ;; # Turkish
-    ru_* ) text="Введите пароль" ;; # Russian
-    * ) text="Type password to unlock" ;; # Default to English
+af_*) text="Tik wagwoord om te ontsluit" ;;         # Afrikaans
+de_*) text="Bitte Passwort eingeben" ;;             # Deutsch
+da_*) text="Indtast adgangskode" ;;                 # Danish
+en_*) text="Type password to unlock" ;;             # English
+es_*) text="Ingrese su contraseña" ;;               # Española
+fr_*) text="Entrez votre mot de passe" ;;           # Français
+he_*) text="הליענה לטבל המסיס דלקה" ;;              # Hebrew עברית (convert doesn't play bidi well)
+hi_*) text="अनलॉक करने के लिए पासवर्ड टाईप करें" ;; #Hindi
+id_*) text="Masukkan kata sandi Anda" ;;            # Bahasa Indonesia
+it_*) text="Inserisci la password" ;;               # Italian
+ja_*) text="パスワードを入力してください" ;;                      # Japanese
+lv_*) text="Ievadi paroli" ;;                       # Latvian
+nb_*) text="Skriv inn passord" ;;                   # Norwegian
+pl_*) text="Podaj hasło" ;;                         # Polish
+pt_*) text="Digite a senha para desbloquear" ;;     # Português
+tr_*) text="Giriş yapmak için şifrenizi girin" ;;   # Turkish
+ru_*) text="Введите пароль" ;;                      # Russian
+*) text="Type password to unlock" ;;                # Default to English
 esac
 
-while true ; do
+while true; do
     case "$1" in
-        -h|--help)
-            printf "Usage: %s [options]\n\n%s\n\n" "${0##*/}" "$options"; exit 1 ;;
-        -d|--desktop) desktop=$(command -V wmctrl) ; shift ;;
-        -g|--greyscale) hue=(-level "0%,100%,0.6" -set colorspace Gray -average) ; shift ;;
-        -p|--pixelate) effect=(-scale 10% -scale 1000%) ; shift ;;
-        -f|--font)
-            case "$2" in
-                "") shift 2 ;;
-                *) font=$2 ; shift 2 ;;
-            esac ;;
-        -t|--text) text=$2 ; shift 2 ;;
-        -l|--listfonts)
-    convert -list font | awk -F: '/Font: / { print $2 }' | sort -du | command -- ${PAGER:-less}
-    exit 0 ;;
--n|--nofork) i3lock_cmd+=(--nofork) ; shift ;;
-        --) shift; shot_custom=true; break ;;
-        *) echo "error" ; exit 1 ;;
+    -h | --help)
+        printf "Usage: %s [options]\n\n%s\n\n" "${0##*/}" "$options"
+        exit 1
+        ;;
+    -d | --desktop)
+        desktop=$(command -V wmctrl)
+        shift
+        ;;
+    -g | --greyscale)
+        hue=(-level "0%,100%,0.6" -set colorspace Gray -average)
+        shift
+        ;;
+    -p | --pixelate)
+        effect=(-scale 10% -scale 1000%)
+        shift
+        ;;
+    -f | --font)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            font=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    -t | --text)
+        text=$2
+        shift 2
+        ;;
+    -l | --listfonts)
+        convert -list font | awk -F: '/Font: / { print $2 }' | sort -du | command -- ${PAGER:-less}
+        exit 0
+        ;;
+    -n | --nofork)
+        i3lock_cmd+=(--nofork)
+        shift
+        ;;
+    --)
+        shift
+        shot_custom=true
+        break
+        ;;
+    *)
+        echo "error"
+        exit 1
+        ;;
     esac
 done
 
 if "$shot_custom" && [[ $# -gt 0 ]]; then
-    shot=("$@");
+    shot=("$@")
 fi
 
 command -- "${shot[@]}" "$image"
@@ -101,25 +130,25 @@ command -- "${shot[@]}" "$image"
 value="60" #brightness value to compare to
 
 color=$(convert "$image" -gravity center -crop 100x100+0+0 +repage -colorspace hsb \
-    -resize 1x1 txt:- | awk -F '[%$]' 'NR==2{gsub(",",""); printf "%.0f\n", $(NF-1)}');
+    -resize 1x1 txt:- | awk -F '[%$]' 'NR==2{gsub(",",""); printf "%.0f\n", $(NF-1)}')
 
 if [[ $color -gt $value ]]; then #white background image and black text
     bw="black"
     icon="/home/$USER/.config/bspwm/scripts/i3lock-fancy/circlelockdark.png"
-    param=("--insidecolor=0000001c" "--ringcolor=0000003e" \
-        "--linecolor=00000000" "--keyhlcolor=ffffff80" "--ringvercolor=ffffff00" \
-        "--separatorcolor=22222260" "--insidevercolor=ffffff1c" \
-        "--ringwrongcolor=ffffff55" "--insidewrongcolor=ffffff1c" \
-        "--verifcolor=ffffff00" "--wrongcolor=ff000000" "--timecolor=ffffff00" \
+    param=("--insidecolor=0000001c" "--ringcolor=0000003e"
+        "--linecolor=00000000" "--keyhlcolor=ffffff80" "--ringvercolor=ffffff00"
+        "--separatorcolor=22222260" "--insidevercolor=ffffff1c"
+        "--ringwrongcolor=ffffff55" "--insidewrongcolor=ffffff1c"
+        "--verifcolor=ffffff00" "--wrongcolor=ff000000" "--timecolor=ffffff00"
         "--datecolor=ffffff00" "--layoutcolor=ffffff00")
 else #black
     bw="white"
     icon="/home/$USER/.config/bspwm/scripts/i3lock-fancy/circlelock.png"
-    param=("--insidecolor=ffffff1c" "--ringcolor=ffffff3e" \
-        "--linecolor=ffffff00" "--keyhlcolor=00000080" "--ringvercolor=00000000" \
-        "--separatorcolor=22222260" "--insidevercolor=0000001c" \
-        "--ringwrongcolor=00000055" "--insidewrongcolor=0000001c" \
-        "--verifcolor=00000000" "--wrongcolor=ff000000" "--timecolor=00000000" \
+    param=("--insidecolor=ffffff1c" "--ringcolor=ffffff3e"
+        "--linecolor=ffffff00" "--keyhlcolor=00000080" "--ringvercolor=00000000"
+        "--separatorcolor=22222260" "--insidevercolor=0000001c"
+        "--ringwrongcolor=00000055" "--insidewrongcolor=0000001c"
+        "--verifcolor=00000000" "--wrongcolor=ff000000" "--timecolor=00000000"
         "--datecolor=00000000" "--layoutcolor=00000000")
 fi
 
