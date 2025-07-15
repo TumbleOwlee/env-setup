@@ -56,17 +56,17 @@ Since I'm mainly developing on Unix based operating systems, this repository doe
 
 To get the provided helper function in your PowerShell environment, just install the files in `./windows/Scripts` into `%USERPROFILE%\Scripts` and `./windows/Documents/PowerShell` into `%USERPROFILE%\Documents\PowerShell`.
 
-```ps
+```powershell
 mkdir $home\Scripts
 
 # Wrapper to provide `Connect-SSH` in PowerShell for easy SSH connection
-curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Scripts/connect.py -o $home\Scripts\connect.py
+curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Scripts/connect.py" -o "$home\Scripts\connect.py"
 
 # Install PowerShell profile that provides the aliases for all functions
-curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Documents/WindowsPowerShell/profile.ps1 -o $home\Documents\WindowsPowerShell\profile.ps1
+curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Documents/WindowsPowerShell/profile.ps1" -o "$home\Documents\WindowsPowerShell\profile.ps1"
 
 # Disable Bing Search in start menu
-Set-ItemProperty HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search BingSearchEnabled 0
+Set-ItemProperty "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" BingSearchEnabled 0
 ```
 
 If your Windows system has some more restriction in place (e.g. your home directory is on a network drive), the PowerShell script may not load at all. A quick and dirty solution for that is to place the `profile.ps1` into `C:\Windows\System32\WindowsPowerShell\v1.0` instead of `%USERPROFILE%\Documents\PowerShell`.
