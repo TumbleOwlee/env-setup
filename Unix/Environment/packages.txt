@@ -17,7 +17,7 @@ gvfs-mtp
 gvfs-nfs
 gvfs-smb
 htop
-i3lock
+i3lock-color
 jq
 nwg-look
 mpv
