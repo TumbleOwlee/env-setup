@@ -30,4 +30,3 @@ i3lock \
     --verif-color ffffffff \
     --wrong-color ffffffff \
     --modif-pos -50:-50
-
