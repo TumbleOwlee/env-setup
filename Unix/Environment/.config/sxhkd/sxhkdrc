@@ -3,7 +3,7 @@
 #
 
 # Move windows to preselected locations
-super + ctrl + {u,i,o,j,k,l}
+super + shift + ctrl + {u,i,o,j,k,l}
     ~/.local/bin/win-move {up_left,up_center,up_right,down_left,down_center,down_right}
 
 # terminal emulator
@@ -37,7 +37,7 @@ super + Escape
     pkill -USR1 -x sxhkd
 
 # Lock screen
-super + shift + l
+super + ctrl + shift + q
     ~/.config/rofi/fancy_lock.sh
 
 #
