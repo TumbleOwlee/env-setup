@@ -24,7 +24,7 @@ run_with_retry $SUDO apt-get upgrade -y
 info "Install requirements."
 run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv gpg
 
-apt-get $SUDO install -y software-properties-common &>/dev/null
+$SUDO apt-get install -y software-properties-common &>/dev/null
 
 # Alternative for add-apt-repository
 __add_apt_repository() {
