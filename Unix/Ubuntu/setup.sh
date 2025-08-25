@@ -36,7 +36,7 @@ __add_apt_repository() {
 
     notify "Add /etc/apt/sources.list.d/$USER-$PPA_NAME.list"
     echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list &>/dev/null || return 1
-    
+
     notify "Retrieve fingerprint"
     VALUE=$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" 2>/dev/null | grep -A 1 Fingerprint 2>/dev/null | grep -v Fingerprint 2>/dev/null | cut -f2- -d'>' 2>/dev/null | cut -f1 -d'<' 2>/dev/null)
     if [ $? -ne 0 ]; then
