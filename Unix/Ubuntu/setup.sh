@@ -31,7 +31,7 @@ __add_apt_repository() {
     PPA=$1
     USER=$(echo $1 | cut -d'/' -f1 | cut -d':' -f2)
     PPA_NAME=$(echo $1 | cut -d'/' -f2)
-    VERSION="$(cat /etc/os-release | grep "VERSION_CODENAME" | cut -f2 -d'=')"
+    VERSION=ubuntu #"$(cat /etc/os-release | grep "VERSION_CODENAME" | cut -f2 -d'=')"
     OS_ID=ubuntu
 
     echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list 2>/dev/null || return 1
