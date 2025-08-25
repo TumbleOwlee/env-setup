@@ -22,7 +22,24 @@ run_with_retry $SUDO apt-get upgrade -y
 
 # Install requirements
 info "Install requirements."
-run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv
+run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv gpg
+
+apt-get $SUDO install -y software-properties-common &>/dev/null
+
+# Alternative for add-apt-repository
+__add_apt_repository() {
+    PPA=$1
+    USER=$(echo $1 | cut -d'/' -f1 | cut -d':' -f2)
+    PPA_NAME=$(echo $1 | cut -d'/' -f2)
+    VERSION="$(cat /etc/os-release | grep "VERSION_CODENAME" | cut -f2 -d'=')"
+    OS_ID=ubuntu
+
+    echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list 2>/dev/null || return 1
+    KEY_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" | grep -oP 'key_id=\K[^&]+')" 2>/dev/null || return 1
+    curl -s "$KEY_URL" | gpg --dearmor | $SUDO tee /etc/apt/trusted.gpg.d/$USER-$PPA_NAME.gpg > /dev/null || return 1
+    run_once $SUDO apt-get update
+    return 0
+}
 
 info "Install zoxide."
 mkdir -p "$HOME/.cache" &>/dev/null
@@ -50,7 +67,15 @@ fi
 resp=$(ask "Install alacritty? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install alacritty"
-    run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
+
+    if [ ! -z "$(which add-apt-repository)" ]; then
+        run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
+    else
+        while true; do
+            __add_apt_repository ppa:neovim-ppa/unstable || retry || terminate || break
+        done
+    fi
+
     run_with_retry $SUDO apt-get update
     run_with_retry $SUDO apt-get install -y alacritty
 
@@ -152,7 +177,13 @@ fi
 resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
-    run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
+    if [ ! -z "$(which add-apt-repository)" ]; then
+        run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
+    else
+        while true; do
+            __add_apt_repository ppa:neovim-ppa/unstable || retry || terminate || break
+        done
+    fi
     run_with_retry $SUDO apt-get update
     run_with_retry $SUDO apt-get install -y neovim
 
