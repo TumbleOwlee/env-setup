@@ -43,7 +43,7 @@ rm -rf /tmp/yay-bin
 
 # Install requirements
 info "Install requirements."
-STDOUT="cout" STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide wget
+STDOUT="cout" STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide wget less
 
 # Add .local/bin to PATH
 cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc

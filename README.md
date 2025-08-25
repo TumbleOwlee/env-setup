@@ -13,6 +13,8 @@ The script `./unix/setup.sh` provides a simple but clear entry point to setup an
 bash -c 'if [ -z "$(which curl)" ]; then echo "Curl missing. Aborting."; else bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh 2>/dev/null); fi'
 ```
 
+But make sure you have at least `which` and `curl` installed. Else the oneliner won't work.
+
 If you are behind a proxy, keep in mind to set `http_proxy` and `https_proxy` accordingly. Currently no offline installation is supported. The command only uses `bash -c` calling `bash` because the command should work by copy&paste in any shell you are currently using.
 
 In case you cloned the repository and want to execute the script `./Unix/setup.sh` directly using only local files, just use the following command instead.

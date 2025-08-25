@@ -22,7 +22,7 @@ run_with_retry $SUDO apt-get upgrade -y
 
 # Install requirements
 info "Install requirements."
-run_with_retry $SUDO apt-get install -y git python3 pipx unzip software-properties-common wget python3-venv
+run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv
 
 info "Install zoxide."
 mkdir -p "$HOME/.cache" &>/dev/null
