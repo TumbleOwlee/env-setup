@@ -99,6 +99,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             base="$(basename $sc)"
             run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/$sc" \
                 -o "$HOME/.local/bin/$base"
+            chmod +x "$HOME/.local/bin/$base"
         else
             run_with_retry cp "$SCRIPT_DIR/../$sc" "$HOME/.local/bin/"
         fi
