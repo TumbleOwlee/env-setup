@@ -31,14 +31,19 @@ __add_apt_repository() {
     PPA=$1
     USER=$(echo $1 | cut -d'/' -f1 | cut -d':' -f2)
     PPA_NAME=$(echo $1 | cut -d'/' -f2)
-    VERSION=ubuntu #"$(cat /etc/os-release | grep "VERSION_CODENAME" | cut -f2 -d'=')"
+    VERSION=noble
     OS_ID=ubuntu
 
     echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list 2>/dev/null || return 1
-    KEY_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" | grep -oP 'key_id=\K[^&]+')" 2>/dev/null || return 1
-    curl -s "$KEY_URL" | gpg --dearmor | $SUDO tee /etc/apt/trusted.gpg.d/$USER-$PPA_NAME.gpg >/dev/null || return 1
-    run_once $SUDO apt-get update
-    return 0
+
+    VALUE=$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" 2>/dev/null | grep -A 1 Fingerprint 2>/dev/null | grep -v Fingerprint 2>/dev/null | cur -f2- -d'>' 2>/dev/null | cut -f1 -d'<' 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        return 1
+    else
+        KEY_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$VALUE"
+        curl -s "$KEY_URL" | gpg --dearmor | $SUDO tee /etc/apt/trusted.gpg.d/$USER-$PPA_NAME.gpg >/dev/null || return 1
+        return 0
+    fi
 }
 
 info "Install zoxide."
@@ -69,10 +74,10 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install alacritty"
 
     if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
-        run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
+        run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
     else
         while true; do
-            __add_apt_repository ppa:neovim-ppa/unstable || retry || terminate || break
+            __add_apt_repository ppa:aslatter/ppa || retry || terminate || break
         done
     fi
 
