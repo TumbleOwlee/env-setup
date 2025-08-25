@@ -64,6 +64,21 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     fi
 fi
 
+# Install utility scripts
+resp=$(ask "Install utility scripts? [Y/n]" "Y")
+if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+    scripts=('Scripts/git-cmd/git-sync' 'Scripts/git-cmd/git-check')
+    STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.local/bin"
+    for sc in ${scripts[@]}; do
+        if [ "_$DEBUG" == "_" ]; then
+            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/$sc" \
+                -o "$HOME/.local/bin/"
+        else
+            run_with_retry cp "$SCRIPT_DIR/../$sc" "$HOME/.local/bin/"
+        fi
+    done
+fi
+
 # Install fish
 resp=$(ask "Install fish shell? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
