@@ -80,7 +80,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
     else
         while true; do
-            __add_apt_repository ppa:aslatter/ppa || retry || terminate || break
+            __add_apt_repository ppa:aslatter/ppa && break || retry || terminate || break
         done
     fi
 
@@ -191,7 +191,7 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
     else
         while true; do
-            __add_apt_repository ppa:neovim-ppa/unstable || retry || terminate || break
+            __add_apt_repository ppa:neovim-ppa/unstable && break || retry || terminate || break
         done
     fi
     run_with_retry $SUDO apt-get update
