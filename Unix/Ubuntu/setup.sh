@@ -34,13 +34,16 @@ __add_apt_repository() {
     VERSION=noble
     OS_ID=ubuntu
 
-    echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list 2>/dev/null || return 1
-
-    VALUE=$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" 2>/dev/null | grep -A 1 Fingerprint 2>/dev/null | grep -v Fingerprint 2>/dev/null | cur -f2- -d'>' 2>/dev/null | cut -f1 -d'<' 2>/dev/null)
+    notify "Add /etc/apt/sources.list.d/$USER-$PPA_NAME.list"
+    echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list &>/dev/null || return 1
+    
+    notify "Retrieve fingerprint"
+    VALUE=$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" 2>/dev/null | grep -A 1 Fingerprint 2>/dev/null | grep -v Fingerprint 2>/dev/null | cut -f2- -d'>' 2>/dev/null | cut -f1 -d'<' 2>/dev/null)
     if [ $? -ne 0 ]; then
         return 1
     else
         KEY_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$VALUE"
+        notify "Add GPG key of fingerprint"
         curl -s "$KEY_URL" | gpg --dearmor | $SUDO tee /etc/apt/trusted.gpg.d/$USER-$PPA_NAME.gpg >/dev/null || return 1
         return 0
     fi
