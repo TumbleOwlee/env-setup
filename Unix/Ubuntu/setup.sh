@@ -68,7 +68,7 @@ resp=$(ask "Install alacritty? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install alacritty"
 
-    if [ ! -z "$(which add-apt-repository)" ]; then
+    if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
         run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
     else
         while true; do
@@ -177,7 +177,7 @@ fi
 resp=$(ask "Install neovim? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install neovim"
-    if [ ! -z "$(which add-apt-repository)" ]; then
+    if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
         run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
     else
         while true; do
