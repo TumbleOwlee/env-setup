@@ -36,7 +36,7 @@ __add_apt_repository() {
 
     echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list 2>/dev/null || return 1
     KEY_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" | grep -oP 'key_id=\K[^&]+')" 2>/dev/null || return 1
-    curl -s "$KEY_URL" | gpg --dearmor | $SUDO tee /etc/apt/trusted.gpg.d/$USER-$PPA_NAME.gpg > /dev/null || return 1
+    curl -s "$KEY_URL" | gpg --dearmor | $SUDO tee /etc/apt/trusted.gpg.d/$USER-$PPA_NAME.gpg >/dev/null || return 1
     run_once $SUDO apt-get update
     return 0
 }
