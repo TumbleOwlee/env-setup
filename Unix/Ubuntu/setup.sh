@@ -234,7 +234,12 @@ fi
 resp=$(ask "Install docker? [Y/n]" "Y")
 if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Install docker"
-    run_with_retry $SUDO apt-get install -y docker docker-compose docker-buildx
+    sudo apt-cache search '^docker$' | cut -f1 -d' ' | grep -e '^docker$' &>/dev/null
+    if [ $? -eq 0 ]; then
+        run_with_retry $SUDO apt-get install -y docker docker-compose docker-buildx
+    else
+        run_with_retry $SUDO apt-get install -y docker.io docker-compose docker-buildx
+    fi
     run_with_retry $SUDO systemctl enable --now docker
     run_once $SUDO groupadd docker
     run_with_retry $SUDO usermod -aG docker $USER
