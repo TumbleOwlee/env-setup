@@ -89,8 +89,9 @@ if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.local/bin"
     for sc in ${scripts[@]}; do
         if [ "_$DEBUG" == "_" ]; then
+            base="$(basename $sc)"
             run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/$sc" \
-                -o "$HOME/.local/bin/"
+                -o "$HOME/.local/bin/$base"
         else
             run_with_retry cp "$SCRIPT_DIR/../$sc" "$HOME/.local/bin/"
         fi
