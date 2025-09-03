@@ -2,20 +2,20 @@
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-for i in "$@"
-do
-case $i in
-    -n|--noconfirm)
-    export NO_CONFIRM="YES"
-    ;;
-    --skip=*)
-    NAME="${i#*=}"
-    NAME="$(echo $NAME | tr '[:lower:]' '[:upper:]')"
-    export "SKIP_$NAME=YES"
-    ;;
-    *)
-    ;;
-esac
+for i in "$@"; do
+    case $i in
+        -n|--noconfirm)
+        export NO_CONFIRM="YES"
+        ;;
+        --skip=*)
+        NAME="${i#*=}"
+        NAME="$(echo $NAME | tr '[:lower:]' '[:upper:]')"
+        export "SKIP_$NAME=YES"
+        ;;
+        *)
+        ;;
+    esac
+done
 
 # Include helpers
 if [ "_$DEBUG" == "_" ]; then
