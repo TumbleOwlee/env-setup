@@ -136,7 +136,7 @@ if [ -z "$SKIP_FISH" ]; then
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install fish shell"
         run_with_retry $SUDO apt-get install -y fish
-        run_with_retry $SUDO chsh -s $(which fish)
+        run_with_retry $SUDO chsh -s $(which fish 2>/dev/null)
         run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
 
         # Create fish configuration
@@ -173,10 +173,10 @@ if [ -z "$SKIP_FISH" ]; then
             fi
         fi
 
-        echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
+        echo "alias ccat=(which cat 2>/dev/null)" >>$HOME/.config/fish/config.fish
         echo "alias cat=colored_cat" >>$HOME/.config/fish/config.fish
 
-        if [ ! -z "$(which zoxide)" ]; then
+        if [ ! -z "$(which zoxide 2>/dev/null)" ]; then
             echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
         fi
     fi
@@ -198,7 +198,7 @@ if [ -z "$SKIP_TMUX" ]; then
         fi
 
         if [ -d "$HOME/.config/fish" ]; then
-            echo "set -g default-shell $(which fish)" >>"$HOME/.tmux.conf"
+            echo "set -g default-shell $(which fish 2>/dev/null)" >>"$HOME/.tmux.conf"
         fi
     fi
 fi
@@ -208,14 +208,18 @@ if [ -z "$SKIP_NEOVIM" ]; then
     resp=$(ask "Install neovim? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
-        if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
-            run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
-        else
-            while true; do
-                __add_apt_repository ppa:neovim-ppa/unstable && break || retry || terminate || break
-            done
+        resp=$(ask "Install bleeding edge? [y/N]" "N")
+        
+        if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
+            if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
+                run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
+            else
+                while true; do
+                    __add_apt_repository ppa:neovim-ppa/unstable && break || retry || terminate || break
+                done
+            fi
+            run_with_retry $SUDO apt-get update
         fi
-        run_with_retry $SUDO apt-get update
         run_with_retry $SUDO apt-get install -y neovim
 
         # Install NerdFont
@@ -337,7 +341,7 @@ fi
 if [ -z "$SKIP_DELTA" ]; then
     resp=$(ask "Install delta? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        if [ ! -z "$(which cargo)" ]; then
+        if [ ! -z "$(which cargo 2>/dev/null)" ]; then
             info "Install delta using cargo"
             STDOUT=/dev/null STDERR=/dev/null run_with_retry cargo install git-delta
         else
