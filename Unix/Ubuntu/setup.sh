@@ -4,16 +4,15 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
 for i in "$@"; do
     case $i in
-        -n|--noconfirm)
+    -n | --noconfirm)
         export NO_CONFIRM="YES"
         ;;
-        --skip=*)
+    --skip=*)
         NAME="${i#*=}"
         NAME="$(echo $NAME | tr '[:lower:]' '[:upper:]')"
         export "SKIP_$NAME=YES"
         ;;
-        *)
-        ;;
+    *) ;;
     esac
 done
 
@@ -91,7 +90,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
     resp=$(ask "Install alacritty? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install alacritty"
-    
+
         if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
             run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
         else
@@ -99,10 +98,10 @@ if [ -z "$SKIP_ALACRITTY" ]; then
                 __add_apt_repository ppa:aslatter/ppa && break || retry || terminate || break
             done
         fi
-    
+
         run_with_retry $SUDO apt-get update
         run_with_retry $SUDO apt-get install -y alacritty
-    
+
         # Create alacritty configuration
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
         if [ "_$DEBUG" == "_" ]; then
@@ -139,7 +138,7 @@ if [ -z "$SKIP_FISH" ]; then
         run_with_retry $SUDO apt-get install -y fish
         run_with_retry $SUDO chsh -s $(which fish)
         run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
-    
+
         # Create fish configuration
         scripts=('fish_greeting' 'fish_prompt' 'colored_cat')
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/fish/functions"
@@ -151,15 +150,15 @@ if [ -z "$SKIP_FISH" ]; then
                 run_with_retry cp "$SCRIPT_DIR/../Configs/fish/$sc.fish" "$HOME/.config/fish/functions/$sc.fish"
             fi
         done
-    
+
         mkdir -p $HOME/.config/fish/conf.d &>/dev/null
-    
+
         if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
             echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
         fi
-    
+
         export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
-    
+
         if [ -d "$HOME/.config/fish" ]; then
             info "Adding '$HOME/.local/bin' to \$PATH"
             if [ ! -z $FISH_VERSION ]; then
@@ -173,10 +172,10 @@ if [ -z "$SKIP_FISH" ]; then
                 fi
             fi
         fi
-    
+
         echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
         echo "alias cat=colored_cat" >>$HOME/.config/fish/config.fish
-    
+
         if [ ! -z "$(which zoxide)" ]; then
             echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
         fi
@@ -189,7 +188,7 @@ if [ -z "$SKIP_TMUX" ]; then
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install tmux"
         run_with_retry $SUDO apt-get install -y tmux
-    
+
         # Create tmux configuration
         if [ "_$DEBUG" == "_" ]; then
             run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/tmux/tmux.conf" \
@@ -197,7 +196,7 @@ if [ -z "$SKIP_TMUX" ]; then
         else
             run_with_retry cp "$SCRIPT_DIR/../Configs/tmux/tmux.conf" "$HOME/.tmux.conf"
         fi
-    
+
         if [ -d "$HOME/.config/fish" ]; then
             echo "set -g default-shell $(which fish)" >>"$HOME/.tmux.conf"
         fi
@@ -218,7 +217,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
         fi
         run_with_retry $SUDO apt-get update
         run_with_retry $SUDO apt-get install -y neovim
-    
+
         # Install NerdFont
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
         run_with_retry wget -P /tmp/ https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
@@ -228,7 +227,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
             run_with_retry $SUDO apt-get install -y fontconfig
         fi
         STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
-    
+
         info "Install/update nvim configuration"
         if [ -d "$HOME/.config/nvim" ]; then
             if [ -d "$HOME/.config/nvim/.git" ]; then
@@ -246,15 +245,15 @@ if [ -z "$SKIP_NEOVIM" ]; then
             STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config"
             run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
         fi
-    
+
         if [ -d "$HOME/.config/fish" ]; then
             run_with_retry fish -c "alias -s vim=nvim"
             run_with_retry fish -c "alias -s vi=nvim"
             run_with_retry fish -c "alias -s v=nvim"
         fi
-    
+
         run_with_retry nvim --headless -c 'SyncInstall' -c qall
-    
+
         # Install nvim lsp
         nvim_install_lsp "lua-language-server"
         nvim_install_lsp "python-lsp-server"
@@ -283,22 +282,22 @@ if [ -z "$SKIP_RUST" ]; then
     resp=$(ask "Install rust environment? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install rustup"
-    
+
         if [ -d "$HOME/.config/fish" ]; then
             mkdir -p "$HOME/.config/fish/conf.d" &>/dev/null
         fi
-    
+
         PIPE=(bash -s -- -y) && run_with_retry curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
-    
+
         # Install toolchain
         run_with_retry source "$HOME/.cargo/env"
         run_with_retry rustup toolchain install stable
         run_with_retry rustup default stable
         run_with_retry rustup component add rust-src rust-analyzer
-    
+
         # Install nvim lsp
         nvim_install_lsp "rust-analyzer"
-    
+
         if [ -d "$HOME/.config/fish" ]; then
             info "Adding '$HOME/.cargo/bin' to \$PATH"
             if [ ! -z $FISH_VERSION ]; then
@@ -312,7 +311,7 @@ if [ -z "$SKIP_RUST" ]; then
                 fi
             fi
         fi
-    
+
         cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
         export PATH=$PATH:~/.cargo/bin
     fi
@@ -324,10 +323,10 @@ if [ -z "$SKIP_CXX" ]; then
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install clang, clang-format, gcc, cmake"
         run_with_retry $SUDO apt-get install -y clang clang-format gcc cmake
-    
+
         # Install nvim lsp
         nvim_install_lsp "clangd"
-    
+
         resp=$(ask "Install Conan? [Y/n]" "Y")
         if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
             run_with_retry pipx install conan
@@ -348,13 +347,13 @@ if [ -z "$SKIP_DELTA" ]; then
             STDOUT=/dev/null STDERR=/dev/null run_with_retry wget --quiet -P "/tmp/" "https://github.com/dandavison/delta/releases/download/$tag/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
             STDOUT=/dev/null STDERR=/dev/null run_with_retry dpkg -i "/tmp/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
         fi
-    
+
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
         STDOUT=/dev/null STDERR=/dev/null run_with_retry curl https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig -o "$HOME/.config/delta/themes.gitconfig"
-    
+
         STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
             -o "$HOME/.gitconfig.new"
-    
+
         if [ -f "$HOME/.gitconfig.new" ]; then
             cat "$HOME/.gitconfig.new" >>"$HOME/.gitconfig" 2>/dev/null
             rm "$HOME/.gitconfig.new"
