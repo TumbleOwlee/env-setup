@@ -209,7 +209,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
         resp=$(ask "Install bleeding edge? [y/N]" "N")
-        
+
         if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
             if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
                 run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
