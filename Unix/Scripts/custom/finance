@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import pwd
+from blessings import Terminal
+from argparse import ArgumentParser
+from pathlib import Path
+import tabulate
+
+# Used for terminal coloring
+term = Terminal()
+
+
+class Frequency:
+    MONTHLY = 1
+    BIWEEKLY = 2
+    WEEKLY = 3
+    YEARLY = 4
+    HALFYEARLY = 5
+    QUARTERLY = 6
+
+    frequency: int
+
+    def isValue(value: int | str, intVal: int, strVal: str):
+        return (isinstance(value, int) and value == intVal) or (isinstance(value, str) and value == str(intVal)) or (isinstance(value, str) and value.upper() == strVal.upper())
+
+    def __init__(self, value: int | str):
+        if Frequency.isValue(value, Frequency.MONTHLY, "MONTHLY"):
+            self.frequency = Frequency.MONTHLY
+        elif Frequency.isValue(value, Frequency.QUARTERLY, "QUARTERLY"):
+            self.frequency = Frequency.QUARTERLY
+        elif Frequency.isValue(value, Frequency.BIWEEKLY, "BIWEEKLY"):
+            self.frequency = Frequency.BIWEEKLY
+        elif Frequency.isValue(value, Frequency.WEEKLY, "WEEKLY"):
+            self.frequency = Frequency.WEEKLY
+        elif Frequency.isValue(value, Frequency.YEARLY, "YEARLY"):
+            self.frequency = Frequency.YEARLY
+        elif Frequency.isValue(value, Frequency.HALFYEARLY, "HALFYEARLY"):
+            self.frequency = Frequency.HALFYEARLY
+        else:
+            print(
+                f"{term.red}[E]{term.normal} Invalid frequency found ({value})")
+            sys.exit(1)
+
+    def toMonthly(self, cost: float):
+        if self.frequency == Frequency.MONTHLY:
+            return cost
+        elif self.frequency == Frequency.QUARTERLY:
+            return cost / 3
+        elif self.frequency == Frequency.BIWEEKLY:
+            return cost * 2
+        elif self.frequency == Frequency.WEEKLY:
+            return cost * 4
+        elif self.frequency == Frequency.YEARLY:
+            return cost / 12.0
+        elif self.frequency == Frequency.HALFYEARLY:
+            return cost / 6.0
+
+    def __str__(self):
+        if Frequency.isValue(self.frequency, Frequency.MONTHLY, "MONTHLY"):
+            return "monthly"
+        elif Frequency.isValue(self.frequency, Frequency.QUARTERLY, "QUARTERLY"):
+            return "quarterly"
+        elif Frequency.isValue(self.frequency, Frequency.BIWEEKLY, "BIWEEKLY"):
+            return "biweekly"
+        elif Frequency.isValue(self.frequency, Frequency.WEEKLY, "WEEKLY"):
+            return "weekly"
+        elif Frequency.isValue(self.frequency, Frequency.YEARLY, "YEARLY"):
+            return "yearly"
+        elif Frequency.isValue(self.frequency, Frequency.HALFYEARLY, "HALFYEARLY"):
+            return "halfyearly"
+
+
+class Entry:
+    description: str
+    frequency: Frequency
+    cost: float
+
+    def __init__(self, description: str, frequency: Frequency, cost: float):
+        self.description = description
+        self.frequency = frequency
+        self.cost = cost
+
+    def from_line(line: str):
+        line = line.strip()
+        line = line.split(',')
+        if len(line) != 3:
+            print(f"{term.red}[E]{term.normal} Invalid line found ({line})")
+            sys.exit(1)
+        return Entry(line[0], Frequency(line[1]), float(line[2]))
+
+
+def load(path: Path):
+    entries = []
+    if not os.path.exists(path):
+        return entries
+    f = open(path, 'r', encoding='UTF-8')
+    for line in f.readlines():
+        entries.append(Entry.from_line(line))
+    return entries
+
+
+def save(path: Path, entries: [Entry]):
+    f = open(path, 'w')
+    for entry in entries:
+        f.write(f"{entry.description},{entry.frequency},{entry.cost}\n")
+
+
+def add(config: Path, description: str, frequency: Frequency, cost: float):
+    entries = load(config)
+    entries.append(Entry(description, frequency, cost))
+    save(config, entries)
+
+
+def list(config: Path):
+    entries = load(config)
+
+    data = [["Description", "Frequency", "Cost", "Cost per Month", "ID"]]
+    width = [
+        max(30, len(data[0][0])),
+        max(0, len(data[0][1])),
+        max(10, len(data[0][2])),
+        max(10, len(data[0][3])),
+        max(6, len(data[0][4]))
+    ]
+
+    totalCost = 0
+    id = 0
+    for entry in entries:
+        if entry.cost > 0:
+            cost = -round(entry.cost, 2)
+            costPerMonth = -round(entry.frequency.toMonthly(entry.cost), 2)
+            data.append([entry.description, str(entry.frequency),
+                        cost, costPerMonth, id])
+            totalCost = totalCost + cost
+            width[0] = max(width[0], len(entry.description))
+            width[1] = max(width[1], len(str(entry.frequency)))
+            width[2] = max(width[2], len(str(cost)))
+            width[3] = max(width[3], len(str(costPerMonth)))
+        else:
+            cost = -round(entry.cost, 2)
+            costPerMonth = round(entry.frequency.toMonthly(cost), 2)
+            data.append([entry.description, str(entry.frequency),
+                        cost, costPerMonth, id])
+            totalCost = totalCost + cost
+            width[0] = max(width[0], len(entry.description))
+            width[1] = max(width[1], len(str(entry.frequency)))
+            width[2] = max(width[2], len(str(cost)))
+            width[3] = max(width[3], len(str(costPerMonth)))
+        width[4] = max(width[4], len(str(id)))
+        id = id + 1
+
+    print("")
+    print("   " + term.bold + data[0][4].rjust(width[4]) + term.normal + " │ " + term.bold + data[0][0].ljust(width[0]) + term.normal + " │ " + term.bold + data[0][1].ljust(width[1]) + term.normal +
+          " │ " + term.bold + data[0][2].rjust(width[2]) + term.normal + " │ " + term.bold + data[0][3].rjust(width[3]) + term.normal)
+    print("  " + "─".ljust(width[4] + 2, '─') + "┼" + "─".ljust(width[0] + 2, '─') + "┼" + "─".ljust(width[1] + 2, '─') + "┼"
+          + "─".ljust(width[2] + 2, '─') + "┼" + "─".ljust(width[3] + 10, '─'))
+    for d in data[1:]:
+        if d[2] < 0:
+            print("   " + str(d[4]).rjust(width[4]) + " │ " + d[0].ljust(width[0]) + " │ " + d[1].ljust(width[1]) +
+                  " │ " + term.red +
+                  f"{d[2]:.02f}".rjust(width[2], ' ') + term.normal
+                  + " │ " + term.red + f"{d[3]:.02f}".rjust(width[3]) + term.normal)
+        else:
+            print("   " + str(d[4]).rjust(width[4]) + " │ " + d[0].ljust(width[0]) + " │ " + d[1].ljust(width[1]) +
+                  " │ " + term.green +
+                  f"{d[2]:.02f}".rjust(width[2], ' ') + term.normal
+                  + " │ " + term.green + f"{d[3]:.02f}".rjust(width[3]) + term.normal)
+    print("  " + "─".ljust(width[4] + 2, '─') + "┴" + "─".ljust(width[0] + 2, '─') + "┴" + "─".ljust(width[1] + 2, '─') + "┴"
+          + "─".ljust(width[2] + 2, '─') + "┼" + "─".ljust(width[3] + 10, '─'))
+
+    if totalCost < 0:
+        print("   " + term.bold + "Total".rjust(width[0] + width[1] +
+                                                width[2] + width[4] + 9) + term.normal + " │ " + term.red + term.bold + f"{round(totalCost, 2):.02f}".rjust(width[3]) + term.normal + term.bold + " monthly" + term.normal)
+    else:
+        print("   " + term.bold + "Total".rjust(width[0] + width[1] +
+                                                width[2] + width[4] + 9) + term.normal + " │ " + term.green + term.bold + f"{round(totalCost, 2):.02f}".rjust(width[3]) + term.normal + term.bold + " monthly" + term.normal)
+    print("")
+
+
+def delete(config: Path, id: int):
+    entries = load(config)
+    entries.pop(id)
+    save(config, entries)
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser(description="Finance listing tool.")
+    parser.add_argument(
+        "--config", "-c", help="Custom path to config file (default: ~/.finance)", default="~/.finance")
+    subparsers = parser.add_subparsers(title="subcommands", dest="command")
+    add_parser = subparsers.add_parser(name="add")
+    add_parser.add_argument(
+        "DESCRIPTION", help="Description of service to pay for.")
+    add_parser.add_argument(
+        "FREQUENCY", help="Frequency of the payment (monthly=1, biweekly=2, weekly=3, yearly=4).")
+    add_parser.add_argument(
+        "COST", help="Payment cost of the item.")
+    list_parser = subparsers.add_parser(name="list")
+    delete_parser = subparsers.add_parser(name="delete")
+    delete_parser.add_argument(
+        "ID", help="Entry ID to delete.", type=int)
+    args = parser.parse_args()
+
+    config = Path(os.path.expanduser(args.config))
+
+    if args.command == "add":
+        add(config, args.DESCRIPTION, Frequency(
+            args.FREQUENCY), float(args.COST))
+    elif args.command == "list":
+        list(config)
+    elif args.command == "delete":
+        delete(config, args.ID)
+    else:
+        print(f"{term.red}[E]{term.normal} Invalid or no command specified")
+        sys.exit(1)
