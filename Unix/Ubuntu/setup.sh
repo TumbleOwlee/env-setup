@@ -186,6 +186,8 @@ if [ -z "$SKIP_NEOVIM" ]; then
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
 
+        run_with_retry $SUDO apt-get install -y build-essential
+
         RANDOM_DIR="/tmp/$(random)-neovim"
         run_with_retry git clone --depth=1 https://github.com/neovim/neovim $RANDOM_DIR
         (cd $RANDOM_DIR && run_with_retry make CMAKE_BUILD_TYPE=RelWithDebInfo)
