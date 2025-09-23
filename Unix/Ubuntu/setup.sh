@@ -212,6 +212,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
             run_with_retry fish -c "alias -s v=nvim"
         fi
 
+        run_once nvim --headless -c 'SyncInstall' -c qall
         run_with_retry nvim --headless -c 'SyncInstall' -c qall
 
         # Install nvim lsp
