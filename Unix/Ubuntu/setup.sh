@@ -225,7 +225,7 @@ if [ -z "$SKIP_DOCKER" ]; then
     resp=$(ask "Install docker? [Y/n]" "Y")
     if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install docker"
-        sudo apt-cache search '^docker$' | cut -f1 -d' ' | grep -e '^docker$' &>/dev/null
+        $SUDO apt-cache search '^docker$' | cut -f1 -d' ' | grep -e '^docker$' &>/dev/null
         if [ $? -eq 0 ]; then
             run_with_retry $SUDO apt-get install -y docker docker-compose docker-buildx
         else
