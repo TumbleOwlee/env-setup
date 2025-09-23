@@ -284,16 +284,19 @@ if [ -z "$SKIP_ALACRITTY" ]; then
     if [ "_$resp_alacritty" != "_n" ] && [ "_$resp_alacritty" != "_N" ]; then
         info "Install alacritty"
 
-        if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
-            run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
-        else
-            while true; do
-                __add_apt_repository ppa:aslatter/ppa && break || retry || terminate || break
-            done
-        fi
+        run_with_retry $SUDO apt-get install -y cmake g++ pkg-config libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
+        
+        RANDOM_DIR="/tmp/$(random)-alacritty"
+        run_with_retry git clone --depth=1 https://github.com/alacritty/alacritty.git $RANDOM_DIR
+        (cd $RANDOM_DIR && run_with_retry cargo build --release)
+        run_with_retry $SUDO cp $RANDOM_DIR/target/release/alacritty /usr/local/bin
 
-        run_with_retry $SUDO apt-get update
-        run_with_retry $SUDO apt-get install -y alacritty
+        (cd $RANDOM_DIR && infocmp alacritty &>/dev/null)
+        if [ $? -ne 0 ]; then
+            (cd $RANDOM_DIR && run_with_rety $SUDO tic -xe alacritty,alacritty-direct extra/alacritty.info)
+        fi
+        
+        rm -rf $RANDOM_DIR &>/dev/null
 
         # Create alacritty configuration
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
