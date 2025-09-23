@@ -241,7 +241,7 @@ if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
     else
         resp="Y"
     fi
-    
+
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install rustup"
 
