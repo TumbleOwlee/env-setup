@@ -285,7 +285,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
         info "Install alacritty"
 
         run_with_retry $SUDO apt-get install -y cmake g++ pkg-config libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
-        
+
         RANDOM_DIR="/tmp/$(random)-alacritty"
         run_with_retry git clone --depth=1 https://github.com/alacritty/alacritty.git $RANDOM_DIR
         (cd $RANDOM_DIR && run_with_retry cargo build --release)
@@ -295,7 +295,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
         if [ $? -ne 0 ]; then
             (cd $RANDOM_DIR && run_with_rety $SUDO tic -xe alacritty,alacritty-direct extra/alacritty.info)
         fi
-        
+
         rm -rf $RANDOM_DIR &>/dev/null
 
         # Create alacritty configuration
