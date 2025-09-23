@@ -40,29 +40,6 @@ run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3
 
 $SUDO apt-get install -y software-properties-common &>/dev/null
 
-# Alternative for add-apt-repository
-__add_apt_repository() {
-    PPA=$1
-    USER=$(echo $1 | cut -d'/' -f1 | cut -d':' -f2)
-    PPA_NAME=$(echo $1 | cut -d'/' -f2)
-    VERSION=noble
-    OS_ID=ubuntu
-
-    notify "Add /etc/apt/sources.list.d/$USER-$PPA_NAME.list"
-    echo "deb http://ppa.launchpad.net/$USER/$PPA_NAME/$OS_ID $VERSION main" | $SUDO tee /etc/apt/sources.list.d/$USER-$PPA_NAME.list &>/dev/null || return 1
-
-    notify "Retrieve fingerprint"
-    VALUE=$(curl -s "https://launchpad.net/~$USER/+archive/$OS_ID/$PPA_NAME" 2>/dev/null | grep -A 1 Fingerprint 2>/dev/null | grep -v Fingerprint 2>/dev/null | cut -f2- -d'>' 2>/dev/null | cut -f1 -d'<' 2>/dev/null)
-    if [ $? -ne 0 ]; then
-        return 1
-    else
-        KEY_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$VALUE"
-        notify "Add GPG key of fingerprint"
-        curl -s "$KEY_URL" | gpg --dearmor | $SUDO tee /etc/apt/trusted.gpg.d/$USER-$PPA_NAME.gpg >/dev/null || return 1
-        return 0
-    fi
-}
-
 info "Install zoxide."
 mkdir -p "$HOME/.cache" &>/dev/null
 run_with_retry curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh -o "$HOME/.cache/zoxide_install.sh"
@@ -208,19 +185,12 @@ if [ -z "$SKIP_NEOVIM" ]; then
     resp=$(ask "Install neovim? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
-        resp=$(ask "Install bleeding edge? [y/N]" "N")
 
-        if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
-            if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
-                run_with_retry $SUDO add-apt-repository ppa:neovim-ppa/unstable -y
-            else
-                while true; do
-                    __add_apt_repository ppa:neovim-ppa/unstable && break || retry || terminate || break
-                done
-            fi
-            run_with_retry $SUDO apt-get update
-        fi
-        run_with_retry $SUDO apt-get install -y neovim
+        RANDOM_DIR="/tmp/$(random)-neovim"
+        run_with_retry git clone --depth=1 https://github.com/neovim/neovim $RANDOM_DIR
+        (cd $RANDOM_DIR && run_with_retry make CMAKE_BUILD_TYPE=RelWithDebInfo)
+        (cd $RANDOM_DIR && run_with_retry $SUDO make install)
+        rm -rf $RANDOM_DIR &>/dev/null
 
         # Install NerdFont
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
