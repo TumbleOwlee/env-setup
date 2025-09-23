@@ -2,6 +2,8 @@
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
+RANDOM="$(dd if=/dev/urandom bs=3 count=1)"
+
 for i in "$@"; do
     case $i in
     -n | --noconfirm)
@@ -160,7 +162,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
 
         run_with_retry $SUDO apt-get install -y build-essential
 
-        RANDOM_DIR="/tmp/$(random)-neovim"
+        RANDOM_DIR="/tmp/$RANDOM-neovim"
         run_with_retry git clone --depth=1 https://github.com/neovim/neovim $RANDOM_DIR
         (cd $RANDOM_DIR && run_with_retry make CMAKE_BUILD_TYPE=RelWithDebInfo)
         (cd $RANDOM_DIR && run_with_retry $SUDO make install)
@@ -286,7 +288,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
 
         run_with_retry $SUDO apt-get install -y cmake g++ pkg-config libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
 
-        RANDOM_DIR="/tmp/$(random)-alacritty"
+        RANDOM_DIR="/tmp/$RANDOM-alacritty"
         run_with_retry git clone --depth=1 https://github.com/alacritty/alacritty.git $RANDOM_DIR
         (cd $RANDOM_DIR && run_with_retry cargo build --release)
         run_with_retry $SUDO cp $RANDOM_DIR/target/release/alacritty /usr/local/bin
