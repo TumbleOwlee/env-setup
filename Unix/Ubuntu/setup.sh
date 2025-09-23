@@ -62,34 +62,6 @@ if [ -d "$HOME/.config/bspwm" ]; then
     run_with_retry sed -i "s/bspc.*config.*border_width.*/bspc config border_width 1/g" "$HOME/.config/bspwm/bspwmrc"
 fi
 
-if [ -z "$SKIP_ALACRITTY" ]; then
-    # Install alacritty
-    resp=$(ask "Install alacritty? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install alacritty"
-
-        if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
-            run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
-        else
-            while true; do
-                __add_apt_repository ppa:aslatter/ppa && break || retry || terminate || break
-            done
-        fi
-
-        run_with_retry $SUDO apt-get update
-        run_with_retry $SUDO apt-get install -y alacritty
-
-        # Create alacritty configuration
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
-        if [ "_$DEBUG" == "_" ]; then
-            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/alacritty/alacritty.toml" \
-                -o "$HOME/.config/alacritty/alacritty.toml"
-        else
-            run_with_retry cp "$SCRIPT_DIR/../Configs/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
-        fi
-    fi
-fi
-
 # Install utility scripts
 resp=$(ask "Install utility scripts? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
@@ -253,9 +225,23 @@ if [ -z "$SKIP_DOCKER" ]; then
     fi
 fi
 
+REQUIRE_RUST=0
+if [ -z "$SKIP_ALACRITTY" ]; then
+    # Install alacritty
+    resp_alacritty=$(ask "Install alacritty? [Y/n]" "Y")
+    if [ "_$resp_alacritty" != "_n" ] && [ "_$resp_alacritty" != "_N" ]; then
+        REQUIRE_RUST=1
+    fi
+fi
+
 # Install rust environment
-if [ -z "$SKIP_RUST" ]; then
-    resp=$(ask "Install rust environment? [Y/n]" "Y")
+if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
+    if [ $REQUIRE_RUST -eq 1 ]; then
+        resp=$(ask "Install rust environment? [Y/n]" "Y")
+    else
+        resp="Y"
+    fi
+    
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install rustup"
 
@@ -290,6 +276,33 @@ if [ -z "$SKIP_RUST" ]; then
 
         cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
         export PATH=$PATH:~/.cargo/bin
+    fi
+fi
+
+if [ -z "$SKIP_ALACRITTY" ]; then
+    # Install alacritty
+    if [ "_$resp_alacritty" != "_n" ] && [ "_$resp_alacritty" != "_N" ]; then
+        info "Install alacritty"
+
+        if [ ! -z "$(which add-apt-repository 2>/dev/null)" ]; then
+            run_with_retry $SUDO add-apt-repository ppa:aslatter/ppa -y
+        else
+            while true; do
+                __add_apt_repository ppa:aslatter/ppa && break || retry || terminate || break
+            done
+        fi
+
+        run_with_retry $SUDO apt-get update
+        run_with_retry $SUDO apt-get install -y alacritty
+
+        # Create alacritty configuration
+        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
+        if [ "_$DEBUG" == "_" ]; then
+            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/alacritty/alacritty.toml" \
+                -o "$HOME/.config/alacritty/alacritty.toml"
+        else
+            run_with_retry cp "$SCRIPT_DIR/../Configs/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
+        fi
     fi
 fi
 
