@@ -1,0 +1,160 @@
+#!/bin/bash
+#
+# Requirements:
+#  - Executable script `.commands` in the root of the GIT repository
+#      The script has to write up to two lines into stdout
+#        1. The first line is the command to execute inside the docker container
+#        2. The second line has to be the relative path to the working directory
+#      E.g. to execute `ls` inside the `$GIT_ROOT/build` directory, the script has to return
+#        ```
+#          "ls"
+#          "./build"
+#        ```
+#  - A `docker-compose.yml` has to be located in the `$GIT_ROOT` or inside `$GIT_ROOT/local` and
+#    has to configure three services, each one using an image with one of the following prefixes:
+#      * `native/`
+#      * `armv7/`
+#      * `arm64v8/`
+#
+# Setup:
+#  - Place the script in any directory specified in the path
+#  - Create symbolic links to the script, naming the links `arm-run` and `arm8-run`
+#
+
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+RESET="\e[0m"
+
+# Since we utilize the symlink arm-run to execute commands in an armv7
+# environment, we check for the executable name to determine the container
+# to use.
+NAME=$(basename $0)
+
+# Initialize variables
+WORKDIR=$(pwd)
+CUR_DIR=$(pwd)
+
+# Use bake for better performance
+export COMPOSE_BAKE=true
+
+# Detect git repository root
+while [ ! -z "${CUR_DIR}" ] && [ ! -d "${CUR_DIR}/.git" ]; do
+    CUR_DIR=$(dirname ${CUR_DIR})
+done
+
+DOCKER_COMPOSE_DIR=""
+if [ -f "$CUR_DIR/docker-compose.yml" ]; then
+    DOCKER_COMPOSE_DIR="$CUR_DIR"
+elif [ -f "$CUR_DIR/local/docker-compose.yml" ]; then
+    DOCKER_COMPOSE_DIR="$CUR_DIR/local"
+elif [ -f "$WORKDIR/docker-compose.yml" ]; then
+    DOCKER_COMPOSE_DIR="$WORKDIR"
+else
+    echo -e "$RED[E]$RESET Unable to locate '${BLUE}docker-compose.yml$RESET'"
+fi
+
+if [ "$NAME" == "arm-run" ]; then
+    CONTAINER_NAME="armv7/$(cat $DOCKER_COMPOSE_DIR/docker-compose.yml | grep 'image: armv7/' | cut -f2 -d'/' | cut -f1 -d':')"
+    DOCKER_COMPOSE_TARGET="armv7"
+elif [ "$NAME" == "arm8-run" ]; then
+    CONTAINER_NAME="arm64v8/$(cat $DOCKER_COMPOSE_DIR/docker-compose.yml | grep 'image: arm64v8/' | cut -f2 -d'/' | cut -f1 -d':')"
+    DOCKER_COMPOSE_TARGET="armv8"
+else
+    CONTAINER_NAME="native/$(cat $DOCKER_COMPOSE_DIR/docker-compose.yml | grep 'image: native/' | cut -f2 -d'/' | cut -f1 -d':')"
+    DOCKER_COMPOSE_TARGET="native"
+fi
+
+GIT_DIR=$CUR_DIR
+
+GIT_BASENAME=$(basename "$GIT_DIR")
+
+CONTAINER_ID=$(docker container ls | grep "$CONTAINER_NAME" | cut -f1 -d' ')
+if [ ! -z "$CONTAINER_ID" ]; then
+    if [ ! -f "/tmp/docker-run" ]; then
+        echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
+        docker stop $CONTAINER_ID &>/dev/null
+    else
+        DIR="$(cat /tmp/docker-run | grep "$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=" | cut -f2- -d'=')"
+        if [ -z "$DIR" ] || [ "$DIR" != "$GIT_DIR" ]; then
+            echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
+            docker stop $CONTAINER_ID &>/dev/null
+        fi
+    fi
+fi
+
+if [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
+    echo -en "$YELLOW[!]$RESET Run: '${BLUE}docker compose -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
+    (cd $DOCKER_COMPOSE_DIR && docker compose -p "$GIT_BASENAME" build --no-cache $DOCKER_COMPOSE_TARGET) && exit 0 || exit 1
+fi
+
+# Get Git branch
+REGEX="([A-Z]+-[0-9]+)"
+BRANCH="$(/usr/bin/git branch --show-current)"
+
+if [[ $BRANCH =~ $REGEX ]]; then
+    BUILD_DIR="${BASH_REMATCH[1]}"
+else
+    BUILD_DIR=$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]' | sed 's/[\/_]/-/g')
+fi
+
+if [ ! -f "/tmp/docker-run" ]; then
+    echo "$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=$GIT_DIR" >> /tmp/docker-run
+else
+    if [ -z "$(cat /tmp/docker-run | grep "$DOCKER_COMPOSE_TARGET-$GIT_BASENAME")" ]; then
+        echo "$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=$GIT_DIR" >> /tmp/docker-run
+    else
+        sed -i "s,$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=.*,$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=$GIT_DIR,g" /tmp/docker-run
+    fi
+fi
+
+# Get container id
+CONTAINER_ID=$(docker container ls | grep "$CONTAINER_NAME" | cut -f1 -d' ')
+
+# Abort if container isn't running
+if [ -z "$CONTAINER_ID" ]; then
+    if [ $? -ne 0 ]; then
+        echo -e "$RED[E]$RESET Failed to run '${BLUE}docker run --rm --privileged multiarch/qemu-user-static --reset -p yes$RESET'"
+        exit 1
+    fi
+    docker run --rm --privileged multiarch/qemu-user-static --reset -p yes &>/dev/null
+
+    echo -en "$YELLOW[!]$RESET Run: '${BLUE}docker compose -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET$RESET'"
+    start_time=$(date +%s)
+    while IFS= read -r line; do
+        curr_time=$(date +%s)
+        echo -en "\r$YELLOW[!]$RESET Run: '${BLUE}docker compose -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET$RESET' $(($curr_time - $start_time))s"
+    done < <(cd $DOCKER_COMPOSE_DIR && docker compose -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>1)
+    echo ""
+    if [ $? -ne 0 ]; then
+        echo -e "$RED[E]$RESET Failed to run '${BLUE}docker compose -p \"$GIT_BASENAME\" up -d$RESET'"
+        exit 1
+    fi
+fi
+
+CONTAINER_ID=$(docker container ls | grep "$CONTAINER_NAME" | cut -f1 -d' ')
+
+# Detect relative path from repository root
+if [ ! -z ${CUR_DIR} ]; then
+    CUR_DIR="${WORKDIR##${CUR_DIR}}"
+fi
+
+if [ ! -z "$1" ]; then
+    while IFS= read -r line; do
+        if [ -z "$CMD" ]; then
+            CMD="$line"
+        else
+            CUSTOM_DIR="$line"
+        fi
+    done < <($GIT_DIR/.commands $DOCKER_COMPOSE_TARGET $1 2>/dev/null)
+    if [ $? -eq 0 ] && [ ! -z "$CMD" ]; then
+        echo -e "$YELLOW[!]$RESET Run: '${BLUE}$CMD$RESET'"
+        docker exec -e "TZ=Europe/Berlin" --workdir "/git/$CUSTOM_DIR" -it $CONTAINER_ID $CMD
+        exit $?
+    fi
+fi
+
+# Run given commandline in the container
+echo -e "$YELLOW[!]$RESET Run: '$BLUE$@$RESET'"
+docker exec -e "TZ=Europe/Berlin" --workdir "/git$CUR_DIR" -it $CONTAINER_ID $@
