@@ -18,15 +18,18 @@ progress_bar() {
     percent=$(($value * 100 / $maxvalue))
     bars=$(($percent * $length / 100))
 
-    echo -en "\e[0;${basecolor}m[\e[0m"
+    LINE="\r\e[0;33m > Progress \e[0m"
+    LINE="$LINE\e[0;${basecolor}m[\e[0m"
     for bar in $(seq $length); do
         if [ $bar -gt $bars ]; then
-            echo -en " "
+            LINE="$LINE "
         else
-            echo -en "\e[0;${barcolor}m#\e[0m"
+            LINE="$LINE\e[0;${barcolor}m#\e[0m"
         fi
     done
-    echo -en "\e[0;${basecolor}m]\e[0m"
+    LINE="$LINE\e[0;${basecolor}m]\e[0m"
+    LINE="$LINE\e[0;33m \e[0m"
+    echo -en "$LINE"
 }
 
 curbranch=$(git rev-parse --abbrev-ref HEAD)
@@ -45,15 +48,13 @@ last_count=9999999
 for branch in $(git for-each-ref refs/heads --format="%(refname:short)"); do
     upbranch=$(git config --get branch.$branch.merge | sed 's:refs/heads/::');
 
-    echo -en "\r\e[0;33m > Progress \e[0m"
     progress_bar 20 $YELLOW $GREEN $count $maxcount
-    echo -en "\e[0;33m \e[0m"
 
     if [ "$branch" = "$upbranch" ]; then
         if [ "$branch" = "$curbranch" ]; then
-            b1="$(git log -n 1 --pretty=format:"%H" $branch)"
-            b2="$(git log -n 1 --pretty=format:"%H" origin/$upbranch)"
-            if [ "$b1" != "$b2" ]; then
+            b1="$(git log -n 1 --pretty=format:"%H" $branch 2>/dev/null)"
+            b2="$(git log -n 1 --pretty=format:"%H" origin/$upbranch 2>/dev/null)"
+            if [ ! -z "$b1" ] && [ ! -z "$b2" ] && [ "$b1" != "$b2" ]; then
                 echo -en "\e[0;33m: Fast forwarding '$branch' ... \e[0m"
                 git merge --ff-only origin/$upbranch &>/dev/null
                 if [ $? -ne 0 ]; then
@@ -65,9 +66,9 @@ for branch in $(git for-each-ref refs/heads --format="%(refname:short)"); do
                 fi
             fi
         else
-            b1="$(git log -n 1 --pretty=format:"%H" $branch)"
-            b2="$(git log -n 1 --pretty=format:"%H" origin/$upbranch)"
-            if [ "$b1" != "$b2" ]; then
+            b1="$(git log -n 1 --pretty=format:"%H" $branch 2>/dev/null)"
+            b2="$(git log -n 1 --pretty=format:"%H" origin/$upbranch 2>/dev/null)"
+            if [ ! -z "$b1" ] && [ ! -z "$b2" ] && [ "$b1" != "$b2" ]; then
                 echo -en "\e[0;33m: Fast forwarding '$branch' ... \e[0m"
                 git fetch . origin/$upbranch:$branch &>/dev/null
                 if [ $? -ne 0 ]; then
