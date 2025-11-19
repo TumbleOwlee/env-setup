@@ -123,10 +123,12 @@ done
 
 # Get directory containing given file
 locate_file() {
-    if [ -f "$CUR_DIR/$1" ]; then
-        echo "$CUR_DIR"
+    if [ -f "$CUR_DIR/.devcontainer/$1" ]; then
+        echo "$CUR_DIR/.devcontainer"
     elif [ -f "$CUR_DIR/local/$1" ]; then
         echo "$CUR_DIR/local"
+    elif [ -f "$CUR_DIR/$1" ]; then
+        echo "$CUR_DIR"
     elif [ -f "$WORKDIR/$1" ]; then
         echo "$WORKDIR"
     else
@@ -136,6 +138,7 @@ locate_file() {
 }
 
 DOCKER_COMPOSE_DIR="$(locate_file docker-compose.yml)"
+echo -e "$YELLOW[!]$RESET Use docker-compose.yml in $BLUE$DOCKER_COMPOSE_DIR$RESET"
 CONTAINER_NAME="$(basename $WORKDIR)"
 
 # Specify compose target platform
@@ -167,7 +170,7 @@ if [ ! -z "$CONTAINER_ID" ]; then
 fi
 
 if [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
-    echo -en "$YELLOW[!]$RESET Run: '${BLUE}docker compose -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
+    echo -e "$YELLOW[!]$RESET Run: '${BLUE}docker compose -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
     (cd $DOCKER_COMPOSE_DIR && docker compose -p "$GIT_BASENAME" build --no-cache $DOCKER_COMPOSE_TARGET) && exit 0 || exit 1
 fi
 
