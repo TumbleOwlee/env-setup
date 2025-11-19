@@ -2,7 +2,7 @@
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-RANDOM="$(dd if=/dev/urandom bs=3 count=1 2>/dev/null)"
+RANDOM_DATA="$(dd if=/dev/urandom bs=3 count=1 2>/dev/null)"
 
 JOBS=1
 NPROC=$(nproc)
@@ -172,7 +172,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
 
         run_with_retry $SUDO apt-get install -y build-essential
 
-        RANDOM_DIR="/tmp/$RANDOM-neovim"
+        RANDOM_DIR="/tmp/$RANDOM_DATA-neovim"
         run_with_retry git clone --depth=1 https://github.com/neovim/neovim $RANDOM_DIR
         DIR=$RANDOM_DIR run_with_retry make -j$JOBS CMAKE_BUILD_TYPE=RelWithDebInfo
         DIR=$RANDOM_DIR run_with_retry $SUDO make -j$JOBS install
