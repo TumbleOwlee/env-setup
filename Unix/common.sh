@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LOG_FILE="/tmp/setup_$(date +%Y_%m_%d_%H_%M_%S).log"
+LOG_FILE="$(mktemp)"
 
 # Color codes
 NONE="\e[0m"
@@ -96,8 +96,22 @@ function terminate {
 
 # Warn the user
 function warn {
-    echo -e "[${RED}!${NONE}] ${YELLOW}$@${NONE}"
+    echo -e "[${RED}!${NONE}] $@"
     echo -e "[!] $@" >>$LOG_FILE
+}
+
+# Report error
+function error {
+    echo -e "[${RED}!${NONE}] $@"
+    echo -e "[!] $@" >>$LOG_FILE
+}
+
+function sim_exit {
+    if [ -z "$1 " ]; then
+        return 1
+    else
+        return $1
+    fi
 }
 
 function run_with_retry {
@@ -106,7 +120,7 @@ function run_with_retry {
         if [ -z "$cmd" ]; then
             cmd="$cmd${!idx}"
         else
-            cmd="$cmd+${!idx}"
+            cmd="$cmd%${!idx}"
         fi
     done
     local pipe=""
@@ -115,7 +129,7 @@ function run_with_retry {
         if [ -z "$pipe" ]; then
             pipe="$pipe${PIPE[$idx]}"
         else
-            pipe="$pipe+${PIPE[$idx]}"
+            pipe="$pipe%${PIPE[$idx]}"
         fi
     done
 
@@ -131,40 +145,145 @@ function run_with_retry {
     fi
 
     if [ $DRY_RUN ]; then
-        notify "Execute '$@'"
+        notify "Execute '${CYAN}$@${NONE}'"
     elif [ "_$pipe" != "_" ]; then
-        local IFS='+'
+        local IFS='%'
         while true; do
-            notify "Execute '$@'"
+            notify "Execute '${CYAN}$@${NONE}'"
             if [ "_$STDOUT" == "_cout" ]; then
                 if [ "_$STDERR" == "_cerr" ]; then
-                    cd "$DIR" && ($cmd | $pipe) && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && ($cmd | $pipe)
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
+
                 else
-                    cd "$DIR" && ($cmd | $pipe) 2>>$STDERR && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && ($cmd | $pipe) 2>>$STDERR
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
                 fi
             else
                 if [ "_$STDERR" == "_cerr" ]; then
-                    cd "$DIR" && ($cmd | $pipe) >>$STDOUT && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && ($cmd | $pipe) >>$STDOUT
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
                 else
-                    cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
                 fi
             fi
         done
     else
-        local IFS='+'
+        local IFS='%'
         while true; do
-            notify "Execute '$@'"
+            notify "Execute '${CYAN}$@${NONE}'"
             if [ "_$STDOUT" == "_cout" ]; then
                 if [ "_$STDERR" == "_cerr" ]; then
-                    cd "$DIR" && $cmd && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && $cmd
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
                 else
-                    cd "$DIR" && $cmd 2>>$STDERR && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && $cmd 2>>$STDERR
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
                 fi
             else
                 if [ "_$STDERR" == "_cerr" ]; then
-                    cd "$DIR" && $cmd >>$STDOUT && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && $cmd >>$STDOUT
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
                 else
-                    cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR && break || retry || terminate || break
+                    tmpfile=$(mktemp)
+                    {
+                        cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR
+                        echo -n $? >$tmpfile
+                    } &
+                    SECONDS=0
+                    while [ -z "$(cat $tmpfile)" ]; do
+                        if [ $SECONDS -gt 0 ]; then
+                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                        fi
+                    done
+                    exitcode=$(cat $tmpfile)
+                    rm $tmpfile
+                    sim_exit $exitcode && break || retry || terminate || break
                 fi
             fi
         done
@@ -181,7 +300,7 @@ function run_once {
         if [ "_$cmd" == "_" ]; then
             cmd="$cmd${!idx}"
         else
-            cmd="$cmd+${!idx}"
+            cmd="$cmd%${!idx}"
         fi
     done
     local pipe=""
@@ -190,7 +309,7 @@ function run_once {
         if [ "_$pipe" == "_" ]; then
             pipe="$pipe${PIPE[$idx]}"
         else
-            pipe="$pipe+${PIPE[$idx]}"
+            pipe="$pipe%${PIPE[$idx]}"
         fi
     done
 
@@ -206,9 +325,9 @@ function run_once {
     fi
 
     if [ $DRY_RUN ]; then
-        notify "Execute '$@'"
+        notify "Execute '${CYAN}$@${NONE}'"
     elif [ ! -z "$pipe" ]; then
-        notify "Execute '$@'"
+        notify "Execute '${CYAN}$@${NONE}'"
         if [ "_$STDOUT" == "_cout" ]; then
             if [ "_$STDERR" == "_cerr" ]; then
                 cd "$DIR" && ($cmd | $pipe)
@@ -223,8 +342,8 @@ function run_once {
             fi
         fi
     else
-        local IFS='+'
-        notify "Execute '$@'"
+        local IFS='%'
+        notify "Execute '${CYAN}$@${NONE}'"
         if [ "_$STDOUT" == "_cout" ]; then
             if [ "_$STDERR" == "_cerr" ]; then
                 cd "$DIR" && $cmd
@@ -259,18 +378,18 @@ function check_proxy {
         let missing=1
         if [ "_$http_proxy" == "_" ]; then
             missing=0
-            warn "Environment '\$http_proxy' is empty!"
+            error "Environment '${RED}\$http_proxy${NONE}' is empty!"
         else
             info "Environment '\$http_proxy' is '$http_proxy'"
         fi
         if [ "_$https_proxy" == "_" ]; then
             missing=0
-            warn "Environment '\$https_proxy' is empty!"
+            error "Environment '${RED}\$https_proxy${NONE}' is empty!"
         else
             info "Environment '\$https_proxy' is '$https_proxy'"
         fi
         if [ $missing ]; then
-            warn "Fill missing proxy environment variables."
+            error "${RED}Fill missing proxy environment variables.${NONE}"
             exit 0
         fi
     fi
@@ -292,6 +411,12 @@ function check_sudo {
         fi
     else
         echo "Could NOT detect user. Root privileges required. Proceeding for now..."
+    fi
+}
+
+function delete_log {
+    if [ -f "$LOG_FILE" ]; then
+        rm -rf "$LOG_FILE"
     fi
 }
 

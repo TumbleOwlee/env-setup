@@ -49,11 +49,12 @@ fi
 # Install yay
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel less
 
-run_with_retry git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-DIR=/tmp/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
-STDOUT=/dev/null STDERR=/dev/null run_once rm /tmp/yay-bin/yay-bin-debug*.pkg.tar.zst
-STDOUT="cout" STDERR="cerr" run_with_retry $SUDO pacman -U --noconfirm /tmp/yay-bin/yay-bin-*.pkg.tar.zst
-rm -rf /tmp/yay-bin
+tmpdir=$(mktemp -d)
+run_with_retry git clone https://aur.archlinux.org/yay-bin.git $tmpdir/yay-bin
+DIR=$tmpdir/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
+STDOUT=/dev/null STDERR=/dev/null run_once rm $tmpdir/yay-bin/yay-bin-debug*.pkg.tar.zst
+STDOUT="cout" STDERR="cerr" run_with_retry $SUDO pacman -U --noconfirm $tmpdir/yay-bin/yay-bin-*.pkg.tar.zst
+rm -rf $tmpdir
 
 # Install requirements
 info "Install requirements."
@@ -105,7 +106,7 @@ if [ -z "$SKIP_FISH" ]; then
         export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
 
         if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '$HOME/.local/bin' to \$PATH"
+            info "Adding '${CYAN}$HOME/.local/bin${NONE}' to ${CYAN}\$PATH${NONE}"
             if [ ! -z $FISH_VERSION ]; then
                 if [ $FISH_VERSION -gt 3 ]; then
                     fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
@@ -156,9 +157,10 @@ if [ -z "$SKIP_NEOVIM" ]; then
         STDOUT="cout" STDERR="cerr" run_with_retry yay -S neovim-git
 
         # Install NerdFont
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
-        run_with_retry wget -P /tmp/ https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
-        STDERR="cerr" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
+        tmpdir=$(mktemp -d)
+        run_with_retry wget -P $tmpdir/ https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
+        run_with_retry unzip -o $tmpdir/FiraCode.zip -x README.md LICENSE -d ~/.fonts
+        rm -rf $tmpdir
         if [ ! -x "$(command -v fc-cache)" ]; then
             info "Install missing fontconfig"
             STDOUT="cout" STDERR="cerr" run_with_retry yay -S fontconfig
@@ -220,7 +222,11 @@ fi
 
 # Install rust environment
 if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
-    resp=$(ask "Install rust environment? [Y/n]" "Y")
+    if [ $REQUIRE_RUST -ne 1 ]; then
+        resp=$(ask "Install rust environment? [Y/n]" "Y")
+    else
+        resp="Y"
+    fi
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install rustup"
         resp=$(ask "Install bleeding edge? [y/N]" "N")
@@ -240,7 +246,7 @@ if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
         nvim_install_lsp "rust-analyzer"
 
         if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '$HOME/.cargo/bin' to \$PATH"
+            info "Adding '${CYAN}$HOME/.cargo/bin${NONE}' to ${CYAN}\$PATH${NONE}"
             if [ ! -z $FISH_VERSION ]; then
                 if [ $FISH_VERSION -gt 3 ]; then
                     fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
@@ -339,3 +345,5 @@ if [ -z "$SKIP_ALACRITTY" ]; then
         warn "If alacritty doesn't show rendered font, try using this: alacritty -o 'debug.renderer=\"gles2\"'"
     fi
 fi
+
+delete_log

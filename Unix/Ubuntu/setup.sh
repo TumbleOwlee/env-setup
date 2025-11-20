@@ -2,14 +2,10 @@
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-RANDOM_DATA="$(dd if=/dev/urandom bs=3 count=1 2>/dev/null)"
-
 JOBS=1
 NPROC=$(nproc)
 if [ ! -z "$NPROC" ]; then
-    if [ $NPROC -gt 4 ]; then
-        JOBS=4
-    elif [ $NPROC -gt 2 ]; then
+    if [ $NPROC -gt 2 ]; then
         JOBS=$(($NPROC - 1))
     fi
 fi
@@ -121,7 +117,7 @@ if [ -z "$SKIP_FISH" ]; then
         export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
 
         if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '$HOME/.local/bin' to \$PATH"
+            info "Adding '${CYAN}$HOME/.local/bin${NONE}' to ${CYAN}\$PATH${NONE}"
             if [ ! -z $FISH_VERSION ]; then
                 if [ $FISH_VERSION -gt 3 ]; then
                     fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
@@ -172,16 +168,17 @@ if [ -z "$SKIP_NEOVIM" ]; then
 
         run_with_retry $SUDO apt-get install -y build-essential
 
-        RANDOM_DIR="/tmp/$RANDOM_DATA-neovim"
+        RANDOM_DIR="$(mktemp -d)"
         run_with_retry git clone --depth=1 https://github.com/neovim/neovim $RANDOM_DIR
         DIR=$RANDOM_DIR run_with_retry make -j$JOBS CMAKE_BUILD_TYPE=RelWithDebInfo
         DIR=$RANDOM_DIR run_with_retry $SUDO make -j$JOBS install
-        rm -rf $RANDOM_DIR &>/dev/null
+        sudo rm -rf $RANDOM_DIR &>/dev/null
 
         # Install NerdFont
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir /tmp/
-        run_with_retry wget -P /tmp/ https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
-        STDERR="cerr" run_with_retry unzip /tmp/FiraCode.zip -x README.md LICENSE -d ~/.fonts
+        tmpdir=$(mktemp -d)
+        run_with_retry wget -P $tmpdir https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
+        run_with_retry unzip -o $tmpdir/FiraCode.zip -x README.md LICENSE -d ~/.fonts
+        rm -r $tmpdir
         if [ ! -x "$(command -v fc-cache)" ]; then
             info "Install missing fontconfig"
             run_with_retry $SUDO apt-get install -y fontconfig
@@ -249,7 +246,7 @@ fi
 
 # Install rust environment
 if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
-    if [ $REQUIRE_RUST -eq 1 ]; then
+    if [ $REQUIRE_RUST -ne 1 ]; then
         resp=$(ask "Install rust environment? [Y/n]" "Y")
     else
         resp="Y"
@@ -274,7 +271,7 @@ if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
         nvim_install_lsp "rust-analyzer"
 
         if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '$HOME/.cargo/bin' to \$PATH"
+            info "Adding '${CYAN}$HOME/.cargo/bin${NONE}' to ${CYAN}\$PATH${NONE}"
             if [ ! -z $FISH_VERSION ]; then
                 if [ $FISH_VERSION -gt 3 ]; then
                     fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
@@ -299,7 +296,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
 
         run_with_retry $SUDO apt-get install -y cmake g++ pkg-config libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
 
-        RANDOM_DIR="/tmp/$RANDOM-alacritty"
+        RANDOM_DIR="$(mktemp -d)"
         run_with_retry git clone --depth=1 https://github.com/alacritty/alacritty.git $RANDOM_DIR
         DIR=$RANDOM_DIR run_with_retry cargo build --release
         run_with_retry $SUDO cp $RANDOM_DIR/target/release/alacritty /usr/local/bin
@@ -349,8 +346,10 @@ if [ -z "$SKIP_DELTA" ]; then
             info "Install delta using github release"
             release=$(curl --silent -m 10 --connect-timeout 5 "https://api.github.com/repos/dandavison/delta/releases/latest")
             tag=$(echo "$release" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-            STDOUT=/dev/null STDERR=/dev/null run_with_retry wget --quiet -P "/tmp/" "https://github.com/dandavison/delta/releases/download/$tag/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
-            STDOUT=/dev/null STDERR=/dev/null run_with_retry dpkg -i "/tmp/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
+            tmpdir=$(mktemp -d)
+            STDOUT=/dev/null STDERR=/dev/null run_with_retry wget --quiet -P "$tmpdir" "https://github.com/dandavison/delta/releases/download/$tag/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
+            STDOUT=/dev/null STDERR=/dev/null run_with_retry dpkg -i "$tmpdir/delta-$tag-x86_64-unknown-linux-gnu.tar.gz"
+            rm -rf $tmpdir
         fi
 
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
@@ -369,3 +368,5 @@ fi
 if [ -f "$HOME/.config/alacritty" ]; then
     warn "If alacritty doesn't show rendered font, try using this: alacritty -o 'debug.renderer=\"gles2\"'"
 fi
+
+delete_log
