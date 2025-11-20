@@ -166,7 +166,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
 
-        run_with_retry $SUDO apt-get install -y build-essential
+        run_with_retry $SUDO apt-get install -y build-essential cmake
 
         RANDOM_DIR="$(mktemp -d)"
         run_with_retry git clone --depth=1 https://github.com/neovim/neovim $RANDOM_DIR
@@ -263,6 +263,7 @@ if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
 
         # Install toolchain
         run_with_retry source "$HOME/.cargo/env"
+        export PATH="$PATH:$HOME/.cargo/bin"
         run_with_retry rustup toolchain install stable
         run_with_retry rustup default stable
         run_with_retry rustup component add rust-src rust-analyzer

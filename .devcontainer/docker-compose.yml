@@ -1,0 +1,25 @@
+services:
+  x86_64:
+    image: env-setup
+    platform: linux/amd64
+    build:
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/git
+    network_mode: host
+  armv7:
+    image: env-setup
+    platform: linux/arm/v7
+    build:
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/git
+    network_mode: host
+  armv8:
+    image: env-setup
+    platform: linux/arm64/v8
+    build:
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/git
+    network_mode: host
