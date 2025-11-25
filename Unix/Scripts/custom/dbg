@@ -1,0 +1,10 @@
+#!/bin/bash
+# Simple wrapper for `gdb`
+# * starts the program with gdb
+# * sets breakpoint on `main` entry point
+
+PROGRAM="$1"
+shift 1
+ARGS="$@"
+
+gdb -ex "b main" -ex "r $ARGS" $PROGRAM
