@@ -289,7 +289,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
     # Install utility scripts
     resp=$(ask "Install utility scripts? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        scripts=('Scripts/git-cmd/git-sync' 'Scripts/git-cmd/git-check' 'Scripts/git-cmd/git-hooks' 'Scripts/custom/docker-run' 'Scripts/custom/finance' 'Scripts/bspwm/win-move')
+        scripts=('Scripts/git-cmd/git-sync' 'Scripts/git-cmd/git-check' 'Scripts/git-cmd/git-hooks' 'Scripts/custom/dbg' 'Scripts/custom/docker-run' 'Scripts/custom/finance' 'Scripts/bspwm/win-move')
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.local/bin"
         for sc in ${scripts[@]}; do
             if [ "_$DEBUG" == "_" ]; then
