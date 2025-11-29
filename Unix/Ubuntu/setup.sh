@@ -287,6 +287,8 @@ if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
 
         cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
         export PATH=$PATH:~/.cargo/bin
+        
+        run_with_retry cargo install cross --git https://github.com/cross-rs/cross
     fi
 fi
 
