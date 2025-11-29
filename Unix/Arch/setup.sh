@@ -53,7 +53,7 @@ tmpdir=$(mktemp -d)
 run_with_retry git clone https://aur.archlinux.org/yay-bin.git $tmpdir/yay-bin
 DIR=$tmpdir/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
 STDOUT=/dev/null STDERR=/dev/null run_once rm $tmpdir/yay-bin/yay-bin-debug*.pkg.tar.zst
-STDOUT="cout" STDERR="cerr" run_with_retry $SUDO pacman -U --noconfirm $tmpdir/yay-bin/yay-bin-*.pkg.tar.zst
+run_with_retry $SUDO pacman -U --noconfirm $tmpdir/yay-bin/yay-bin-*.pkg.tar.zst
 rm -rf $tmpdir
 
 # Install requirements
