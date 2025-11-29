@@ -58,7 +58,7 @@ rm -rf $tmpdir
 
 # Install requirements
 info "Install requirements."
-STDOUT="cout" STDERR="cerr" run_with_retry yay -S git python python-pipx unzip wget zoxide wget less
+run_with_retry yay -S --noconfirm git python python-pipx unzip wget zoxide wget less
 
 # Add .local/bin to PATH
 cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
@@ -81,7 +81,7 @@ if [ -z "$SKIP_FISH" ]; then
     resp=$(ask "Install fish shell? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install fish shell"
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S fish
+        run_with_retry yay -S --noconfirm fish
         run_with_retry $SUDO chsh -s $(which fish)
         run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
 
@@ -133,7 +133,7 @@ if [ -z "$SKIP_TMUX" ]; then
     resp=$(ask "Install tmux? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install tmux"
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S tmux
+        run_with_retry yay -S --noconfirm tmux
 
         # Create tmux configuration
         if [ "_$DEBUG" == "_" ]; then
@@ -154,7 +154,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
     resp=$(ask "Install neovim? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S neovim-git
+        run_with_retry yay -S --noconfirm neovim-git
 
         # Install NerdFont
         tmpdir=$(mktemp -d)
@@ -163,7 +163,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
         rm -rf $tmpdir
         if [ ! -x "$(command -v fc-cache)" ]; then
             info "Install missing fontconfig"
-            STDOUT="cout" STDERR="cerr" run_with_retry yay -S fontconfig
+            run_with_retry yay -S --noconfirm fontconfig
         fi
         STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
 
@@ -204,7 +204,7 @@ if [ -z "$SKIP_DOCKER" ]; then
     resp=$(ask "Install docker? [Y/n]" "Y")
     if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install docker"
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S docker docker-compose
+        run_with_retry yay -S --noconfirm docker docker-compose
         run_with_retry $SUDO systemctl enable --now docker
         run_once $SUDO groupadd docker
         run_with_retry $SUDO usermod -aG docker $USER
@@ -235,7 +235,7 @@ if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
         else
             pkg="rustup"
         fi
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S $pkg
+        run_with_retry yay -S --noconfirm $pkg
 
         # Install toolchain
         run_with_retry rustup toolchain install stable
@@ -269,7 +269,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
     # Install alacritty
     if [ "_$resp_alacritty" != "_n" ] && [ "_$resp_alacritty" != "_N" ]; then
         info "Install alacritty"
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S alacritty-git
+        run_with_retry yay -S --noconfirm alacritty-git
 
         if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
             warn "Deprecated alacritty.yml file found. Move to '$HOME/.config/alacritty/old.alacritty.yml'"
@@ -309,7 +309,7 @@ if [ -z "$SKIP_CXX" ]; then
     resp=$(ask "Install C++ environment? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install clang, gcc, cmake"
-        STDOUT="cout" STDERR="cerr" run_with_retry yay -S clang gcc cmake
+        run_with_retry yay -S --noconfirm clang gcc cmake
 
         # Install nvim lsp
         nvim_install_lsp "clangd"
@@ -325,7 +325,7 @@ if [ -z "$SKIP_DELTA" ]; then
     resp=$(ask "Install delta? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install delta using yay"
-        STDOUT=/dev/null STDERR=/dev/null run_with_retry yay -Sy git-delta
+        run_with_retry yay -S --noconfirm git-delta
 
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
         STDOUT=/dev/null STDERR=/dev/null run_with_retry curl https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig -o "$HOME/.config/delta/themes.gitconfig"
