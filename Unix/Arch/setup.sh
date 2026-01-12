@@ -2,8 +2,13 @@
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
+USER=$(whoami)
+
 for i in "$@"; do
     case $i in
+    -d | --debug)
+        export DEBUG=y
+        ;;
     -n | --noconfirm)
         export NO_CONFIRM="YES"
         ;;
@@ -65,8 +70,9 @@ cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo
 export PATH="$PATH:~/.local/bin"
 
 # Init zoxide for bash
-echo "# Init zoxide" >>$HOME/.bashrc
-zoxide init bash >>$HOME/.bashrc
+cat $HOME/.bashrc 2>/dev/null | grep -q 'ZOXIDE INIT' || echo '
+# ZOXIDE INIT
+zoxide init --cmd cd bash | source' >>$HOME/.bashrc
 . "$HOME/.bashrc"
 
 # Update BSPWM
@@ -106,24 +112,28 @@ if [ -z "$SKIP_FISH" ]; then
         export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
 
         if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '${CYAN}$HOME/.local/bin${NONE}' to ${CYAN}\$PATH${NONE}"
+            notify "Adding '${CYAN}$HOME/.local/bin${NONE}' to ${CYAN}\$PATH${NONE}"
             if [ ! -z $FISH_VERSION ]; then
                 if [ $FISH_VERSION -gt 3 ]; then
                     fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
                 else
                     cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo '
-                        # LOCAL BIN
-                        contains ~/.local/bin $PATH
-                        or set PATH ~/.local/bin $PATH' >>$HOME/.config/fish/config.fish
+# LOCAL BIN
+contains ~/.local/bin $PATH
+or set PATH ~/.local/bin $PATH' >>$HOME/.config/fish/config.fish
                 fi
             fi
         fi
 
-        echo "alias ccat=(which cat)" >>$HOME/.config/fish/config.fish
-        echo "alias cat=colored_cat" >>$HOME/.config/fish/config.fish
+        cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CAT ALIAS' || echo '
+# CAT ALIAS
+alias ccat=(which cat 2>/dev/null)
+alias cat=colored_cat' >>$HOME/.config/fish/config.fish
 
-        if [ ! -z "$(which zoxide)" ]; then
-            echo "zoxide init fish | source" >>$HOME/.config/fish/config.fish
+        if [ ! -z "$(which zoxide 2>/dev/null)" ]; then
+        cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'ZOXIDE INIT' || echo '
+# ZOXIDE INIT
+zoxide init --cmd cd fish | source' >>$HOME/.config/fish/config.fish
         fi
     fi
 fi
@@ -154,7 +164,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
     resp=$(ask "Install neovim? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
-        run_with_retry yay -S --noconfirm neovim-git
+        run_with_retry yay -S --noconfirm ninja-build neovim-git
 
         # Install NerdFont
         tmpdir=$(mktemp -d)
@@ -246,15 +256,15 @@ if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
         nvim_install_lsp "rust-analyzer"
 
         if [ -d "$HOME/.config/fish" ]; then
-            info "Adding '${CYAN}$HOME/.cargo/bin${NONE}' to ${CYAN}\$PATH${NONE}"
+            notify "Adding '${CYAN}$HOME/.cargo/bin${NONE}' to ${CYAN}\$PATH${NONE}"
             if [ ! -z $FISH_VERSION ]; then
                 if [ $FISH_VERSION -gt 3 ]; then
                     fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
                 else
                     cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo '
-                        # CARGO BIN
-                        contains ~/.cargo/bin $PATH
-                        or set PATH ~/.cargo/bin $PATH' >>$HOME/.config/fish/config.fish
+# CARGO BIN
+contains ~/.cargo/bin $PATH
+or set PATH ~/.cargo/bin $PATH' >>$HOME/.config/fish/config.fish
                 fi
             fi
         fi

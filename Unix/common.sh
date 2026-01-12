@@ -107,7 +107,7 @@ function error {
 }
 
 function sim_exit {
-    if [ -z "$1 " ]; then
+    if [ -z "$1" ]; then
         return 1
     else
         return $1
