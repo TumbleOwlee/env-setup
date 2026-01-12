@@ -11,14 +11,12 @@ CYAN="\e[36m"
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-if ! command -v which >/dev/null 2>&1
-then
+if ! command -v which >/dev/null 2>&1; then
     echo "'which' could not be found"
     exit 1
 fi
 
-if ! command -v curl >/dev/null 2>&1
-then
+if ! command -v curl >/dev/null 2>&1; then
     echo "'curl' could not be found"
     exit 1
 fi

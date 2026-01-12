@@ -12,7 +12,6 @@ if [ ! -z "$NPROC" ]; then
     fi
 fi
 
-
 for i in "$@"; do
     case $i in
     -d | --debug)
@@ -143,7 +142,7 @@ alias ccat=(which cat 2>/dev/null)
 alias cat=colored_cat' >>$HOME/.config/fish/config.fish
 
         if [ ! -z "$(which zoxide 2>/dev/null)" ]; then
-        cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'ZOXIDE INIT' || echo '
+            cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'ZOXIDE INIT' || echo '
 # ZOXIDE INIT
 zoxide init --cmd cd fish | source' >>$HOME/.config/fish/config.fish
         fi
