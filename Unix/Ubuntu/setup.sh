@@ -49,15 +49,12 @@ run_with_retry $SUDO apt-get upgrade -y
 
 # Install requirements
 info "Install requirements."
-run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv gpg curl which
+run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv gpg curl which fzf
 
 $SUDO apt-get install -y software-properties-common &>/dev/null
 
 info "Install zoxide."
-mkdir -p "$HOME/.cache" &>/dev/null
-run_with_retry curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh -o "$HOME/.cache/zoxide_install.sh"
-run_with_retry bash "$HOME/.cache/zoxide_install.sh"
-rm "$HOME/.cache/zoxide_install.sh" &>/dev/null
+$SUDO apt-get install -y zoxide &>/dev/null
 
 # Add .local/bin to PATH
 cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
