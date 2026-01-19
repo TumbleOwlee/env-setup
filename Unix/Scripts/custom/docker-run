@@ -1,26 +1,44 @@
 #!/bin/bash
 #
 # Requirements:
-#  - Executable script `.commands` in the root of the GIT repository
-#      The script has to write up to two lines into stdout
-#        1. The first line is the command to execute inside the docker container
-#        2. The second line has to be the relative path to the working directory
-#      E.g. to execute `ls` inside the `$GIT_ROOT/build` directory, the script has to return
-#        ```
-#          "ls"
-#          "./build"
-#        ```
-# - A `docker-compose.yml` has to be located in the `$GIT_ROOT` or inside `$GIT_ROOT/local` and
-#   has to configure three services for full support, each one specifying a different platform:
-#     * `linux/amd64`
-#     * `linux/arm/v7`
-#     * `linux/arm64/v8`
+#  - An executable script `.commands` in one of the following locations.
+#      - `$GIT_ROOT/`
+#      - `$GIT_ROOT/.devcontainer/`
+#      - `~/.local/share/docker-run/`
+#    If the `.commands` script is located in the `$GIT_ROOT`, it takes two arguments:
+#      1. The docker-compose target
+#      2. The arguments as given to this script
+#    If the `.commands` script is located in `~/.local/share/docker-run/`, the script takes
+#    an additional parameter to provide information about the repository:
+#      1. The path to the current git repository
+#      2. The docker-compose target
+#      3. The arguments as given to this script
+#    The script has to print commands to manipulate the environment, working directory and specify
+#    commands to execute to stdout. The following outputs are used:
+#      - `ENV:$VAR=$VALUE` to set an environment variable
+#      - `DIR:$PATH` to set the working directory
+#      - `CMD:$COMMAND` to set the command to exeucte
+#    The commands are executed one by one. Thus if you want to execute commands in seperate
+#    directories, you can use something like this:
+#    ```bash
+#      DIR:$PATH1
+#      CMD:$COMMAND1
+#      DIR:$PATH2
+#      CMD:$COMMAND2
+#    ```
+#    This way $COMMAND1 is executed in $PATH1 and $COMMAND2 in $PATH2.
+#  - A `docker-compose.yml` has to be located in the `$GIT_ROOT`, `$GIT_ROOT/.devcontainer`,
+#    `$GIT_ROOT/local` or `~/.local/share/docker-run/` and has to configure three services for 
+#    full support, each one specifying a different platform:
+#      * `linux/amd64`
+#      * `linux/arm/v7`
+#      * `linux/arm64/v8`
 #
-# Afterwards, simply create two symbolic links `arm-run` and `arm8-run` or simply use
-# `docker-run install-links` and be ready to run any command in an armv7, armv8 or amd64
+#  Afterwards, simply create two symbolic links `arm-run` and `arm8-run` or simply use
+#  `docker-run install-links` and be ready to run any command in an armv7, armv8 or amd64
 #
-# At runtime the information about running docker containers managed by the script is located
-# at /tmp/docker-run
+#  At runtime the information about running docker containers managed by the script is located
+#  at /tmp/docker-run
 RED="\e[31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
@@ -138,16 +156,25 @@ locate_file() {
 }
 
 DOCKER_COMPOSE_DIR="$(locate_file docker-compose.yml)"
-if [ -z "$DOCKER_COMPOSE_DIR" ]; then
+if [ ! -z "$DOCKER_COMPOSE_DIR" ]; then
+    echo -e "$YELLOW[!]$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
+elif [ -f "$HOME/.local/share/docker-run/docker-compose.yml" ]; then
+    DOCKER_COMPOSE_DIR="$HOME/.local/share/docker-run"
+    echo -e "$YELLOW[!]$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
+else
     echo -e "$RED[E]$RESET Unable to locate '${BLUE}docker-compose.yml$RESET'" >&2
     exit 1
 fi
-echo -e "$YELLOW[!]$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
 CONTAINER_NAME="$(basename $WORKDIR)"
 
 COMMANDS_DIR="$(locate_file .commands)"
 if [ ! -z "$COMMANDS_DIR" ]; then
     echo -e "$YELLOW[!]$RESET Use ${GREEN}.commands${RESET} in $BLUE$COMMANDS_DIR$RESET"
+else
+    if [ -f "$HOME/.local/share/docker-run/.commands" ]; then
+        GLOBAL_COMMANDS_DIR="$HOME/.local/share/docker-run"
+        echo -e "$YELLOW[!]$RESET Use ${GREEN}.commands${RESET} in ${BLUE}$GLOBAL_COMMANDS_DIR${RESET}"
+    fi
 fi
 
 USER_COMMANDS_DIR="$(locate_file .user-commands)"
@@ -197,11 +224,11 @@ if [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
     CONTAINER_ID=$(docker container ls -a | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
     if [ ! -z "$CONTAINER_ID" ]; then
         echo -e "$YELLOW[!]$RESET Run: '${BLUE}docker container rm $CONTAINER_ID$RESET'"
-        docker container rm $CONTAINER_ID 1>/dev/null || exit 1 
+        docker container rm $CONTAINER_ID 1>/dev/null || exit 1
     fi
 
-    echo -e "$YELLOW[!]$RESET Run: '${BLUE}docker compose -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
-    (cd $DOCKER_COMPOSE_DIR && docker compose -p "$GIT_BASENAME" build --no-cache $DOCKER_COMPOSE_TARGET) && exit 0 || exit 1
+    echo -e "$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
+    (cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" build --no-cache $DOCKER_COMPOSE_TARGET) && exit 0 || exit 1
 fi
 
 # Get Git branch
@@ -233,14 +260,14 @@ if [ -z "$CONTAINER_ID" ]; then
     fi
     docker run --rm --privileged multiarch/qemu-user-static --reset -p yes &>/dev/null
 
-    echo -en "$YELLOW[!]$RESET Run: '${BLUE}docker compose -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET$RESET'"
+    echo -en "$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
     SECONDS=0
     while IFS= read -r line; do
-        echo -en "\r$YELLOW[!]$RESET Run: '${BLUE}docker compose -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET$RESET' ${SECONDS}s    "
-    done < <(cd $DOCKER_COMPOSE_DIR && docker compose -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
+        echo -en "\r$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET' ${SECONDS}s    "
+    done < <(cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
     echo ""
     if [ $? -ne 0 ]; then
-        echo -e "$RED[E]$RESET Failed to run '${BLUE}docker compose -p \"$GIT_BASENAME\" up -d$RESET'"
+        echo -e "$RED[!]$RESET Failed to run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
         exit 1
     fi
 fi
@@ -255,6 +282,12 @@ fi
 
 if [ ! -z "$1" ]; then
     INPUT=""
+
+    if [ ! -z "$GLOBAL_COMMANDS_DIR" ]; then
+        INPUT="$GLOBAL_COMMANDS_DIR/.commands"
+        REPOSITORY="$GIT_DIR"
+    fi
+
     if [ ! -z "$COMMANDS_DIR" ]; then
         INPUT="$COMMANDS_DIR/.commands"
     fi
@@ -269,22 +302,24 @@ if [ ! -z "$1" ]; then
         if [ ! -z "$line" ]; then
             if [[ "$line" =~ ^ENV:.* ]]; then
                 ENV_ARGS+=("-e ${line#"ENV:"}")
+                echo -e "$YELLOW[!]$RESET Set env variable '${GREEN}${line#"ENV:"}${RESET}"
             elif [[ "$line" =~ ^DIR:.* ]]; then
                 CUR_DIR="$(echo ${line#"DIR:"})"
+                echo -e "$YELLOW[!]$RESET Set working directory '${GREEN}${line#"DIR:"}${RESET}"
             elif [[ "$line" =~ ^CMD:.* ]]; then
                 echo -e "$YELLOW[!]$RESET Run: '${BLUE}$(echo ${line#"CMD:"})$RESET'"
-                eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git$CUR_DIR\" -it $CONTAINER_ID ${line#"CMD:"}"
+                eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID ${line#"CMD:"}"
                 CMD_EXECUTED=1
             else
                 echo -e "[${RED}!${RESET}] Invalid input: '${RED}$line${RESET}'."
             fi
         fi
-    done 10< <("$INPUT" $DOCKER_COMPOSE_TARGET $1 2>/dev/null)
+    done 10< <("$INPUT" $REPOSITORY $DOCKER_COMPOSE_TARGET $1 2>/dev/null)
 
     if [ $CMD_EXECUTED -eq 0 ]; then
         # Run given commandline in the container
         echo -e "$YELLOW[!]$RESET Run: '$BLUE$@$RESET'"
-        eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
+        eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
     fi
 else
     echo -e "[${RED}!${RESET}] ${RED}No command specified.${RESET}"
