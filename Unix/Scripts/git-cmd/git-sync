@@ -68,15 +68,22 @@ for branch in $(git for-each-ref refs/heads --format="%(refname:short)"); do
         else
             b1="$(git log -n 1 --pretty=format:"%H" $branch 2>/dev/null)"
             b2="$(git log -n 1 --pretty=format:"%H" origin/$upbranch 2>/dev/null)"
+            b1t="$(git log -n 1 --pretty=format:"%at" $branch 2>/dev/null)"
+            b2t="$(git log -n 1 --pretty=format:"%at" origin/$upbranch 2>/dev/null)"
             if [ ! -z "$b1" ] && [ ! -z "$b2" ] && [ "$b1" != "$b2" ]; then
                 echo -en "\e[0;33m: Fast forwarding '$branch' ... \e[0m"
-                git fetch . origin/$upbranch:$branch &>/dev/null
-                if [ $? -ne 0 ]; then
-                    echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
-                    echo -e "\e[0;31mfailure\e[0m$whitespace"
+                if [ $b1t -lt $b1t ]; then
+                    git fetch . origin/$upbranch:$branch &>/dev/null
+                    if [ $? -ne 0 ]; then
+                        echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
+                        echo -e "\e[0;31mfailure\e[0m$whitespace"
+                    else
+                        echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
+                        echo -e "\e[0;32msuccess\e[0m$whitespace"
+                    fi
                 else
                     echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
-                    echo -e "\e[0;32msuccess\e[0m$whitespace"
+                    echo -e "\e[0;34mskipped\e[0m$whitespace"
                 fi
             fi
         fi
