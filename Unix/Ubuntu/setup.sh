@@ -54,7 +54,7 @@ run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3
 $SUDO apt-get install -y software-properties-common &>/dev/null
 
 info "Install zoxide."
-$SUDO apt-get install -y zoxide &>/dev/null
+curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh 2>/dev/null | sh &>/dev/null
 
 # Add .local/bin to PATH
 cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
