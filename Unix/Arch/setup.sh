@@ -70,6 +70,8 @@ cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo
 export PATH="$PATH:~/.local/bin"
 
 # Init zoxide for bash
+info "Install zoxide"
+curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh 2>/dev/null | sh &>/dev/null
 cat $HOME/.bashrc 2>/dev/null | grep -q 'ZOXIDE INIT' || echo '
 # ZOXIDE INIT
 zoxide init --cmd cd bash | source' >>$HOME/.bashrc
