@@ -2,11 +2,25 @@
 
 import sys
 import os
-import pwd
-from blessings import Terminal
-from argparse import ArgumentParser
+import importlib
+import subprocess
+
 from pathlib import Path
-import tabulate
+from argparse import ArgumentParser
+
+
+def import_library(module):
+    try:
+        return importlib.import_module(module)
+    except ImportError as error:
+        instance = subprocess.run(['python3', '-m', 'pip', 'install', module])
+        if instance.returncode != 0:
+            raise error
+        return importlib.import_module(module)
+
+
+Terminal = import_library('blessings').Terminal
+tabulate = import_library('tabulate')
 
 # Used for terminal coloring
 term = Terminal()
@@ -43,19 +57,19 @@ class Frequency:
                 f"{term.red}[E]{term.normal} Invalid frequency found ({value})")
             sys.exit(1)
 
-    def toMonthly(self, cost: float):
+    def toMonthly(self, money: float):
         if self.frequency == Frequency.MONTHLY:
-            return cost
+            return money
         elif self.frequency == Frequency.QUARTERLY:
-            return cost / 3
+            return money / 3
         elif self.frequency == Frequency.BIWEEKLY:
-            return cost * 2
+            return money * 2
         elif self.frequency == Frequency.WEEKLY:
-            return cost * 4
+            return money * 4
         elif self.frequency == Frequency.YEARLY:
-            return cost / 12.0
+            return money / 12.0
         elif self.frequency == Frequency.HALFYEARLY:
-            return cost / 6.0
+            return money / 6.0
 
     def __str__(self):
         if Frequency.isValue(self.frequency, Frequency.MONTHLY, "MONTHLY"):
@@ -75,12 +89,12 @@ class Frequency:
 class Entry:
     description: str
     frequency: Frequency
-    cost: float
+    money: float
 
-    def __init__(self, description: str, frequency: Frequency, cost: float):
+    def __init__(self, description: str, frequency: Frequency, money: float):
         self.description = description
         self.frequency = frequency
-        self.cost = cost
+        self.money = money
 
     def from_line(line: str):
         line = line.strip()
@@ -104,78 +118,78 @@ def load(path: Path):
 def save(path: Path, entries: [Entry]):
     f = open(path, 'w')
     for entry in entries:
-        f.write(f"{entry.description},{entry.frequency},{entry.cost}\n")
+        f.write(f"{entry.description},{entry.frequency},{entry.money}\n")
 
 
-def add(config: Path, description: str, frequency: Frequency, cost: float):
+def add(config: Path, description: str, frequency: Frequency, money: float):
     entries = load(config)
-    entries.append(Entry(description, frequency, cost))
+    entries.append(Entry(description, frequency, money))
     save(config, entries)
 
 
 def list(config: Path):
     entries = load(config)
 
-    data = [["Description", "Frequency", "Cost", "Cost per Month", "ID"]]
+    data = [["Description", "Frequency", "Income",
+             "Cost", "Netto per Month", "ID"]]
     width = [
         max(30, len(data[0][0])),
         max(0, len(data[0][1])),
         max(10, len(data[0][2])),
         max(10, len(data[0][3])),
-        max(6, len(data[0][4]))
+        max(10, len(data[0][4])),
+        max(6, len(data[0][5]))
     ]
 
-    totalCost = 0
+    total = 0
     id = 0
     for entry in entries:
-        if entry.cost > 0:
-            cost = -round(entry.cost, 2)
-            costPerMonth = -round(entry.frequency.toMonthly(entry.cost), 2)
-            data.append([entry.description, str(entry.frequency),
-                        cost, costPerMonth, id])
-            totalCost = totalCost + cost
-            width[0] = max(width[0], len(entry.description))
-            width[1] = max(width[1], len(str(entry.frequency)))
-            width[2] = max(width[2], len(str(cost)))
-            width[3] = max(width[3], len(str(costPerMonth)))
+        money = round(entry.money, 2)
+        income = ""
+        cost = ""
+        if money < 0:
+            cost = money
         else:
-            cost = -round(entry.cost, 2)
-            costPerMonth = round(entry.frequency.toMonthly(cost), 2)
-            data.append([entry.description, str(entry.frequency),
-                        cost, costPerMonth, id])
-            totalCost = totalCost + cost
-            width[0] = max(width[0], len(entry.description))
-            width[1] = max(width[1], len(str(entry.frequency)))
-            width[2] = max(width[2], len(str(cost)))
-            width[3] = max(width[3], len(str(costPerMonth)))
-        width[4] = max(width[4], len(str(id)))
+            income = money
+
+        nettoPerMonth = round(entry.frequency.toMonthly(entry.money), 2)
+
+        data.append([entry.description, str(entry.frequency), income, cost,
+                    nettoPerMonth, id])
+
+        total = total + nettoPerMonth
+        width[0] = max(width[0], len(entry.description))
+        width[1] = max(width[1], len(str(entry.frequency)))
+        width[2] = max(width[2], len(str(income)))
+        width[3] = max(width[3], len(str(cost)))
+        width[4] = max(width[4], len(str(nettoPerMonth)))
+        width[5] = max(width[5], len(str(id)))
         id = id + 1
 
     print("")
-    print("   " + term.bold + data[0][4].rjust(width[4]) + term.normal + " │ " + term.bold + data[0][0].ljust(width[0]) + term.normal + " │ " + term.bold + data[0][1].ljust(width[1]) + term.normal +
-          " │ " + term.bold + data[0][2].rjust(width[2]) + term.normal + " │ " + term.bold + data[0][3].rjust(width[3]) + term.normal)
-    print("  " + "─".ljust(width[4] + 2, '─') + "┼" + "─".ljust(width[0] + 2, '─') + "┼" + "─".ljust(width[1] + 2, '─') + "┼"
-          + "─".ljust(width[2] + 2, '─') + "┼" + "─".ljust(width[3] + 10, '─'))
+    print("   " + term.bold + term.cyan + data[0][5].rjust(width[5]) + term.normal + " │ " + term.bold + term.cyan + data[0][0].ljust(width[0]) + term.normal + " │ " + term.cyan + term.bold + data[0][1].ljust(width[1]) + term.normal +
+          " │ " + term.bold + term.cyan + data[0][2].rjust(width[2]) + term.normal + " │ " + term.cyan + term.bold + data[0][3].rjust(width[3]) + term.normal + " │ " + term.bold + term.cyan + data[0][4].rjust(width[4]) + term.normal)
+    print("  " + "─".ljust(width[5] + 2, '─') + "┼" + "─".ljust(width[0] + 2, '─') + "┼" + "─".ljust(width[1] + 2, '─') + "┼"
+          + "─".ljust(width[2] + 2, '─') + "┼" + "─".ljust(width[3] + 2, '─') + "┼" + "─".ljust(width[4] + 10, '─'))
+    index = 0
     for d in data[1:]:
-        if d[2] < 0:
-            print("   " + str(d[4]).rjust(width[4]) + " │ " + d[0].ljust(width[0]) + " │ " + d[1].ljust(width[1]) +
-                  " │ " + term.red +
-                  f"{d[2]:.02f}".rjust(width[2], ' ') + term.normal
-                  + " │ " + term.red + f"{d[3]:.02f}".rjust(width[3]) + term.normal)
+        color = term.blue if index % 2 == 1 else term.yellow
+        if str(d[3]) != "":
+            print("   " + color + str(d[5]).rjust(width[5]) + term.normal + " │ " + color + d[0].ljust(width[0]) + term.normal + " │ " + color + d[1].ljust(width[1]) + term.normal + " │ " + color + d[2].ljust(width[2]) + term.normal +
+                  " │ " + term.red + f"{d[3]:.02f}".rjust(width[3], ' ') + term.normal + " │ " + term.red + f"{d[4]:.02f}".rjust(width[4]) + term.normal)
         else:
-            print("   " + str(d[4]).rjust(width[4]) + " │ " + d[0].ljust(width[0]) + " │ " + d[1].ljust(width[1]) +
-                  " │ " + term.green +
-                  f"{d[2]:.02f}".rjust(width[2], ' ') + term.normal
-                  + " │ " + term.green + f"{d[3]:.02f}".rjust(width[3]) + term.normal)
-    print("  " + "─".ljust(width[4] + 2, '─') + "┴" + "─".ljust(width[0] + 2, '─') + "┴" + "─".ljust(width[1] + 2, '─') + "┴"
-          + "─".ljust(width[2] + 2, '─') + "┼" + "─".ljust(width[3] + 10, '─'))
+            print("   " + color + str(d[5]).rjust(width[5]) + term.normal + " │ " + color + d[0].ljust(width[0]) + term.normal + " │ " + color + d[1].ljust(width[1]) + term.normal +
+                  " │ " + term.green + f"{d[2]:.02f}".rjust(width[2], ' ') + term.normal + " │ " + d[3].ljust(width[3]) + " │ " + term.green + f"{d[4]:.02f}".rjust(width[4]) + term.normal)
+        index = index + 1
+    print("  " + "─".ljust(width[5] + 2, '─') + "┴" + "─".ljust(width[0] + 2, '─') + "┴" + "─".ljust(width[1] + 2, '─') + "┴"
+          + "─".ljust(width[2] + 2, '─') + "┴" + "─".ljust(width[3] + 2, '─') + "┼" + "─".ljust(width[4] + 10, '─'))
 
-    if totalCost < 0:
-        print("   " + term.bold + "Total".rjust(width[0] + width[1] +
-                                                width[2] + width[4] + 9) + term.normal + " │ " + term.red + term.bold + f"{round(totalCost, 2):.02f}".rjust(width[3]) + term.normal + term.bold + " monthly" + term.normal)
+    if total < 0:
+        print("   " + term.bold + term.cyan + "Total".rjust(width[0] + width[1] +
+                                                            width[2] + width[3] + width[5] + 12) + term.normal + " │ " + term.red + term.bold + f"{round(total, 2):.02f}".rjust(width[4]) + term.normal + term.bold + term.cyan + " monthly" + term.normal)
     else:
-        print("   " + term.bold + "Total".rjust(width[0] + width[1] +
-                                                width[2] + width[4] + 9) + term.normal + " │ " + term.green + term.bold + f"{round(totalCost, 2):.02f}".rjust(width[3]) + term.normal + term.bold + " monthly" + term.normal)
+        print("   " + term.bold + term.cyan + "Total".rjust(width[0] + width[1] +
+                                                            width[2] + width[3] + width[5] + 12) + term.normal + " │ " + term.green + term.bold + f"{round(total, 2):.02f}".rjust(width[4]) + term.normal + term.bold + term.cyan + " monthly" + term.normal)
     print("")
 
 
