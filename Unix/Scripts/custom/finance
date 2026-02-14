@@ -131,7 +131,7 @@ def list(config: Path):
     entries = load(config)
 
     data = [["Description", "Frequency", "Income",
-             "Cost", "Netto per Month", "ID"]]
+             "Cost", "Per Month", "ID"]]
     width = [
         max(30, len(data[0][0])),
         max(0, len(data[0][1])),
@@ -152,17 +152,17 @@ def list(config: Path):
         else:
             income = money
 
-        nettoPerMonth = round(entry.frequency.toMonthly(entry.money), 2)
+        perMonth = round(entry.frequency.toMonthly(entry.money), 2)
 
         data.append([entry.description, str(entry.frequency), income, cost,
-                    nettoPerMonth, id])
+                    perMonth, id])
 
-        total = total + nettoPerMonth
+        total = total + perMonth
         width[0] = max(width[0], len(entry.description))
         width[1] = max(width[1], len(str(entry.frequency)))
         width[2] = max(width[2], len(str(income)))
         width[3] = max(width[3], len(str(cost)))
-        width[4] = max(width[4], len(str(nettoPerMonth)))
+        width[4] = max(width[4], len(str(perMonth)))
         width[5] = max(width[5], len(str(id)))
         id = id + 1
 
