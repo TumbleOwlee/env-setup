@@ -275,6 +275,7 @@ or set PATH ~/.cargo/bin $PATH' >>$HOME/.config/fish/config.fish
         export PATH=$PATH:~/.cargo/bin
 
         run_with_retry cargo install cross --git https://github.com/cross-rs/cross
+        run_with_retry cargo install --locked tree-sitter-cli
     fi
 fi
 
