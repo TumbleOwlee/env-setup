@@ -162,6 +162,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
@@ -178,6 +179,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
@@ -195,6 +197,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
@@ -210,6 +213,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
@@ -233,6 +237,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
@@ -248,6 +253,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
@@ -265,6 +271,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
@@ -280,6 +287,7 @@ function run_with_retry {
                         if [ $SECONDS -gt 0 ]; then
                             echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
                         fi
+                        sleep 1
                     done
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile

@@ -28,7 +28,7 @@
 #    ```
 #    This way $COMMAND1 is executed in $PATH1 and $COMMAND2 in $PATH2.
 #  - A `docker-compose.yml` has to be located in the `$GIT_ROOT`, `$GIT_ROOT/.devcontainer`,
-#    `$GIT_ROOT/local` or `~/.local/share/docker-run/` and has to configure three services for 
+#    `$GIT_ROOT/local` or `~/.local/share/docker-run/` and has to configure three services for
 #    full support, each one specifying a different platform:
 #      * `linux/amd64`
 #      * `linux/arm/v7`
@@ -63,7 +63,6 @@ if [ "$1" == "install-links" ]; then
     else
         echo -e "$YELLOW[$GREEN!$YELLOW]$RESET Symbolic links '$BLUE$SCRIPT_DIR/arm8-run$RESET' already present."
     fi
-
     exit 0
 fi
 
@@ -298,29 +297,87 @@ if [ ! -z "$1" ]; then
 
     CMD_EXECUTED=0
     ENV_ARGS=()
+    ENV_ARGS_BARE=()
+    COLORS=("$RED" "$YELLOW" "$GREEN")
+    COLOR_SELECTION=0
     while IFS= read -u 10 line; do
         if [ ! -z "$line" ]; then
             if [[ "$line" =~ ^ENV:.* ]]; then
                 ENV_ARGS+=("-e ${line#"ENV:"}")
-                echo -e "$YELLOW[!]$RESET Set env variable '${GREEN}${line#"ENV:"}${RESET}"
+                ENV_ARGS_BARE+=("${line#"ENV:"}")
             elif [[ "$line" =~ ^DIR:.* ]]; then
                 CUR_DIR="$(echo ${line#"DIR:"})"
-                echo -e "$YELLOW[!]$RESET Set working directory '${GREEN}${line#"DIR:"}${RESET}"
             elif [[ "$line" =~ ^CMD:.* ]]; then
-                echo -e "$YELLOW[!]$RESET Run: '${BLUE}$(echo ${line#"CMD:"})$RESET'"
-                eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID ${line#"CMD:"}"
+                OUTPUT=0
+                COLOR="${COLORS[$COLOR_SELECTION]}"
+                echo ""
+                echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+                echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$(echo ${line#"CMD:"})$RESET'"
+                ENV_CHECK="${ENV_ARGS_BARE[@]}"
+                if [ ! -z "${ENV_CHECK}" ]; then
+                    echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
+                    for ENV in "${ENV_ARGS_BARE[@]}"; do
+                        echo -e "$COLOR│$RESET ${YELLOW}    -$RESET $BLUE${ENV}$RESET"
+                    done
+                fi
+                if [ ! -z "${CUR_DIR}" ]; then
+                    echo -e "$COLOR│$RESET ${YELLOW}Working Directory:$RESET '$BLUE/git/${CUR_DIR}$RESET'"
+                fi
+                echo -en "$COLOR└───┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+                while IFS= read -d '' -n 1 line; do
+                    if [ $OUTPUT -eq 0 ]; then
+                        echo -en "\n\r    $COLOR│$RESET "
+                        OUTPUT=1
+                    fi
+                    if [ ! -z "$line" ] &&  [[ "$line" == $'\r' ]]; then
+                        echo -en "$line    $COLOR│$RESET "
+                    elif [ ! -z "$line" ] &&  [[ "$line" == $'\n' ]]; then
+                        echo -en "$line    $COLOR│$RESET "
+                    else
+                        echo -en "$line"
+                    fi
+                done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID ${line#"CMD:"} 2>&1)
+                if [ $OUTPUT -eq 1 ]; then
+                    echo -e "\r$COLOR    └────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+                else
+                    echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+                fi
+
+                COLOR_SELECTION=$(($COLOR_SELECTION + 1))
+                if [ $COLOR_SELECTION -eq 3 ]; then
+                    COLOR_SELECTION=0
+                fi
+
                 CMD_EXECUTED=1
             else
-                echo -e "[${RED}!${RESET}] Invalid input: '${RED}$line${RESET}'."
+                echo""
+                echo -e "${RED}[!]${RESET} Invalid input: '${RED}$line${RESET}'."
             fi
         fi
-    done 10< <("$INPUT" $REPOSITORY $DOCKER_COMPOSE_TARGET $1 2>/dev/null)
+    done 10< <("$INPUT" "$REPOSITORY" "$DOCKER_COMPOSE_TARGET" "$1" 2>/dev/null)
 
     if [ $CMD_EXECUTED -eq 0 ]; then
         # Run given commandline in the container
-        echo -e "$YELLOW[!]$RESET Run: '$BLUE$@$RESET'"
+        OUTPUT=0
+        COLOR="$BLUE"
+
+        echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+        echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$@$RESET'"
+        ENV_CHECK="${ENV_ARGS_BARE[@]}"
+        if [ ! -z "${ENV_CHECK}" ]; then
+            echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
+            for ENV in "${ENV_ARGS_BARE[@]}"; do
+                echo -e "$COLOR│$RESET ${YELLOW}    -$RESET $BLUE${ENV}$RESET"
+            done
+        fi
+        if [ ! -z "${CUR_DIR}" ]; then
+            echo -e "$COLOR│$RESET ${YELLOW}Working Directory:$RESET '$BLUE/git/${CUR_DIR}$RESET'"
+        fi
+        echo -e "$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
         eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
+    else
+        echo ""
     fi
 else
-    echo -e "[${RED}!${RESET}] ${RED}No command specified.${RESET}"
+    echo -e "${RED}[!]${RESET} No command specified."
 fi
