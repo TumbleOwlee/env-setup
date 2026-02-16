@@ -26,15 +26,15 @@ function colored_cat
             set -l fill_len (math $length - $len)
             set -l fill (head -c $fill_len < /dev/zero | tr '\0' ' ')
 
-            echo -e "  \033["$color"m┌────────────$sep─┐\033[0m" >&2
-            echo -e "  \033["$color"m│ Filename : $argv[$var]$fill │\033[0m" >&2
-            echo -e "  \033["$color"m└────────────$sep─┘\033[0m" >&2
+            echo -e "  \033["$color"m┌────────────$sep─┐\033[0m"
+            echo -e "  \033["$color"m│ Filename : $argv[$var]$fill │\033[0m"
+            echo -e "  \033["$color"m└────────────$sep─┘\033[0m"
             echo "" >&2
             set -l lines (pygmentize -g -O style=gruvbox-dark $argv[$var] 2>/dev/null | /usr/bin/cat -n)
             for line in $lines
                 set -l lineno (echo "$line" | cut -f1)
                 set -l lineco (echo "$line" | cut -f2- | sed 's/\t/    /g')
-                echo -n "$lineno | " >&2
+                echo -n "$lineno | "
                 echo $lineco
             end
             echo "" >&2

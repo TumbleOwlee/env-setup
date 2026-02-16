@@ -310,9 +310,10 @@ if [ ! -z "$1" ]; then
             elif [[ "$line" =~ ^CMD:.* ]]; then
                 OUTPUT=0
                 COLOR="${COLORS[$COLOR_SELECTION]}"
+                eval set -- "${line#"CMD:"}"
                 echo ""
                 echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-                echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$(echo ${line#"CMD:"})$RESET'"
+                echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$@$RESET'"
                 ENV_CHECK="${ENV_ARGS_BARE[@]}"
                 if [ ! -z "${ENV_CHECK}" ]; then
                     echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
@@ -336,7 +337,7 @@ if [ ! -z "$1" ]; then
                     else
                         echo -en "$line"
                     fi
-                done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID ${line#"CMD:"} 2>&1)
+                done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1)
                 if [ $OUTPUT -eq 1 ]; then
                     echo -e "\r$COLOR    └────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
                 else
