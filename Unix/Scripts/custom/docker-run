@@ -43,7 +43,12 @@ RED="\e[31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
 BLUE="\e[34m"
+PURPLE="\e[35m"
+CYAN="\e[36m"
 RESET="\e[0m"
+
+mkdir /tmp/docker-run &>/dev/null
+rm /tmp/docker-run/tmp.* &>/dev/null
 
 # Install symbolic links
 if [ "$1" == "install-links" ]; then
@@ -204,11 +209,11 @@ if [ ! -z "$CONTAINER_ID" ]; then
     elif [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
         echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
         docker stop $CONTAINER_ID &>/dev/null
-    elif [ ! -f "/tmp/docker-run" ]; then
+    elif [ ! -f "/tmp/docker-run/sock" ]; then
         echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
         docker stop $CONTAINER_ID &>/dev/null
     else
-        DIR="$(parse_yaml /tmp/docker-run | grep "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=" | cut -f2- -d'=')"
+        DIR="$(parse_yaml /tmp/docker-run/sock | grep "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=" | cut -f2- -d'=')"
         if [ -z "$DIR" ] || [ "$DIR" != "$GIT_DIR" ]; then
             echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
             docker stop $CONTAINER_ID &>/dev/null
@@ -240,12 +245,12 @@ else
     BUILD_DIR=$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]' | sed 's/[\/_]/-/g')
 fi
 
-if [ ! -f "/tmp/docker-run" ]; then
-    echo "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME: $GIT_DIR" >> /tmp/docker-run
+if [ ! -f "/tmp/docker-run/sock" ]; then
+    echo "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME: $GIT_DIR" >> /tmp/docker-run/sock
 else
-    cat /tmp/docker-run | grep -v "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME:" > /tmp/docker-run-tmp
-    mv /tmp/docker-run-tmp /tmp/docker-run
-    echo "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME: $GIT_DIR" >> /tmp/docker-run
+    cat /tmp/docker-run/sock | grep -v "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME:" > /tmp/docker-run/sock.tmp
+    mv /tmp/docker-run/sock.tmp /tmp/docker-run/sock
+    echo "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME: $GIT_DIR" >> /tmp/docker-run/sock
 fi
 
 # Get container id
@@ -279,6 +284,123 @@ if [ ! -z ${CUR_DIR} ]; then
     CUR_DIR="${WORKDIR##${CUR_DIR}}"
 fi
 
+run_command() {
+    OUTPUT=0
+    COLOR="${COLORS[$COLOR_SELECTION]}"
+    eval set -- "${line#"CMD:"}"
+    echo ""
+
+    # Executable header
+    echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+    echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$@$RESET'"
+    ENV_CHECK="${ENV_ARGS_BARE[@]}"
+    if [ ! -z "${ENV_CHECK}" ]; then
+        echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
+        for ENV in "${ENV_ARGS_BARE[@]}"; do
+            echo -e "$COLOR│$RESET ${YELLOW}    -$RESET $BLUE${ENV}$RESET"
+        done
+    fi
+    if [ ! -z "${CUR_DIR}" ]; then
+        echo -e "$COLOR│$RESET ${YELLOW}Working Directory:$RESET '$BLUE/git/${CUR_DIR}$RESET'"
+    fi
+    if [ ! -z "$INTERACTIVE" ] && [ "$INTERACTIVE" == "YES" ]; then
+        echo -e "$COLOR│$RESET ${YELLOW}Interactive Mode:$RESET '${BLUE}YES$RESET'"
+        SECONDS=0
+        echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+        eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
+        echo -e "\r$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+        echo -e "\r$COLOR│$RESET ${COLOR}Duration:${RESET} $SECONDS                                                                                             "
+        echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+    else
+        LOG_FILE="$(mktemp -p /tmp/docker-run/)"
+        echo -e "$COLOR│$RESET ${YELLOW}Logfile:$RESET '$BLUE$LOG_FILE$RESET'"
+        echo -e "$COLOR└───┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+        echo -en "\r    $COLOR│$RESET "
+
+        # Handle output
+        local output_line_no=0
+        local last_output_line_no=99
+        local output_lines=()
+        local max_output_lines=8
+
+        local new_line=""
+        SECONDS=0
+        while IFS= read -d '' -n 1 line; do
+            OUTPUT=1
+
+            # Reprint last n-1 lines
+            if [ $output_line_no -ne $last_output_line_no ]; then
+                if [ $output_line_no -gt 0 ]; then
+                    for line_index in $(seq $output_line_no); do
+                        echo -en "\033[F\r"
+                    done
+                    for output_line in "${output_lines[@]}"; do
+                        length=${#output_line}
+                        empty_string="$(printf '%*s' "$length" '')"
+                        echo -e "\r    $COLOR│$RESET $empty_string"
+                    done
+                    if [ $output_line_no -gt $(($max_output_lines - 1)) ]; then
+                        output_lines=("${output_lines[@]:1}")
+                        output_line_no=$max_output_lines
+                    fi
+                    for line_index in $(seq $output_line_no); do
+                        echo -en "\033[F\r"
+                    done
+                    for output_line in "${output_lines[@]}"; do
+                        echo -e "\r    $COLOR│$RESET $output_line"
+                    done
+                    echo -en "\r    $COLOR│$RESET "
+                fi
+                last_output_line_no=$output_line_no
+            fi
+
+            echo -en "$line" >>$LOG_FILE
+
+            # Handle input (add new line if necessary)
+            if [ ! -z "$line" ] &&  [[ "$line" == $'\r' ]]; then
+                echo -en "\n\r    $COLOR│$RESET "
+                if [ ! -z "$new_line" ]; then
+                    output_lines+=("$new_line")
+                    new_line=""
+                    if [ $output_line_no -lt $(($max_output_lines)) ]; then
+                        output_line_no=$(($output_line_no + 1))
+                    else
+                        last_output_line_no=0
+                    fi
+                fi
+            elif [ ! -z "$line" ] &&  [[ "$line" == $'\n' ]]; then
+                echo -en "\n\r    $COLOR│$RESET "
+                if [ ! -z "$new_line" ]; then
+                    output_lines+=("$new_line")
+                    new_line=""
+                    if [ $output_line_no -lt $(($max_output_lines)) ]; then
+                        output_line_no=$(($output_line_no + 1))
+                    else
+                        last_output_line_no=0
+                    fi
+                fi
+            else
+                echo -en "$line"
+                new_line="$new_line$line"
+            fi
+
+        done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1)
+
+        # Executable footer
+        if [ $OUTPUT -eq 1 ]; then
+            echo -e "\r$COLOR    ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+        fi
+        echo -e "\r$COLOR    │$RESET ${COLOR}Duration:${RESET} $SECONDS                                                                                             "
+        echo -e "\r$COLOR    └────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+    fi
+
+    # Change color for next command
+    COLOR_SELECTION=$(($COLOR_SELECTION + 1))
+    if [ $COLOR_SELECTION -eq 3 ]; then
+        COLOR_SELECTION=0
+    fi
+}
+
 if [ ! -z "$1" ]; then
     INPUT=""
 
@@ -298,7 +420,7 @@ if [ ! -z "$1" ]; then
     CMD_EXECUTED=0
     ENV_ARGS=()
     ENV_ARGS_BARE=()
-    COLORS=("$RED" "$YELLOW" "$GREEN")
+    COLORS=("$CYAN" "$YELLOW" "$GREEN")
     COLOR_SELECTION=0
     while IFS= read -u 10 line; do
         if [ ! -z "$line" ]; then
@@ -307,48 +429,10 @@ if [ ! -z "$1" ]; then
                 ENV_ARGS_BARE+=("${line#"ENV:"}")
             elif [[ "$line" =~ ^DIR:.* ]]; then
                 CUR_DIR="$(echo ${line#"DIR:"})"
+            elif [[ "$line" =~ ^INTERACTIVE:.* ]]; then
+                INTERACTIVE="$(echo ${line#"INTERACTIVE:"})"
             elif [[ "$line" =~ ^CMD:.* ]]; then
-                OUTPUT=0
-                COLOR="${COLORS[$COLOR_SELECTION]}"
-                eval set -- "${line#"CMD:"}"
-                echo ""
-                echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-                echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$@$RESET'"
-                ENV_CHECK="${ENV_ARGS_BARE[@]}"
-                if [ ! -z "${ENV_CHECK}" ]; then
-                    echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
-                    for ENV in "${ENV_ARGS_BARE[@]}"; do
-                        echo -e "$COLOR│$RESET ${YELLOW}    -$RESET $BLUE${ENV}$RESET"
-                    done
-                fi
-                if [ ! -z "${CUR_DIR}" ]; then
-                    echo -e "$COLOR│$RESET ${YELLOW}Working Directory:$RESET '$BLUE/git/${CUR_DIR}$RESET'"
-                fi
-                echo -en "$COLOR└───┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-                while IFS= read -d '' -n 1 line; do
-                    if [ $OUTPUT -eq 0 ]; then
-                        echo -en "\n\r    $COLOR│$RESET "
-                        OUTPUT=1
-                    fi
-                    if [ ! -z "$line" ] &&  [[ "$line" == $'\r' ]]; then
-                        echo -en "$line    $COLOR│$RESET "
-                    elif [ ! -z "$line" ] &&  [[ "$line" == $'\n' ]]; then
-                        echo -en "$line    $COLOR│$RESET "
-                    else
-                        echo -en "$line"
-                    fi
-                done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1)
-                if [ $OUTPUT -eq 1 ]; then
-                    echo -e "\r$COLOR    └────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-                else
-                    echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-                fi
-
-                COLOR_SELECTION=$(($COLOR_SELECTION + 1))
-                if [ $COLOR_SELECTION -eq 3 ]; then
-                    COLOR_SELECTION=0
-                fi
-
+                run_command
                 CMD_EXECUTED=1
             else
                 echo""
