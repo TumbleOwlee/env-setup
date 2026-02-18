@@ -307,7 +307,10 @@ run_command() {
         echo -e "$COLOR│$RESET ${YELLOW}Interactive Mode:$RESET '${BLUE}YES$RESET'"
         SECONDS=0
         echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+        trap '' SIGINT
         eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
+        EXIT_CODE=$?
+        trap - SIGINT
         echo -e "\r$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
         echo -e "\r$COLOR│$RESET ${COLOR}Duration:${RESET} $SECONDS                                                                                             "
         echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
@@ -324,6 +327,7 @@ run_command() {
         local max_output_lines=8
 
         SECONDS=0
+        trap '' SIGINT
         while IFS= read full_line; do
             NUM_COLS=$(tput cols)
             NUM_COLS=$(($NUM_COLS - 7))
@@ -382,6 +386,15 @@ run_command() {
             new_line=""
             full_line=""
         done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1)
+
+        EXIT_CODE=${PIPESTATUS[0]}
+        CMD="$@"
+        EXEC_PID=$(echo $(docker top $CONTAINER_ID | grep "$CMD" | grep -v grep) | cut -f2 -d' ')
+        if [ ! -z "$EXEC_PID" ]; then
+            kill -2 $EXEC_PID
+            EXIT_CODE=2
+        fi
+        trap - SIGINT
 
         # Executable footer
         if [ $OUTPUT -eq 1 ]; then
