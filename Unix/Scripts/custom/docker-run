@@ -323,67 +323,64 @@ run_command() {
         local output_lines=()
         local max_output_lines=8
 
-        local new_line=""
         SECONDS=0
-        while IFS= read -d '' -n 1 line; do
-            OUTPUT=1
+        while IFS= read full_line; do
+            NUM_COLS=$(tput cols)
+            NUM_COLS=$(($NUM_COLS - 7))
 
-            # Reprint last n-1 lines
-            if [ $output_line_no -ne $last_output_line_no ]; then
-                if [ $output_line_no -gt 0 ]; then
-                    for line_index in $(seq $output_line_no); do
-                        echo -en "\033[F\r"
-                    done
-                    for output_line in "${output_lines[@]}"; do
-                        length=${#output_line}
-                        empty_string="$(printf '%*s' "$length" '')"
-                        echo -e "\r    $COLOR│$RESET $empty_string"
-                    done
-                    if [ $output_line_no -gt $(($max_output_lines - 1)) ]; then
-                        output_lines=("${output_lines[@]:1}")
-                        output_line_no=$max_output_lines
+            full_line="$(echo -en "$full_line")"
+            new_line="${full_line:0:$NUM_COLS}"
+            full_line="${full_line:$NUM_COLS}"
+
+            while [ ! -z "$new_line" ]; do
+                OUTPUT=1
+
+                OUTPUT_CONTENT=""
+                # Reprint last n-1 lines
+                if [ $output_line_no -ne $last_output_line_no ]; then
+                    if [ $output_line_no -gt 0 ]; then
+                        for line_index in $(seq $((output_line_no - 1))); do
+                            OUTPUT_CONTENT="$OUTPUT_CONTENT\033[F"
+                        done
+                        for output_line in "${output_lines[@]}"; do
+                            length=${#output_line}
+                            empty_string="$(printf '%*s' "$length" '')"
+                            OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $empty_string\n"
+                        done
+                        if [ $output_line_no -gt $(($max_output_lines - 1)) ]; then
+                            output_lines=("${output_lines[@]:1}")
+                            output_line_no=$max_output_lines
+                        fi
+                        for line_index in $(seq $output_line_no); do
+                            OUTPUT_CONTENT="$OUTPUT_CONTENT\033[F\r"
+                        done
+                        for output_line in "${output_lines[@]}"; do
+                            OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $output_line\n"
+                        done
+                        OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET "
                     fi
-                    for line_index in $(seq $output_line_no); do
-                        echo -en "\033[F\r"
-                    done
-                    for output_line in "${output_lines[@]}"; do
-                        echo -e "\r    $COLOR│$RESET $output_line"
-                    done
-                    echo -en "\r    $COLOR│$RESET "
+                    last_output_line_no=$output_line_no
                 fi
-                last_output_line_no=$output_line_no
-            fi
 
-            echo -en "$line" >>$LOG_FILE
-
-            # Handle input (add new line if necessary)
-            if [ ! -z "$line" ] &&  [[ "$line" == $'\r' ]]; then
-                echo -en "\n\r    $COLOR│$RESET "
                 if [ ! -z "$new_line" ]; then
+                    OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $new_line"
                     output_lines+=("$new_line")
-                    new_line=""
                     if [ $output_line_no -lt $(($max_output_lines)) ]; then
                         output_line_no=$(($output_line_no + 1))
                     else
                         last_output_line_no=0
                     fi
+                else
+                    OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET                                                                                               "
                 fi
-            elif [ ! -z "$line" ] &&  [[ "$line" == $'\n' ]]; then
-                echo -en "\n\r    $COLOR│$RESET "
-                if [ ! -z "$new_line" ]; then
-                    output_lines+=("$new_line")
-                    new_line=""
-                    if [ $output_line_no -lt $(($max_output_lines)) ]; then
-                        output_line_no=$(($output_line_no + 1))
-                    else
-                        last_output_line_no=0
-                    fi
-                fi
-            else
-                echo -en "$line"
-                new_line="$new_line$line"
-            fi
+                echo -ne "$OUTPUT_CONTENT\r"
 
+                new_line="${full_line:0:$NUM_COLS}"
+                full_line="${full_line:$NUM_COLS}"
+            done
+
+            new_line=""
+            full_line=""
         done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1)
 
         # Executable footer
