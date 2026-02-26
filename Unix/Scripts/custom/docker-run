@@ -48,7 +48,22 @@ CYAN="\e[36m"
 RESET="\e[0m"
 
 mkdir /tmp/docker-run &>/dev/null
-rm /tmp/docker-run/tmp.* &>/dev/null
+
+# Delete old log files
+DATE_NOW=$(date +%s)
+if [ -d "/tmp/docker-run" ]; then
+    for file in /tmp/docker-run/tmp*; do
+        if [ "$file" == "/tmp/docker-run/tmp*" ]; then
+            break
+        else
+            DATE_FILE=$(date -r "$file" +%s)
+            DATE_FILE=$(($DATE_FILE + 30))
+            if [ $DATE_FILE -lt $DATE_NOW ]; then
+                rm "$file" &>/dev/null
+            fi
+        fi
+    done
+fi
 
 # Install symbolic links
 if [ "$1" == "install-links" ]; then
@@ -266,10 +281,13 @@ if [ -z "$CONTAINER_ID" ]; then
 
     echo -en "$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
     SECONDS=0
-    while IFS= read -r line; do
-        echo -en "\r$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET' ${SECONDS}s    "
-    done < <(cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
-    echo ""
+
+    echo -e "\r$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
+    #while IFS= read -r line; do
+    #    echo -en "\r    ${YELLOW}Duration: ${RESET}${SECONDS}${YELLOW}s${RESET}    "
+    #done < <(cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
+    (cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
+    echo -en "                                \r"
     if [ $? -ne 0 ]; then
         echo -e "$RED[!]$RESET Failed to run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
         exit 1
@@ -293,6 +311,7 @@ run_command() {
     # Executable header
     echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
     echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$@$RESET'"
+    CMD="$@"
     ENV_CHECK="${ENV_ARGS_BARE[@]}"
     if [ ! -z "${ENV_CHECK}" ]; then
         echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
@@ -311,9 +330,16 @@ run_command() {
         eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
         EXIT_CODE=$?
         trap - SIGINT
+        STATUS_LINE="${GREEN}Success${RESET}"
+        if [ $EXIT_CODE -ne 0 ]; then
+            STATUS_LINE="${RED}Failure ($EXIT_CODE)${RESET}"
+        fi
         echo -e "\r$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        echo -e "\r$COLOR│$RESET ${COLOR}Duration:${RESET} $SECONDS                                                                                             "
+        echo -e "\r$COLOR│$RESET ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET}, ${COLOR}Status:${RESET} $STATUS_LINE                                                                                "
         echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+        if [ $EXIT_CODE -ne 0 ]; then
+            exit $EXIT_CODE
+        fi
     else
         LOG_FILE="$(mktemp -p /tmp/docker-run/)"
         echo -e "$COLOR│$RESET ${YELLOW}Logfile:$RESET '$BLUE$LOG_FILE$RESET'"
@@ -326,9 +352,14 @@ run_command() {
         local output_lines=()
         local max_output_lines=8
 
+        shopt -s lastpipe
+
+        SIGNAL=0
+
+        trap 'SIGNAL=2' SIGINT
+
         SECONDS=0
-        trap '' SIGINT
-        while IFS= read full_line; do
+        docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1 | while IFS= read full_line; do
             NUM_COLS=$(tput cols)
             NUM_COLS=$(($NUM_COLS - 7))
 
@@ -338,7 +369,6 @@ run_command() {
 
             while [ ! -z "$new_line" ]; do
                 OUTPUT=1
-
                 OUTPUT_CONTENT=""
                 # Reprint last n-1 lines
                 if [ $output_line_no -ne $last_output_line_no ]; then
@@ -374,6 +404,13 @@ run_command() {
                     else
                         last_output_line_no=0
                     fi
+
+                    echo "$new_line" >> $LOG_FILE
+
+                    LOG_SIZE=$(du -b "$LOG_FILE" | tr "\t" " " | cut -f1 -d' ')
+                    if [ $LOG_SIZE -gt 2097152 ]; then
+                        mv $LOG_FILE ${LOG_FILE}.1
+                    fi
                 else
                     OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET                                                                                               "
                 fi
@@ -385,23 +422,45 @@ run_command() {
 
             new_line=""
             full_line=""
-        done < <(docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1)
+        done
+        EXIT_CODES=($((${PIPESTATUS[0]})) $((${PIPESTATUS[1]})))
+        EXIT_CODE=0
 
-        EXIT_CODE=${PIPESTATUS[0]}
-        CMD="$@"
-        EXEC_PID=$(echo $(docker top $CONTAINER_ID | grep "$CMD" | grep -v grep) | cut -f2 -d' ')
-        if [ ! -z "$EXEC_PID" ]; then
-            kill -2 $EXEC_PID
-            EXIT_CODE=2
-        fi
         trap - SIGINT
+
+        if [ $SIGNAL -ne 0 ]; then
+            EXIT_CODE=$SIGNAL
+        elif [ ${EXIT_CODES[0]} -lt 128 ] && [ ${EXIT_CODES[0]} -gt 0 ]; then
+            EXIT_CODE=${EXIT_CODES[0]}
+        elif [ ${EXIT_CODES[0]} -ne 0 ]; then
+            EXIT_CODE=$((${EXIT_CODES[0]} - 128))
+        elif [ ${EXIT_CODES[1]} -lt 128 ] && [ ${EXIT_CODES[1]} -gt 0 ]; then
+            EXIT_CODE=${EXIT_CODES[1]}
+        elif [ ${EXIT_CDDES[1]} -ne 0 ]; then
+            EXIT_CODE=$((${EXIT_CODES[1]} - 128))
+        fi
+        EXEC_PID=$(echo $(docker top $CONTAINER_ID | grep "$CMD" 2>/dev/null | grep -v grep) | cut -f2 -d' ')
+        if [ ! -z "$EXEC_PID" ]; then
+            kill -$EXIT_CODE $EXEC_PID
+        fi
 
         # Executable footer
         if [ $OUTPUT -eq 1 ]; then
+            echo -e "\r    "
             echo -e "\r$COLOR    ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
         fi
-        echo -e "\r$COLOR    │$RESET ${COLOR}Duration:${RESET} $SECONDS                                                                                             "
+
+        STATUS_LINE="${GREEN}Success${RESET}"
+        if [ $EXIT_CODE -ne 0 ]; then
+            STATUS_LINE="${RED}Failure ($EXIT_CODE)${RESET}"
+        fi
+
+        echo -e "\r$COLOR    │$RESET ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET}, ${COLOR}Status:${RESET} $STATUS_LINE                                                                         "
         echo -e "\r$COLOR    └────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
+
+        if [ $EXIT_CODE -ne 0 ]; then
+            exit $EXIT_CODE
+        fi
     fi
 
     # Change color for next command
