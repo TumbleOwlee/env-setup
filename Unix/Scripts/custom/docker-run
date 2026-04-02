@@ -49,6 +49,10 @@ RESET="\e[0m"
 
 mkdir /tmp/docker-run &>/dev/null
 
+info_mark() {
+    echo " ⟡"
+}
+
 # Delete old log files
 DATE_NOW=$(date +%s)
 if [ -d "/tmp/docker-run" ]; then
@@ -69,19 +73,19 @@ fi
 if [ "$1" == "install-links" ]; then
     SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)
     if [ ! -f "$SCRIPT_DIR/arm-run" ]; then
-        echo -e "$YELLOW[!]$RESET Install symbolic link '$BLUE$SCRIPT_DIR/arm-run$RESET'"
+        echo -e "$YELLOW$(info_mark)$RESET Install symbolic link '$BLUE$SCRIPT_DIR/arm-run$RESET'"
         ln -sf "$SCRIPT_DIR/docker-run" "$SCRIPT_DIR/arm-run"
         chmod +x "$SCRIPT_DIR/arm-run"
     else
-        echo -e "$YELLOW[$GREEN!$YELLOW]$RESET Symbolic links '$BLUE$SCRIPT_DIR/arm-run$RESET' already present."
+        echo -e "$YELLOW$(info_mark)$RESET Symbolic links '$BLUE$SCRIPT_DIR/arm-run$RESET' already present."
     fi
 
     if [ ! -f "$SCRIPT_DIR/arm8-run" ]; then
-        echo -e "$YELLOW[!]$RESET Install symbolic link '$BLUE$SCRIPT_DIR/arm8-run$RESET'"
+        echo -e "$YELLOW$(info_mark)$RESET Install symbolic link '$BLUE$SCRIPT_DIR/arm8-run$RESET'"
         ln -sf "$SCRIPT_DIR/docker-run" "$SCRIPT_DIR/arm8-run"
         chmod +x "$SCRIPT_DIR/arm8-run"
     else
-        echo -e "$YELLOW[$GREEN!$YELLOW]$RESET Symbolic links '$BLUE$SCRIPT_DIR/arm8-run$RESET' already present."
+        echo -e "$YELLOW$(info_mark)$RESET Symbolic links '$BLUE$SCRIPT_DIR/arm8-run$RESET' already present."
     fi
     exit 0
 fi
@@ -176,10 +180,10 @@ locate_file() {
 
 DOCKER_COMPOSE_DIR="$(locate_file docker-compose.yml)"
 if [ ! -z "$DOCKER_COMPOSE_DIR" ]; then
-    echo -e "$YELLOW[!]$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
+    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
 elif [ -f "$HOME/.local/share/docker-run/docker-compose.yml" ]; then
     DOCKER_COMPOSE_DIR="$HOME/.local/share/docker-run"
-    echo -e "$YELLOW[!]$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
+    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
 else
     echo -e "$RED[E]$RESET Unable to locate '${BLUE}docker-compose.yml$RESET'" >&2
     exit 1
@@ -188,17 +192,17 @@ CONTAINER_NAME="$(basename $WORKDIR)"
 
 COMMANDS_DIR="$(locate_file .commands)"
 if [ ! -z "$COMMANDS_DIR" ]; then
-    echo -e "$YELLOW[!]$RESET Use ${GREEN}.commands${RESET} in $BLUE$COMMANDS_DIR$RESET"
+    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}.commands${RESET} in $BLUE$COMMANDS_DIR$RESET"
 else
     if [ -f "$HOME/.local/share/docker-run/.commands" ]; then
         GLOBAL_COMMANDS_DIR="$HOME/.local/share/docker-run"
-        echo -e "$YELLOW[!]$RESET Use ${GREEN}.commands${RESET} in ${BLUE}$GLOBAL_COMMANDS_DIR${RESET}"
+        echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}.commands${RESET} in ${BLUE}$GLOBAL_COMMANDS_DIR${RESET}"
     fi
 fi
 
 USER_COMMANDS_DIR="$(locate_file .user-commands)"
 if [ ! -z "$USER_COMMANDS_DIR" ]; then
-    echo -e "$YELLOW[!]$RESET Use ${GREEN}.user-commands${RESET} in $BLUE$USER_COMMANDS_DIR$RESET"
+    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}.user-commands${RESET} in $BLUE$USER_COMMANDS_DIR$RESET"
 fi
 
 # Specify compose target platform
@@ -218,35 +222,35 @@ GIT_BASENAME=$(echo "P$GIT_DIR" | sed 's/\//-/g' | tr '[:upper:]' '[:lower:]')
 CONTAINER_ID=$(docker container ls | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
 if [ ! -z "$CONTAINER_ID" ]; then
     if [ ! -z "$1" ] && [ "$1" == "stop" ]; then
-        echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
+        echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
         docker stop $CONTAINER_ID &>/dev/null
         exit $?
     elif [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
-        echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
+        echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
         docker stop $CONTAINER_ID &>/dev/null
     elif [ ! -f "/tmp/docker-run/sock" ]; then
-        echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
+        echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
         docker stop $CONTAINER_ID &>/dev/null
     else
         DIR="$(parse_yaml /tmp/docker-run/sock | grep "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=" | cut -f2- -d'=')"
         if [ -z "$DIR" ] || [ "$DIR" != "$GIT_DIR" ]; then
-            echo -e "$YELLOW[!]$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
+            echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
             docker stop $CONTAINER_ID &>/dev/null
         fi
     fi
 elif [ ! -z "$1" ] && [ "$1" == "stop" ]; then
-    echo -e "$YELLOW[!]$RESET No container running."
+    echo -e "$YELLOW$(info_mark)$RESET No container running."
     exit 0
 fi
 
 if [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
     CONTAINER_ID=$(docker container ls -a | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
     if [ ! -z "$CONTAINER_ID" ]; then
-        echo -e "$YELLOW[!]$RESET Run: '${BLUE}docker container rm $CONTAINER_ID$RESET'"
+        echo -e "$YELLOW$(info_mark)$RESET Run: '${BLUE}docker container rm $CONTAINER_ID$RESET'"
         docker container rm $CONTAINER_ID 1>/dev/null || exit 1
     fi
 
-    echo -e "$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
+    echo -e "$YELLOW$(info_mark)$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
     (cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" build --no-cache $DOCKER_COMPOSE_TARGET) && exit 0 || exit 1
 fi
 
@@ -279,23 +283,23 @@ if [ -z "$CONTAINER_ID" ]; then
     fi
     docker run --rm --privileged multiarch/qemu-user-static --reset -p yes &>/dev/null
 
-    echo -en "$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
+    echo -en "$YELLOW$(info_mark)$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
     SECONDS=0
 
-    echo -e "\r$YELLOW[!]$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
+    echo -e "\r$YELLOW$(info_mark)$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
     #while IFS= read -r line; do
     #    echo -en "\r    ${YELLOW}Duration: ${RESET}${SECONDS}${YELLOW}s${RESET}    "
     #done < <(cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
     (cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
     echo -en "                                \r"
     if [ $? -ne 0 ]; then
-        echo -e "$RED[!]$RESET Failed to run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
+        echo -e "$RED$(info_mark)$RESET Failed to run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
         exit 1
     fi
 fi
 
 CONTAINER_ID=$(docker container ls | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
-echo -e "$YELLOW[!]$RESET Use ${GREEN}container id${RESET}: '$BLUE$CONTAINER_ID$RESET'"
+echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}container id${RESET}: '$BLUE$CONTAINER_ID$RESET'"
 
 # Detect relative path from repository root
 if [ ! -z ${CUR_DIR} ]; then
@@ -316,7 +320,7 @@ run_command() {
     if [ ! -z "${ENV_CHECK}" ]; then
         echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
         for ENV in "${ENV_ARGS_BARE[@]}"; do
-            echo -e "$COLOR│$RESET ${YELLOW}    -$RESET $BLUE${ENV}$RESET"
+            echo -e "$COLOR│$RESET ${YELLOW}    ⟡$RESET $BLUE${ENV}$RESET"
         done
     fi
     if [ ! -z "${CUR_DIR}" ]; then
@@ -330,12 +334,12 @@ run_command() {
         eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
         EXIT_CODE=$?
         trap - SIGINT
-        STATUS_LINE="${GREEN}Success${RESET}"
+        STATUS_LINE="${GREEN}✔  ${RESET}"
         if [ $EXIT_CODE -ne 0 ]; then
-            STATUS_LINE="${RED}Failure ($EXIT_CODE)${RESET}"
+            STATUS_LINE="${RED}❌ ${RESET}"
         fi
         echo -e "\r$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        echo -e "\r$COLOR│$RESET ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET}, ${COLOR}Status:${RESET} $STATUS_LINE                                                                                "
+        echo -e "\r$COLOR│$RESET $STATUS_LINE ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET},                                                                                 "
         echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
         if [ $EXIT_CODE -ne 0 ]; then
             exit $EXIT_CODE
@@ -359,15 +363,15 @@ run_command() {
         trap 'SIGNAL=2' SIGINT
 
         SECONDS=0
-        docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1 | while IFS= read full_line; do
+        docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1 | while IFS= read FULL_LINE; do
             NUM_COLS=$(tput cols)
             NUM_COLS=$(($NUM_COLS - 7))
 
-            full_line="$(echo -en "$full_line")"
-            new_line="${full_line:0:$NUM_COLS}"
-            full_line="${full_line:$NUM_COLS}"
+            FULL_LINE="$(echo -en "$FULL_LINE")"
+            NEW_LINE="${FULL_LINE:0:$NUM_COLS}"
+            FULL_LINE="${FULL_LINE:$NUM_COLS}"
 
-            while [ ! -z "$new_line" ]; do
+            while [ ! -z "$NEW_LINE" ]; do
                 OUTPUT=1
                 OUTPUT_CONTENT=""
                 # Reprint last n-1 lines
@@ -396,16 +400,16 @@ run_command() {
                     last_output_line_no=$output_line_no
                 fi
 
-                if [ ! -z "$new_line" ]; then
-                    OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $new_line"
-                    output_lines+=("$new_line")
+                if [ ! -z "$NEW_LINE" ]; then
+                    OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $NEW_LINE"
+                    output_lines+=("$NEW_LINE")
                     if [ $output_line_no -lt $(($max_output_lines)) ]; then
                         output_line_no=$(($output_line_no + 1))
                     else
                         last_output_line_no=0
                     fi
 
-                    echo "$new_line" >> $LOG_FILE
+                    echo "$NEW_LINE" >> $LOG_FILE
 
                     LOG_SIZE=$(du -b "$LOG_FILE" | tr "\t" " " | cut -f1 -d' ')
                     if [ $LOG_SIZE -gt 2097152 ]; then
@@ -416,28 +420,29 @@ run_command() {
                 fi
                 echo -ne "$OUTPUT_CONTENT\r"
 
-                new_line="${full_line:0:$NUM_COLS}"
-                full_line="${full_line:$NUM_COLS}"
+                NEW_LINE="${FULL_LINE:0:$NUM_COLS}"
+                FULL_LINE="${FULL_LINE:$NUM_COLS}"
             done
 
-            new_line=""
-            full_line=""
+            NEW_LINE=""
+            FULL_LINE=""
         done
-        EXIT_CODES=($((${PIPESTATUS[0]})) $((${PIPESTATUS[1]})))
+        EXIT_CODE1=$((${PIPESTATUS[0]}))
+        EXIT_CODE2=$((${PIPESTATUS[0]}))
         EXIT_CODE=0
 
         trap - SIGINT
 
         if [ $SIGNAL -ne 0 ]; then
             EXIT_CODE=$SIGNAL
-        elif [ ${EXIT_CODES[0]} -lt 128 ] && [ ${EXIT_CODES[0]} -gt 0 ]; then
-            EXIT_CODE=${EXIT_CODES[0]}
-        elif [ ${EXIT_CODES[0]} -ne 0 ]; then
-            EXIT_CODE=$((${EXIT_CODES[0]} - 128))
-        elif [ ${EXIT_CODES[1]} -lt 128 ] && [ ${EXIT_CODES[1]} -gt 0 ]; then
-            EXIT_CODE=${EXIT_CODES[1]}
-        elif [ ${EXIT_CDDES[1]} -ne 0 ]; then
-            EXIT_CODE=$((${EXIT_CODES[1]} - 128))
+        elif [ $EXIT_CODE1 -lt 128 ] && [ $EXIT_CODE1 -gt 0 ]; then
+            EXIT_CODE=$EXIT_CODE1
+        elif [ $EXIT_CODE1 -ne 0 ]; then
+            EXIT_CODE=$(($EXIT_CODE1 - 128))
+        elif [ $EXIT_CODE2 -lt 128 ] && [ $EXIT_CODE2 -gt 0 ]; then
+            EXIT_CODE=$EXIT_CODE2
+        elif [ $EXIT_CODE2 -ne 0 ]; then
+            EXIT_CODE=$(($EXIT_CODE2 - 128))
         fi
         EXEC_PID=$(echo $(docker top $CONTAINER_ID | grep "$CMD" 2>/dev/null | grep -v grep) | cut -f2 -d' ')
         if [ ! -z "$EXEC_PID" ]; then
@@ -450,12 +455,12 @@ run_command() {
             echo -e "\r$COLOR    ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
         fi
 
-        STATUS_LINE="${GREEN}Success${RESET}"
+        STATUS_LINE="${GREEN}✔  ${RESET}"
         if [ $EXIT_CODE -ne 0 ]; then
-            STATUS_LINE="${RED}Failure ($EXIT_CODE)${RESET}"
+            STATUS_LINE="${RED}❌ ${RESET}"
         fi
 
-        echo -e "\r$COLOR    │$RESET ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET}, ${COLOR}Status:${RESET} $STATUS_LINE                                                                         "
+        echo -e "\r$COLOR    │$RESET $STATUS_LINE ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET}                                                                         "
         echo -e "\r$COLOR    └────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
 
         if [ $EXIT_CODE -ne 0 ]; then
@@ -505,10 +510,10 @@ if [ ! -z "$1" ]; then
                 CMD_EXECUTED=1
             else
                 echo""
-                echo -e "${RED}[!]${RESET} Invalid input: '${RED}$line${RESET}'."
+                echo -e "${RED}$(info_mark)${RESET} Invalid input: '${RED}$line${RESET}'."
             fi
         fi
-    done 10< <("$INPUT" "$REPOSITORY" "$DOCKER_COMPOSE_TARGET" "$1" 2>/dev/null)
+    done 10< <("$INPUT" "$REPOSITORY" "$DOCKER_COMPOSE_TARGET" "$@" 2>/dev/null)
 
     if [ $CMD_EXECUTED -eq 0 ]; then
         # Run given commandline in the container
@@ -533,5 +538,5 @@ if [ ! -z "$1" ]; then
         echo ""
     fi
 else
-    echo -e "${RED}[!]${RESET} No command specified."
+    echo -e "${RED}$(info_mark)${RESET} No command specified."
 fi
