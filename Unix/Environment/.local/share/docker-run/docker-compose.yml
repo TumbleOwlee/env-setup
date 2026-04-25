@@ -1,0 +1,17 @@
+services:
+  native:
+    platform: linux/amd64
+    image: env/develop
+    build:
+      dockerfile: "develop.Dockerfile"
+      args:
+        LLVM: NO
+        DEV_ENV: YES
+    entrypoint: /bin/bash
+    command: -c "tail -F /dev/null"
+    privileged: true
+    network_mode: host
+    working_dir: "/git"
+    volumes:
+      - "${GIT_DIR}:/git"
+      - "~/.ssh:/home/dev/.ssh"
