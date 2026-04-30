@@ -355,6 +355,14 @@ if [ -z "$SKIP_DELTA" ]; then
     fi
 fi
 
+if [ -z "$SKIP_MISE" ]; then
+    resp=$(ask "Install mise? [Y/n]" "Y")
+    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
+        info "Install mise using yay"
+        run_with_retry yay -S --noconfirm mise
+    fi
+fi
+
 if [ -z "$SKIP_ALACRITTY" ]; then
     if [ -f "$HOME/.config/alacritty" ]; then
         warn "If alacritty doesn't show rendered font, try using this: alacritty -o 'debug.renderer=\"gles2\"'"
