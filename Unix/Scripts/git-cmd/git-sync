@@ -72,7 +72,7 @@ for branch in $(git for-each-ref refs/heads --format="%(refname:short)"); do
             b2t="$(git log -n 1 --pretty=format:"%at" origin/$upbranch 2>/dev/null)"
             if [ ! -z "$b1" ] && [ ! -z "$b2" ] && [ "$b1" != "$b2" ]; then
                 echo -en "\e[0;33m: Fast forwarding '$branch' ... \e[0m"
-                if [ $b1t -lt $b1t ]; then
+                if [ $b1t -lt $b2t ]; then
                     git fetch . origin/$upbranch:$branch &>/dev/null
                     if [ $? -ne 0 ]; then
                         echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
