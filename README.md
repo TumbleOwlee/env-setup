@@ -25,30 +25,28 @@ DEBUG=y ./Unix/setup.sh
 
 This will source the other scripts instead of using `curl` to retrieve the files from the repository on Github.
 
-## Installed Applications
+## Packages
 
-While executing you can choose the parts you like to install and skip any you don't need. Currently the following parts are available to be installed:
+While executing you can choose the parts you like to install and skip any you don't need. Basic package requirements - e.g. python or git - are installed by default.
 
+**List of non-optional packages:**
+* Git
+* Python
+* Zip
+* Curl
+* GPG
+* FZF
+* Zoxide
+
+**List of optional applications:**
 * Alacritty
 * Fish Shell
 * Tmux
 * Neovim
-    - NerdFonts
-    - Neovim Lua LSP
-    - Neovim Python LSP
 * Docker
 * Rust Environment
-    - Rustup
-    - Rust-Src
-    - Rust-Analyzer
-    - Neovim Rust LSP
 * C++ Environment
-    - Clang
-    - GCC
-    - CMake
-    - Neovim Clang LSP
-* Bioinformatics Environment
-    - snakemake
+* Git Delta
 
 If available the configurations from this repository are also installed for the applications respectively. In case of Neovim, the configuration is taken from [here](https://github.com/TumbleOwlee/neovim-config). I will add additional parts as time goes on and my demands change.
 
