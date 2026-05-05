@@ -1,0 +1,78 @@
+# docker-run global profile configuration
+# Copy this file to ~/.docker-run.conf and edit it to suit your setup.
+#
+# This file defines named profiles. Each profile specifies the Docker image to
+# use and a base set of environment variables to pass into the container.
+# Profiles can also define command aliases (see [alias:<name>] sections below).
+#
+# Per-project configuration (which profile to use, custom aliases, optional
+# image/Dockerfile overrides) lives in ~/.docker-run.d/<name>.conf files.
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Profile: default
+# Used when no project config specifies a different profile.
+# ──────────────────────────────────────────────────────────────────────────────
+[default]
+image = ubuntu:22.04
+
+# Comma-separated list of environment variables to pass into the container.
+#   KEY        — pass the host value of KEY (skipped if KEY is unset on host)
+#   KEY=VALUE  — set KEY to a fixed VALUE regardless of the host environment
+env = CC,CXX,MAKEFLAGS
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Aliases for the [default] profile
+# Each [alias:<name>] section defines a shorthand command.
+#   docker-run <name>  →  runs 'cmd' in 'workdir' with 'env' applied
+# ──────────────────────────────────────────────────────────────────────────────
+
+[alias:configure]
+# Run CMake configuration step
+cmd     = cmake -S /workspace -B /workspace/build
+workdir = /workspace
+
+[alias:build]
+# Build the project (parallelism via JOBS env var or host MAKEFLAGS)
+cmd     = cmake --build /workspace/build
+workdir = /workspace/build
+# Fixed env for this alias (merged with the profile's base env)
+env     = JOBS=4
+
+[alias:test]
+# Run tests via CTest
+cmd     = ctest --test-dir /workspace/build --output-on-failure
+workdir = /workspace/build
+
+[alias:shell]
+# Open an interactive shell at the workspace root
+cmd     = bash
+workdir = /workspace
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pipeline aliases
+# A pipeline alias runs a sequence of other aliases in order, each with its own
+# header, output display, and footer. The pipeline stops on the first failure.
+#   pipeline = <alias1>,<alias2>,...
+# The step aliases must be defined in this config (or in the project config).
+# Step aliases can still be invoked individually as well.
+# ──────────────────────────────────────────────────────────────────────────────
+
+[alias:ci]
+# Run the full configure → build → test pipeline in one invocation.
+pipeline = configure,build,test
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Profile: clang
+# Example of an alternate profile using a Clang-based image.
+# ──────────────────────────────────────────────────────────────────────────────
+[clang]
+image = silkeh/clang:18
+env   = CC=clang,CXX=clang++,MAKEFLAGS
+
+[alias:configure]
+cmd     = cmake -S /workspace -B /workspace/build -DCMAKE_BUILD_TYPE=Release
+workdir = /workspace
+
+[alias:build]
+cmd     = cmake --build /workspace/build -- -j$(nproc)
+workdir = /workspace/build

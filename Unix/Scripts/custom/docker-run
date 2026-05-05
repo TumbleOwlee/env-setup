@@ -1,556 +1,797 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# docker-run: Run commands in a persistent Docker container.
 #
-# Requirements:
-#  - An executable script `.commands` in one of the following locations.
-#      - `$GIT_ROOT/`
-#      - `$GIT_ROOT/.devcontainer/`
-#      - `~/.local/share/docker-run/`
-#    If the `.commands` script is located in the `$GIT_ROOT`, it takes two arguments:
-#      1. The docker-compose target
-#      2. The arguments as given to this script
-#    If the `.commands` script is located in `~/.local/share/docker-run/`, the script takes
-#    an additional parameter to provide information about the repository:
-#      1. The path to the current git repository
-#      2. The docker-compose target
-#      3. The arguments as given to this script
-#    The script has to print commands to manipulate the environment, working directory and specify
-#    commands to execute to stdout. The following outputs are used:
-#      - `ENV:$VAR=$VALUE` to set an environment variable
-#      - `DIR:$PATH` to set the working directory
-#      - `CMD:$COMMAND` to set the command to exeucte
-#    The commands are executed one by one. Thus if you want to execute commands in seperate
-#    directories, you can use something like this:
-#    ```bash
-#      DIR:$PATH1
-#      CMD:$COMMAND1
-#      DIR:$PATH2
-#      CMD:$COMMAND2
-#    ```
-#    This way $COMMAND1 is executed in $PATH1 and $COMMAND2 in $PATH2.
-#  - A `docker-compose.yml` has to be located in the `$GIT_ROOT`, `$GIT_ROOT/.devcontainer`,
-#    `$GIT_ROOT/local` or `~/.local/share/docker-run/` and has to configure three services for
-#    full support, each one specifying a different platform:
-#      * `linux/amd64`
-#      * `linux/arm/v7`
-#      * `linux/arm64/v8`
+# The git repository root is auto-detected and mounted as /workspace. The
+# current working directory is translated to the equivalent container path.
 #
-#  Afterwards, simply create two symbolic links `arm-run` and `arm8-run` or simply use
-#  `docker-run install-links` and be ready to run any command in an armv7, armv8 or amd64
+# Global config:   ~/.docker-run.conf  or  ~/.local/share/.docker-run.conf
+# Project configs: ~/.docker-run.d/    or  ~/.local/share/.docker-run.d/  (*.conf files)
 #
-#  At runtime the information about running docker containers managed by the script is located
-#  at /tmp/docker-run
-RED="\e[31m"
-GREEN="\e[32m"
-YELLOW="\e[33m"
-BLUE="\e[34m"
-PURPLE="\e[35m"
-CYAN="\e[36m"
-RESET="\e[0m"
+# Usage: docker-run [--rebuild] [-h|--help] [<alias>|<command> [args...]]
 
-mkdir /tmp/docker-run &>/dev/null
+set -euo pipefail
 
-info_mark() {
-    echo " ⟡"
+readonly SCRIPT_NAME="$(basename "$0")"
+
+# Resolve global config: prefer $HOME, fall back to $HOME/.local/share
+if [[ -f "${HOME}/.docker-run.conf" ]]; then
+    GLOBAL_CONFIG="${HOME}/.docker-run.conf"
+else
+    GLOBAL_CONFIG="${HOME}/.local/share/.docker-run.conf"
+fi
+readonly GLOBAL_CONFIG
+
+# Resolve project config dir: prefer $HOME, fall back to $HOME/.local/share
+if [[ -d "${HOME}/.docker-run.d" ]]; then
+    PROJECT_CONFIG_DIR="${HOME}/.docker-run.d"
+else
+    PROJECT_CONFIG_DIR="${HOME}/.local/share/.docker-run.d"
+fi
+readonly PROJECT_CONFIG_DIR
+readonly CONTAINER_MOUNT="/workspace"
+# Separator used inside associative array keys (must not appear in file paths or section names)
+readonly _SEP="::::"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Utilities
+# ──────────────────────────────────────────────────────────────────────────────
+die()  { printf '%s: error: %s\n'   "$SCRIPT_NAME" "$*" >&2; exit 1; }
+warn() { printf '%s: warning: %s\n' "$SCRIPT_NAME" "$*" >&2; }
+info() { printf '%s: %s\n'          "$SCRIPT_NAME" "$*" >&2; }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INI parser
+# Values are stored in the global associative array _CFG with keys of the form:
+#   "<file>::::<section>::::<key>"
+# Section names are preserved as-is (e.g. "alias:build").
+# ──────────────────────────────────────────────────────────────────────────────
+declare -A _CFG=()
+
+ini_parse() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+    local section="" line key val current_profile=""
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip full-line comments and empty lines
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        # Strip trailing whitespace
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" ]] && continue
+        if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+            local raw="${BASH_REMATCH[1]}"
+            if [[ "$raw" == "alias:"* && -n "$current_profile" ]]; then
+                # Qualify alias sections with their owning profile so that the same
+                # alias name can be defined differently under different profiles.
+                # Storage key: alias:<profile>:<name> (e.g. alias:clang:build)
+                # Project config files have no profile sections, so current_profile
+                # stays empty and aliases are stored as-is (alias:<name>).
+                section="alias:${current_profile}:${raw#alias:}"
+            else
+                section="$raw"
+                # Track which profile section we are currently inside.
+                if [[ "$raw" != "alias:"* && "$raw" != "project" ]]; then
+                    current_profile="$raw"
+                fi
+            fi
+        elif [[ "$line" =~ ^([^=]+[^[:space:]=])[[:space:]]*=[[:space:]]*(.*) ]]; then
+            key="${BASH_REMATCH[1]}"
+            val="${BASH_REMATCH[2]}"
+            val="${val%"${val##*[![:space:]]}"}"   # rtrim value
+            [[ -n "$section" ]] && _CFG["${file}${_SEP}${section}${_SEP}${key}"]="$val"
+        fi
+    done < "$file"
 }
 
-# Delete old log files
-DATE_NOW=$(date +%s)
-if [ -d "/tmp/docker-run" ]; then
-    for file in /tmp/docker-run/tmp*; do
-        if [ "$file" == "/tmp/docker-run/tmp*" ]; then
-            break
-        else
-            DATE_FILE=$(date -r "$file" +%s)
-            DATE_FILE=$(($DATE_FILE + 30))
-            if [ $DATE_FILE -lt $DATE_NOW ]; then
-                rm "$file" &>/dev/null
-            fi
+# ini_get <file> <section> <key> [default]
+ini_get() {
+    printf '%s' "${_CFG["${1}${_SEP}${2}${_SEP}${3}"]-${4-}}"
+}
+
+# Returns 0 if section exists in the parsed file
+ini_has_section() {
+    local file="$1" section="$2" k
+    for k in "${!_CFG[@]}"; do
+        [[ "$k" == "${file}${_SEP}${section}${_SEP}"* ]] && return 0
+    done
+    return 1
+}
+
+# Print unique section names for a parsed file (one per line)
+ini_sections() {
+    local file="$1" k section
+    local -A _seen=()
+    for k in "${!_CFG[@]}"; do
+        [[ "$k" != "${file}${_SEP}"* ]] && continue
+        # Strip file prefix, then strip key suffix (use %% to take longest match)
+        section="${k#"${file}${_SEP}"}"
+        section="${section%%"${_SEP}"*}"
+        [[ -z "${_seen[$section]+x}" ]] && { _seen[$section]=1; printf '%s\n' "$section"; }
+    done
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Config state (populated by load_profile / apply_project_config)
+# ──────────────────────────────────────────────────────────────────────────────
+PROFILE_IMAGE=""
+PROFILE_ENV=""
+PROJECT_FILE=""
+PROJECT_IMAGE=""
+PROJECT_DOCKERFILE=""
+
+declare -A ALIAS_CMD=()
+declare -A ALIAS_WORKDIR=()
+declare -A ALIAS_ENV=()
+declare -A ALIAS_PIPELINE=()
+
+# Load a profile section and its alias sub-sections.
+# Searches the global config first; falls back to the project config if the
+# profile is only defined there (allows project-specific profiles).
+load_profile() {
+    local profile="$1"
+    local _src=""
+    if [[ -n "$PROJECT_FILE" ]] && ini_has_section "$PROJECT_FILE" "$profile"; then
+        _src="$PROJECT_FILE"
+    elif ini_has_section "$GLOBAL_CONFIG" "$profile"; then
+        _src="$GLOBAL_CONFIG"
+    else
+        local _hint="${PROJECT_FILE:+ or ${PROJECT_FILE}}"
+        die "Profile '${profile}' not found in ${GLOBAL_CONFIG}${_hint}."
+    fi
+    PROFILE_IMAGE="$(ini_get "$_src" "$profile" "image")"
+    PROFILE_ENV="$(  ini_get "$_src" "$profile" "env")"
+    local section _prefix="alias:${profile}:"
+    while IFS= read -r section; do
+        [[ "$section" == "${_prefix}"* ]] || continue
+        local aname="${section#"$_prefix"}"
+        ALIAS_CMD["$aname"]="$(      ini_get "$_src" "$section" "cmd")"
+        ALIAS_WORKDIR["$aname"]="$(  ini_get "$_src" "$section" "workdir" "$CONTAINER_MOUNT")"
+        ALIAS_ENV["$aname"]="$(      ini_get "$_src" "$section" "env")"
+        ALIAS_PIPELINE["$aname"]="$( ini_get "$_src" "$section" "pipeline")"
+    done < <(ini_sections "$_src")
+}
+
+# Scan ~/.docker-run.d/*.conf for a file whose 'pattern' matches the git root
+find_project_config() {
+    local git_root="$1"
+    [[ -d "$PROJECT_CONFIG_DIR" ]] || return 0
+    local conf pattern
+    for conf in "$PROJECT_CONFIG_DIR"/*.conf; do
+        [[ -f "$conf" ]] || continue
+        ini_parse "$conf"
+        pattern="$(ini_get "$conf" "project" "pattern")"
+        [[ -z "$pattern" ]] && continue
+        if [[ "$git_root" =~ $pattern ]]; then
+            PROJECT_FILE="$conf"
+            return 0
         fi
     done
-fi
+}
 
-# Install symbolic links
-if [ "$1" == "install-links" ]; then
-    SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)
-    if [ ! -f "$SCRIPT_DIR/arm-run" ]; then
-        echo -e "$YELLOW$(info_mark)$RESET Install symbolic link '$BLUE$SCRIPT_DIR/arm-run$RESET'"
-        ln -sf "$SCRIPT_DIR/docker-run" "$SCRIPT_DIR/arm-run"
-        chmod +x "$SCRIPT_DIR/arm-run"
-    else
-        echo -e "$YELLOW$(info_mark)$RESET Symbolic links '$BLUE$SCRIPT_DIR/arm-run$RESET' already present."
+# Apply project config on top of the already-loaded profile.
+# Accepts the active profile name so it can handle profile-scoped overrides.
+#
+# Override precedence (highest wins):
+#   global alias  <  project profile-scoped alias  <  project unscoped alias
+#
+# Alias env is always overwritten (never merged) — req 4.
+apply_project_config() {
+    local profile="$1"
+    [[ -z "$PROJECT_FILE" ]] && return 0
+
+    # Project-level image and dockerfile overrides (unchanged)
+    PROJECT_IMAGE="$(ini_get "$PROJECT_FILE" "project" "image")"
+    PROJECT_DOCKERFILE="$(ini_get "$PROJECT_FILE" "project" "dockerfile")"
+    if [[ -n "$PROJECT_DOCKERFILE" && "$PROJECT_DOCKERFILE" != /* ]]; then
+        PROJECT_DOCKERFILE="$(dirname "$PROJECT_FILE")/${PROJECT_DOCKERFILE}"
     fi
 
-    if [ ! -f "$SCRIPT_DIR/arm8-run" ]; then
-        echo -e "$YELLOW$(info_mark)$RESET Install symbolic link '$BLUE$SCRIPT_DIR/arm8-run$RESET'"
-        ln -sf "$SCRIPT_DIR/docker-run" "$SCRIPT_DIR/arm8-run"
-        chmod +x "$SCRIPT_DIR/arm8-run"
-    else
-        echo -e "$YELLOW$(info_mark)$RESET Symbolic links '$BLUE$SCRIPT_DIR/arm8-run$RESET' already present."
+    # Override profile image/env if the project file redefines the active profile.
+    # This lets the project config fully replace a global profile (req 3).
+    if ini_has_section "$PROJECT_FILE" "$profile"; then
+        local _pimg _penv
+        _pimg="$(ini_get "$PROJECT_FILE" "$profile" "image")"
+        _penv="$(ini_get "$PROJECT_FILE" "$profile" "env")"
+        [[ -n "$_pimg" ]] && PROFILE_IMAGE="$_pimg"
+        [[ -n "$_penv" ]] && PROFILE_ENV="$_penv"
     fi
-    exit 0
-fi
 
-# Remove quotes
-unquote() {
-    VALUE="$@"
-    if [ -z "$(echo $VALUE | cut -f1 -d"'")" ]; then
-        echo $(echo $VALUE | cut -f2- -d"'" | rev | cut -f2- -d"'" | rev)
-    elif [ -z "$(echo $VALUE | cut -f1 -d'"')" ]; then
-        echo $(echo $VALUE | cut -f2- -d'"' | rev | cut -f2- -d'"' | rev)
-    else
-        echo $@
+    local section aname cmd workdir aenv apipeline
+
+    # Pass 1: profile-scoped aliases in project file (alias:<profile>:<name>).
+    # Defined after a [<profile>] header in the project config.
+    # Overwrite global aliases for that name; env is always replaced (req 3, 4).
+    local _prefix="alias:${profile}:"
+    while IFS= read -r section; do
+        [[ "$section" == "${_prefix}"* ]] || continue
+        aname="${section#"$_prefix"}"
+        cmd="$(       ini_get "$PROJECT_FILE" "$section" "cmd")"
+        workdir="$(   ini_get "$PROJECT_FILE" "$section" "workdir" "")"
+        aenv="$(      ini_get "$PROJECT_FILE" "$section" "env")"
+        apipeline="$( ini_get "$PROJECT_FILE" "$section" "pipeline")"
+        [[ -n "$cmd"       ]] && ALIAS_CMD["$aname"]="$cmd"
+        [[ -n "$workdir"   ]] && ALIAS_WORKDIR["$aname"]="$workdir"
+        ALIAS_ENV["$aname"]="$aenv"
+        [[ -n "$apipeline" ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
+    done < <(ini_sections "$PROJECT_FILE")
+
+    # Pass 2: unscoped aliases in project file (alias:<name>, no profile prefix).
+    # Defined before any profile header in the project config.
+    # Highest precedence — always overwrite whatever was loaded (req 2, 4).
+    while IFS= read -r section; do
+        [[ "$section" == "alias:"* ]] || continue
+        aname="${section#alias:}"
+        [[ "$aname" == *:* ]] && continue   # skip profile-scoped (alias:<profile>:<name>)
+        cmd="$(       ini_get "$PROJECT_FILE" "$section" "cmd")"
+        workdir="$(   ini_get "$PROJECT_FILE" "$section" "workdir" "")"
+        aenv="$(      ini_get "$PROJECT_FILE" "$section" "env")"
+        apipeline="$( ini_get "$PROJECT_FILE" "$section" "pipeline")"
+        [[ -n "$cmd"       ]] && ALIAS_CMD["$aname"]="$cmd"
+        [[ -n "$workdir"   ]] && ALIAS_WORKDIR["$aname"]="$workdir"
+        ALIAS_ENV["$aname"]="$aenv"
+        [[ -n "$apipeline" ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
+    done < <(ini_sections "$PROJECT_FILE")
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Environment flag builder
+# Accepts a comma-separated list of "KEY" (host passthrough) or "KEY=VALUE" (fixed)
+# Writes null-delimited "-e" / "KEY=VALUE" pairs to stdout for use with readarray
+# ──────────────────────────────────────────────────────────────────────────────
+build_env_flags() {
+    local env_spec="$1"
+    [[ -z "$env_spec" ]] && return 0
+    local spec
+    local IFS=','
+    for spec in $env_spec; do
+        spec="${spec#"${spec%%[![:space:]]*}"}"   # ltrim
+        spec="${spec%"${spec##*[![:space:]]}"}"   # rtrim
+        [[ -z "$spec" ]] && continue
+        if [[ "$spec" == *=* ]]; then
+            printf '%s\0' "-e" "$spec"
+        else
+            # Only pass through if the variable is set on the host
+            [[ -n "${!spec+x}" ]] && printf '%s\0' "-e" "${spec}=${!spec}"
+        fi
+    done
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Derive a deterministic, DNS-safe container name from the git root path
+# ──────────────────────────────────────────────────────────────────────────────
+container_name_from_path() {
+    local slug
+    slug="$(printf '%s' "$1" \
+        | tr '[:upper:]' '[:lower:]' \
+        | tr -cs 'a-z0-9' '-' \
+        | sed 's/^-\+//;s/-\+$//')"
+    printf 'docker-run-%s' "$slug"
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Image & container lifecycle
+# ──────────────────────────────────────────────────────────────────────────────
+ensure_image() {
+    local image="$1" dockerfile="$2" force_rebuild="$3"
+    if [[ -n "$dockerfile" ]]; then
+        [[ -f "$dockerfile" ]] || die "Dockerfile not found: ${dockerfile}"
+        if [[ "$force_rebuild" == "1" ]] || ! docker image inspect "$image" &>/dev/null; then
+            info "Building image '${image}' from ${dockerfile} ..."
+            docker build -t "$image" -f "$dockerfile" "$(dirname "$dockerfile")"
+        fi
+    elif [[ "$force_rebuild" == "1" ]]; then
+        warn "--rebuild has no effect: no dockerfile is configured for this project"
     fi
 }
 
-# Yaml parser to XPath
-parse_yaml() {
-    FILENAME=$1
-
-    if [ -z "$FILENAME" ]; then
-        echo -e "${RED}Abort:$RESET No file specified"
-        exit 1
+ensure_container() {
+    local container="$1" image="$2" git_root="$3"
+    if docker container inspect "$container" &>/dev/null; then
+        local status
+        status="$(docker container inspect --format '{{.State.Status}}' "$container")"
+        if [[ "$status" != "running" ]]; then
+            info "Starting container '${container}' ..."
+            docker start "$container" >/dev/null
+        fi
+    else
+        info "Creating container '${container}' from image '${image}' ..."
+        docker run -d \
+            --name "$container" \
+            -v "${git_root}:${CONTAINER_MOUNT}" \
+            "$image" \
+            sleep infinity >/dev/null
     fi
+}
 
-    PREV_INDENT=0
-    XPATH=""
-    CURRENT_XPATH=""
-    INDENT_LEVELS="0"
+# ──────────────────────────────────────────────────────────────────────────────
+# Rolling output display (non-interactive mode)
+# Reads lines from stdin and keeps a live rolling window of the last N lines.
+# When stdout is a terminal, ANSI cursor movement is used to update in place.
+# When stdout is not a terminal (piped/redirected), lines are printed verbatim.
+# ──────────────────────────────────────────────────────────────────────────────
+_rolling_display() {
+    local max="$1" logfile="${2:-}"
+    local -a buf=()
+    local is_tty=0
+    local cursor_up=0   # lines the cursor is currently above its resting position
+    # Prefix for output lines — colored pipe when stdout is a TTY
+    local PFX="│ "
+    if [[ -t 1 ]]; then
+        is_tty=1
+        PFX="\033[36m│\033[0m "
+    fi
 
     while IFS= read -r line; do
-        INDENT=0
-
-        STRIPPED="$(echo $line)"
-        if [[ "$STRIPPED" =~ ^-.* ]]; then
-            ITEM="$(echo $(echo $STRIPPED | cut -f2- -d'-'))"
-            echo "$CURRENT_XPATH=$(unquote $ITEM)"
-        else
-            # Get indentation level
-            while [ -z "$(echo "$line" | cut -f$((INDENT + 1)) -d' ')" ]; do
-                INDENT=$(($INDENT + 1))
-            done
-
-            if [ $INDENT -ne $PREV_INDENT ]; then
-                # Remove last part
-                if [ $INDENT -lt $PREV_INDENT ]; then
-                    echo "$INDENT"
-                    echo "$PREV_INDENT"
-                    echo "$INDENT_LEVELS"
-                    while [ 1 ]; do
-                        LAST_INDENT=$(($(echo $INDENT_LEVELS | rev | cut -f1 -d',' | rev)))
-                        if [ $INDENT -lt $(($(echo $INDENT_LEVELS | rev | cut -f1 -d',' | rev))) ]; then
-                            XPATH=$(echo $XPATH | rev | cut -f2- -d'.' | rev)
-                            INDENT_LEVELS=$(echo $INDENT_LEVELS | rev | cut -f2- -d',' | rev)
-                        else
-                            break
-                        fi
-                    done
-                elif [ $INDENT -gt $PREV_INDENT ]; then
-                    XPATH=$CURRENT_XPATH
-                    INDENT_LEVELS="$INDENT_LEVELS,$INDENT"
-                fi
-                PREV_INDENT=$INDENT
-            fi
-
-            LABEL="$(echo $line | cut -f1 -d':')"
-            VALUE="$(echo $(echo $line | cut -f2- -d':'))"
-            if [ ! -z "$VALUE" ]; then
-                echo "${XPATH}.${LABEL}=$(unquote $VALUE)"
-            fi
-            CURRENT_XPATH="${XPATH}.${LABEL}"
+        # Write raw line to logfile before any display processing.
+        if [[ -n "$logfile" ]]; then
+            printf '%s\n' "$line" >>"$logfile" 2>/dev/null || true
         fi
-    done < <(cat $FILENAME)
+        # Strip everything up to and including the last \r so that progress-bar
+        # style output (which uses \r to overwrite) doesn't clobber the │ border.
+        line="${line##*$'\r'}"
+        if (( ${#buf[@]} >= max )); then
+            # Buffer full: drop oldest line and scroll the window up.
+            buf=("${buf[@]:1}")
+            buf+=("$line")
+            if [[ $is_tty -eq 1 ]]; then
+                # Record displacement BEFORE moving the cursor so that if SIGINT
+                # fires during or after the cursor-up but before the reprint
+                # completes, the cleanup below can move the cursor back down.
+                cursor_up=$max
+                printf '\033[%dA\033[J' "$max" 2>/dev/null || true
+                printf "${PFX}%s\n" "${buf[@]}" 2>/dev/null || true
+                cursor_up=0   # reprint finished; cursor is back at resting pos
+            else
+                printf "${PFX}%s\n" "$line" 2>/dev/null || true
+            fi
+        else
+            # Buffer not yet full: just print the new line
+            buf+=("$line")
+            printf "${PFX}%s\n" "$line" 2>/dev/null || true
+        fi
+    done
+
+    # If SIGINT interrupted a cursor-up+reprint cycle the cursor is still
+    # displaced above its resting position.  Move it back down so the footer
+    # prints below the output area rather than on top of the header.
+    if [[ $is_tty -eq 1 && $cursor_up -gt 0 ]]; then
+        printf '\033[%dB' "$cursor_up" 2>/dev/null || true
+    fi
+    return 0
 }
 
-# Since we utilize the symlink arm-run to execute commands in an armv7
-# environment, we check for the executable name to determine the container
-# to use.
-NAME=$(basename $0)
+# ──────────────────────────────────────────────────────────────────────────────
+# Timing helpers
+# ──────────────────────────────────────────────────────────────────────────────
 
-# Initialize variables
-WORKDIR=$(pwd)
-CUR_DIR=$(pwd)
+# Returns current time in milliseconds (GNU date); falls back to whole seconds.
+_now_ms() { date +%s%3N 2>/dev/null || (( $(date +%s) * 1000 )); }
 
-# Use bake for better performance
-export COMPOSE_BAKE=true
+# Formats a millisecond duration into a human-readable string.
+_fmt_duration() {
+    local ms="$1"
+    if (( ms < 1000 )); then
+        printf '%dms' "$ms"
+    elif (( ms < 60000 )); then
+        printf '%d.%ds' "$(( ms / 1000 ))" "$(( (ms % 1000) / 100 ))"
+    else
+        printf '%dm %ds' "$(( ms / 60000 ))" "$(( (ms % 60000) / 1000 ))"
+    fi
+}
 
-# Detect git repository root
-while [ ! -z "${CUR_DIR}" ] && [ ! -d "${CUR_DIR}/.git" ]; do
-    CUR_DIR=$(dirname ${CUR_DIR})
+# ──────────────────────────────────────────────────────────────────────────────
+# Post-execution footer
+# Prints status (green/red) and elapsed duration to stderr.
+# ──────────────────────────────────────────────────────────────────────────────
+print_footer() {
+    local exit_code="$1" elapsed_ms="$2" logfile="${3:-}"
+
+    local B="" CY="" YL="" GN="" RD="" R=""
+    if [[ -t 2 ]]; then
+        B="\033[1m"; CY="\033[1;36m"; YL="\033[1;33m"
+        GN="\033[1;32m"; RD="\033[1;31m"; R="\033[0m"
+    fi
+
+    local status_color status_label
+    if [[ "$exit_code" -eq 0 ]]; then
+        status_color="$GN"; status_label="✓ exit 0"
+    else
+        status_color="$RD"; status_label="✗ exit $exit_code"
+    fi
+
+    local duration; duration="$(_fmt_duration "$elapsed_ms")"
+
+    # Line widths (display columns) must total 68 each:
+    #   "┌─ result " = 10 display cols  →  58 ─ chars to follow
+    #   footer       = └ + 67 ─ chars  = 68 display cols
+    local hdr_line="──────────────────────────────────────────────────────────"
+    local sep_line="└───────────────────────────────────────────────────────────────────"
+    printf >&2 "${CY}┌─ result %s${R}\n"          "$hdr_line"
+    printf >&2 "${CY}│${R} ${B}Status   :${R} ${status_color}%s${R}\n" "$status_label"
+    printf >&2 "${CY}│${R} ${B}Duration :${R} %s\n"            "$duration"
+    if [[ -n "$logfile" ]]; then
+        printf >&2 "${CY}│${R} ${B}Log      :${R} ${YL}%s${R}\n" "$logfile"
+    fi
+    printf >&2 "${CY}%s${R}\n\n"                      "$sep_line"
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Step executor
+#
+# Runs one command step (alias or literal) inside the container and prints the
+# footer when done.  Reads from globals:
+#   USE_ALIAS, EXEC_CMD, EXEC_ARGS[], EXEC_WORKDIR, ENV_FLAGS[], CONTAINER_NAME,
+#   INTERACTIVE
+# Optional parameter $1: path to logfile. If empty/omitted a new one is created.
+# Sets global after return:
+#   _STEP_SIG_RECEIVED — signal name (INT/TERM) if the step was interrupted, else ""
+# Returns the step's exit code.  Does NOT re-raise signals or call exit.
+# ──────────────────────────────────────────────────────────────────────────────
+_STEP_SIG_RECEIVED=""
+_active_tmpfifo=""   # cleaned up by EXIT trap if script dies mid-step
+
+run_exec_step() {
+    local _step_start_ms _logfile="${1:-}"
+    _step_start_ms="$(_now_ms)"
+    _STEP_SIG_RECEIVED=""
+
+    if [[ "$INTERACTIVE" == "1" ]]; then
+        # Interactive: foreground docker exec; trap INT to prevent bash's default
+        # re-raise (which would kill the script before print_footer runs).
+        local _sig=""
+        trap '_sig=INT' INT
+
+        local _exit=0
+        if [[ "$USE_ALIAS" == "1" ]]; then
+            docker exec -it -w "$EXEC_WORKDIR" "${ENV_FLAGS[@]}" "$CONTAINER_NAME" \
+                sh -c "$EXEC_CMD" || _exit=$?
+        else
+            docker exec -it -w "$EXEC_WORKDIR" "${ENV_FLAGS[@]}" "$CONTAINER_NAME" \
+                "${EXEC_ARGS[@]}" || _exit=$?
+        fi
+        trap - INT
+
+        if [[ -n "$_sig" && "$_exit" -lt 128 ]]; then
+            _exit=130   # 128 + SIGINT(2)
+        fi
+        [[ -n "$_sig" ]] && _STEP_SIG_RECEIVED="$_sig"
+
+        print_footer "$_exit" "$(( $(_now_ms) - _step_start_ms ))"
+        return "$_exit"
+
+    else
+        # Non-interactive: background docker exec feeding a FIFO; rolling display.
+        local _tmpfifo _docker_pid _sig="" _exit=0
+        _tmpfifo="$(mktemp -u)"
+        mkfifo "$_tmpfifo"
+        _active_tmpfifo="$_tmpfifo"
+
+        # Use the provided logfile or create a fresh one for this step.
+        # Logfiles are NOT removed so the user can inspect them after failure.
+        if [[ -z "$_logfile" ]]; then
+            _logfile="$(mktemp -t docker-run.XXXXXX.log)"
+        fi
+
+        # Write a plain-text step header to the logfile (no ANSI codes) so that
+        # each step's output is clearly identified when viewing the log file.
+        {
+            printf '=%.0s' {1..80}; printf '\n'
+            printf 'Command   : %s\n' "$DISPLAY_CMD"
+            printf 'Directory : %s\n' "$EXEC_WORKDIR"
+            [[ -n "$ENV_DISPLAY" ]] && printf 'Env       : %s\n' "$ENV_DISPLAY"
+            printf '=%.0s' {1..80}; printf '\n'
+        } >>"$_logfile"
+
+        if [[ "$USE_ALIAS" == "1" ]]; then
+            docker exec -w "$EXEC_WORKDIR" "${ENV_FLAGS[@]}" "$CONTAINER_NAME" \
+                sh -c "$EXEC_CMD" >"$_tmpfifo" 2>&1 &
+        else
+            docker exec -w "$EXEC_WORKDIR" "${ENV_FLAGS[@]}" "$CONTAINER_NAME" \
+                "${EXEC_ARGS[@]}" >"$_tmpfifo" 2>&1 &
+        fi
+        _docker_pid=$!
+
+        # Signal handler: kill docker exec host-side AND container-side.
+        # docker exec (no TTY) does NOT forward signals to the container process.
+        _kill_step() {
+            local sig="$1"
+            _sig="$sig"
+            kill -"$sig" "$_docker_pid" 2>/dev/null || true
+            docker exec "$CONTAINER_NAME" \
+                sh -c "kill -${sig} -1 2>/dev/null" 2>/dev/null || true
+        }
+        trap '_kill_step INT'  INT
+        trap '_kill_step TERM' TERM
+
+        _rolling_display 10 "$_logfile" <"$_tmpfifo" || true
+
+        wait "$_docker_pid" || _exit=$?
+        trap - INT TERM
+
+        # docker exec (no TTY) sometimes exits 0 even when killed by a signal.
+        if [[ -n "$_sig" && "$_exit" -lt 128 ]]; then
+            case "$_sig" in
+                INT)  _exit=130 ;;
+                TERM) _exit=143 ;;
+            esac
+        fi
+        [[ -n "$_sig" ]] && _STEP_SIG_RECEIVED="$_sig"
+
+        print_footer "$_exit" "$(( $(_now_ms) - _step_start_ms ))" "$_logfile"
+
+        rm -f "$_tmpfifo" 2>/dev/null || true
+        _active_tmpfifo=""
+        return "$_exit"
+    fi
+}
+
+
+print_summary() {
+    local profile="$1" image="$2" container="$3" workdir="$4" cmd="$5" env_display="$6"
+
+    # ANSI colors — only when stderr is a terminal
+    local B="" CY="" YL="" GR="" DIM="" R=""
+    if [[ -t 2 ]]; then
+        B="\033[1m"; CY="\033[1;36m"; YL="\033[1;33m"
+        GR="\033[0;32m"; DIM="\033[2m"; R="\033[0m"
+    fi
+
+    local line="──────────────────────────────────────────────────────"
+    # ┌─ docker-run  = 14 display cols, so the trailing dashes stay at 54 (14+54=68)
+    # └─────────────  = └ + 13 dashes, then $line (54) = 1+13+54 = 68 display cols
+    local footer="└─────────────${line}"
+    printf >&2 "\n${CY}┌─ docker-run %s${R}\n" "$line"
+    printf >&2 "${CY}│${R} ${B}Profile   :${R} ${YL}%s${R}\n"   "$profile"
+    printf >&2 "${CY}│${R} ${B}Image     :${R} %s\n"             "$image"
+    printf >&2 "${CY}│${R} ${B}Container :${R} ${DIM}%s${R}\n"  "$container"
+    printf >&2 "${CY}│${R} ${B}Directory :${R} ${GR}%s${R}\n"   "$workdir"
+    printf >&2 "${CY}│${R} ${B}Command   :${R} ${YL}%s${R}\n"   "$cmd"
+    if [[ -n "$env_display" ]]; then
+        printf >&2 "${CY}│${R} ${B}Env       :${R} ${GR}%s${R}\n" "$env_display"
+    fi
+    printf >&2 "${CY}%s${R}\n" "$footer"
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Help
+# ──────────────────────────────────────────────────────────────────────────────
+show_help() {
+    cat <<EOF
+Usage: ${SCRIPT_NAME} [OPTIONS] [ALIAS | COMMAND [ARGS...]]
+
+Transparently run commands inside a persistent Docker container.
+The git repository root is mounted at ${CONTAINER_MOUNT}; the current working
+directory is translated to the equivalent path in the container automatically.
+
+Options:
+  -h, --help               Show this help message and exit
+  -p, --profile <profile>  Use the named profile from ${GLOBAL_CONFIG} (overrides project config)
+  -I, --interactive        Run interactively (docker exec -it); default is non-interactive
+  --rebuild                Force rebuild of the Docker image (requires dockerfile in project config)
+
+Configuration:
+  Global profiles : ~/.docker-run.conf
+                    ~/.local/share/.docker-run.conf  (fallback)
+  Project configs : ~/.docker-run.d/<name>.conf
+                    ~/.local/share/.docker-run.d/<name>.conf  (fallback)
+                    Matched by regex 'pattern' against the git root path.
+
+If the first argument matches a defined alias name, the alias's predefined
+command, working directory, and environment variables are used.  If the alias
+has a 'pipeline' key, each listed step alias is run in order — each with its
+own header, output display, and footer — stopping on the first failure.
+Otherwise the full command line is executed literally inside the container.
+
+Alias pipeline example (in the config file):
+  [alias:ci]
+  pipeline = configure,build,test
+
+  [alias:configure]
+  cmd = cmake -S . -B build
+
+  [alias:build]
+  cmd = cmake --build build
+
+  [alias:test]
+  cmd = ctest --test-dir build
+
+Examples:
+  ${SCRIPT_NAME} cmake -S . -B build           # Run cmake (CWD translated to ${CONTAINER_MOUNT}/...)
+  ${SCRIPT_NAME} build                         # Run the 'build' alias (non-interactive, last 10 lines)
+  ${SCRIPT_NAME} ci                            # Run the 'ci' pipeline (configure → build → test)
+  ${SCRIPT_NAME} -I bash                       # Open an interactive shell in the container
+  ${SCRIPT_NAME} -p clang build                # Use the 'clang' profile, then run 'build'
+  ${SCRIPT_NAME} --rebuild build               # Rebuild Docker image first, then run 'build'
+
+Config file format:  see docker-run.conf.example and docker-run.d/example.conf
+EOF
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Main
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Clean up log files from previous runs that are older than 3 minutes.
+# Log files are created with mktemp -t docker-run.XXXXXX.log in /tmp (or $TMPDIR).
+find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'docker-run.*.log' -mmin +3 \
+    -delete 2>/dev/null || true
+
+FORCE_REBUILD=0
+PROFILE_OVERRIDE=""
+INTERACTIVE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)       show_help; exit 0 ;;
+        --rebuild)       FORCE_REBUILD=1; shift ;;
+        -I|--interactive) INTERACTIVE=1; shift ;;
+        -p|--profile)
+            [[ $# -lt 2 ]] && die "'$1' requires a profile name argument."
+            PROFILE_OVERRIDE="$2"; shift 2 ;;
+        --profile=*)     PROFILE_OVERRIDE="${1#--profile=}"; shift ;;
+        --)              shift; break ;;
+        -*)              die "Unknown option: $1.  Run '${SCRIPT_NAME} --help' for usage." ;;
+        *)               break ;;
+    esac
 done
 
-# Get directory containing given file
-locate_file() {
-    if [ -f "$CUR_DIR/.devcontainer/$1" ]; then
-        echo "$CUR_DIR/.devcontainer"
-    elif [ -f "$CUR_DIR/local/$1" ]; then
-        echo "$CUR_DIR/local"
-    elif [ -f "$CUR_DIR/$1" ]; then
-        echo "$CUR_DIR"
-    elif [ -f "$WORKDIR/$1" ]; then
-        echo "$WORKDIR"
+[[ $# -eq 0 ]] && { show_help; exit 0; }
+
+# ── Git root detection (supports normal repos and worktrees) ──────────────────
+GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
+    || die "Not inside a git repository."
+
+# ── Global config ─────────────────────────────────────────────────────────────
+[[ -f "$GLOBAL_CONFIG" ]] \
+    || die "Global config not found.\nCopy docker-run.conf.example to ~/.docker-run.conf (or ~/.local/share/.docker-run.conf) and edit it."
+ini_parse "$GLOBAL_CONFIG"
+
+# ── Project config ────────────────────────────────────────────────────────────
+find_project_config "$GIT_ROOT"
+
+PROFILE_NAME="default"
+if [[ -n "$PROFILE_OVERRIDE" ]]; then
+    PROFILE_NAME="$PROFILE_OVERRIDE"
+elif [[ -n "$PROJECT_FILE" ]]; then
+    _p="$(ini_get "$PROJECT_FILE" "project" "profile")"
+    [[ -n "$_p" ]] && PROFILE_NAME="$_p"
+    unset _p
+fi
+
+# ── Load profile, then overlay project settings ───────────────────────────────
+load_profile "$PROFILE_NAME"
+apply_project_config "$PROFILE_NAME"
+
+# ── Resolve final Docker image ────────────────────────────────────────────────
+# Compute a slug for the profile name (safe for use in container/image names)
+_profile_slug="$(printf '%s' "$PROFILE_NAME" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr -cs 'a-z0-9' '-' \
+    | sed 's/^-\+//;s/-\+$//')"
+
+FINAL_IMAGE=""
+if [[ -n "$PROJECT_DOCKERFILE" ]]; then
+    # Dockerfile-built image: tag derived from git root + profile so each profile
+    # can have its own image when different dockerfiles are in play.
+    _slug="$(printf '%s' "$GIT_ROOT" \
+        | tr '[:upper:]' '[:lower:]' \
+        | tr -cs 'a-z0-9' '-' \
+        | sed 's/^-\+//;s/-\+$//')"
+    FINAL_IMAGE="docker-run-${_slug}-${_profile_slug}:local"
+    unset _slug
+fi
+[[ -z "$FINAL_IMAGE" && -n "$PROJECT_IMAGE"  ]] && FINAL_IMAGE="$PROJECT_IMAGE"
+[[ -z "$FINAL_IMAGE" && -n "$PROFILE_IMAGE"  ]] && FINAL_IMAGE="$PROFILE_IMAGE"
+[[ -z "$FINAL_IMAGE" ]] \
+    && die "No Docker image configured. Set 'image' in profile '${PROFILE_NAME}' or the project config."
+
+# Container name includes the profile so each profile gets its own container.
+CONTAINER_NAME="$(container_name_from_path "$GIT_ROOT")-${_profile_slug}"
+unset _profile_slug
+
+# ── CWD → container path ──────────────────────────────────────────────────────
+REL_PATH="${PWD#"$GIT_ROOT"}"
+CONTAINER_WORKDIR="${CONTAINER_MOUNT}${REL_PATH}"
+
+# ── EXIT trap: clean up any in-progress FIFO ─────────────────────────────────
+trap 'rm -f "$_active_tmpfifo"' EXIT
+
+# ── Resolve first argument: alias, pipeline alias, or literal command ─────────
+USE_ALIAS=0
+ALIAS_NAME=""
+if [[ $# -gt 0 && -n "${ALIAS_CMD["$1"]+x}" ]]; then
+    USE_ALIAS=1
+    ALIAS_NAME="$1"
+elif [[ $# -gt 0 && -n "${ALIAS_PIPELINE["$1"]+x}" ]]; then
+    USE_ALIAS=1
+    ALIAS_NAME="$1"
+fi
+
+# ── Ensure image and container are ready ──────────────────────────────────────
+ensure_image     "$FINAL_IMAGE"    "$PROJECT_DOCKERFILE" "$FORCE_REBUILD"
+ensure_container "$CONTAINER_NAME" "$FINAL_IMAGE"        "$GIT_ROOT"
+
+# ── Helper: set globals for one step alias and print its summary ──────────────
+_setup_step() {
+    local step_alias="$1" pipeline_label="${2:-}"
+    EXEC_WORKDIR="${ALIAS_WORKDIR[$step_alias]:-$CONTAINER_WORKDIR}"
+    EXEC_CMD="${ALIAS_CMD[$step_alias]}"
+    if [[ -n "$pipeline_label" ]]; then
+        DISPLAY_CMD="[${pipeline_label}:${step_alias}] → ${EXEC_CMD}"
+    else
+        DISPLAY_CMD="[${step_alias}] → ${EXEC_CMD}"
     fi
+    local _aenv="${ALIAS_ENV[$step_alias]-}"
+    COMBINED_ENV="${PROFILE_ENV}${PROFILE_ENV:+${_aenv:+,}}${_aenv}"
+    ENV_FLAGS=()
+    while IFS= read -r -d '' flag; do
+        ENV_FLAGS+=("$flag")
+    done < <(build_env_flags "$COMBINED_ENV")
+    ENV_DISPLAY=""
+    for (( _i=1; _i<${#ENV_FLAGS[@]}; _i+=2 )); do
+        ENV_DISPLAY+="${ENV_FLAGS[$_i]}, "
+    done
+    ENV_DISPLAY="${ENV_DISPLAY%, }"
+    print_summary "$PROFILE_NAME" "$FINAL_IMAGE" "$CONTAINER_NAME" \
+                  "$EXEC_WORKDIR" "$DISPLAY_CMD" "$ENV_DISPLAY"
 }
 
-DOCKER_COMPOSE_DIR="$(locate_file docker-compose.yml)"
-if [ ! -z "$DOCKER_COMPOSE_DIR" ]; then
-    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
-elif [ -f "$HOME/.local/share/docker-run/docker-compose.yml" ]; then
-    DOCKER_COMPOSE_DIR="$HOME/.local/share/docker-run"
-    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}docker-compose.yml${RESET} in $BLUE$DOCKER_COMPOSE_DIR$RESET"
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+_overall_exit=0
+
+# Create a single logfile for the entire invocation (shared across pipeline steps).
+# Interactive mode doesn't use a logfile (output goes directly to the terminal).
+_run_logfile=""
+if [[ "$INTERACTIVE" != "1" ]]; then
+    _run_logfile="$(mktemp -t docker-run.XXXXXX.log)"
+fi
+
+if [[ "$USE_ALIAS" == "1" && -n "${ALIAS_PIPELINE[$ALIAS_NAME]-}" ]]; then
+    # Pipeline alias: run each referenced step alias in order, fail-fast.
+    IFS=',' read -r -a _pipeline_steps <<< "${ALIAS_PIPELINE[$ALIAS_NAME]}"
+    for _step in "${_pipeline_steps[@]}"; do
+        _step="${_step// /}"   # trim any whitespace around the comma
+        [[ -n "${ALIAS_CMD[$_step]+x}" ]] \
+            || die "Pipeline '${ALIAS_NAME}': step '${_step}' is not a defined alias"
+        USE_ALIAS=1
+        _setup_step "$_step" "$ALIAS_NAME"
+        run_exec_step "$_run_logfile" || _overall_exit=$?
+        if [[ "$_overall_exit" -ne 0 ]]; then
+            break
+        fi
+    done
+
+elif [[ "$USE_ALIAS" == "1" ]]; then
+    # Single alias step.
+    _setup_step "$ALIAS_NAME"
+    run_exec_step "$_run_logfile" || _overall_exit=$?
+
 else
-    echo -e "$RED[E]$RESET Unable to locate '${BLUE}docker-compose.yml$RESET'" >&2
-    exit 1
-fi
-CONTAINER_NAME="$(basename $WORKDIR)"
-
-COMMANDS_DIR="$(locate_file .commands)"
-if [ ! -z "$COMMANDS_DIR" ]; then
-    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}.commands${RESET} in $BLUE$COMMANDS_DIR$RESET"
-else
-    if [ -f "$HOME/.local/share/docker-run/.commands" ]; then
-        GLOBAL_COMMANDS_DIR="$HOME/.local/share/docker-run"
-        echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}.commands${RESET} in ${BLUE}$GLOBAL_COMMANDS_DIR${RESET}"
-    fi
-fi
-
-USER_COMMANDS_DIR="$(locate_file .user-commands)"
-if [ ! -z "$USER_COMMANDS_DIR" ]; then
-    echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}.user-commands${RESET} in $BLUE$USER_COMMANDS_DIR$RESET"
-fi
-
-# Specify compose target platform
-if [ "$NAME" == "arm-run" ]; then
-    DOCKER_COMPOSE_PLATFORM="linux/arm/v7"
-elif [ "$NAME" == "arm8-run" ]; then
-    DOCKER_COMPOSE_PLATFORM="linux/arm64/v8"
-else
-    DOCKER_COMPOSE_PLATFORM="linux/amd64"
+    # Literal command: pass args directly.
+    EXEC_ARGS=("$@")
+    EXEC_WORKDIR="$CONTAINER_WORKDIR"
+    EXEC_CMD=""
+    DISPLAY_CMD="$(printf '%s ' "$@")"
+    COMBINED_ENV="$PROFILE_ENV"
+    ENV_FLAGS=()
+    while IFS= read -r -d '' flag; do
+        ENV_FLAGS+=("$flag")
+    done < <(build_env_flags "$COMBINED_ENV")
+    ENV_DISPLAY=""
+    for (( _i=1; _i<${#ENV_FLAGS[@]}; _i+=2 )); do
+        ENV_DISPLAY+="${ENV_FLAGS[$_i]}, "
+    done
+    ENV_DISPLAY="${ENV_DISPLAY%, }"
+    print_summary "$PROFILE_NAME" "$FINAL_IMAGE" "$CONTAINER_NAME" \
+                  "$EXEC_WORKDIR" "$DISPLAY_CMD" "$ENV_DISPLAY"
+    run_exec_step "$_run_logfile" || _overall_exit=$?
 fi
 
-DOCKER_COMPOSE_TARGET=$(parse_yaml "$DOCKER_COMPOSE_DIR/docker-compose.yml" | grep platform | grep $DOCKER_COMPOSE_PLATFORM | cut -f3 -d'.')
-
-GIT_DIR=$CUR_DIR
-GIT_BASENAME=$(echo "P$GIT_DIR" | sed 's/\//-/g' | tr '[:upper:]' '[:lower:]')
-
-CONTAINER_ID=$(docker container ls | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
-if [ ! -z "$CONTAINER_ID" ]; then
-    if [ ! -z "$1" ] && [ "$1" == "stop" ]; then
-        echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
-        docker stop $CONTAINER_ID &>/dev/null
-        exit $?
-    elif [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
-        echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
-        docker stop $CONTAINER_ID &>/dev/null
-    elif [ ! -f "/tmp/docker-run/sock" ]; then
-        echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
-        docker stop $CONTAINER_ID &>/dev/null
-    else
-        DIR="$(parse_yaml /tmp/docker-run/sock | grep "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME=" | cut -f2- -d'=')"
-        if [ -z "$DIR" ] || [ "$DIR" != "$GIT_DIR" ]; then
-            echo -e "$YELLOW$(info_mark)$RESET Stop running container $BLUE$CONTAINER_ID$RESET"
-            docker stop $CONTAINER_ID &>/dev/null
-        fi
-    fi
-elif [ ! -z "$1" ] && [ "$1" == "stop" ]; then
-    echo -e "$YELLOW$(info_mark)$RESET No container running."
-    exit 0
+# Re-raise signal so the parent shell sees the correct exit status.
+if [[ "$_overall_exit" -gt 128 ]]; then
+    _rsig=$(( _overall_exit - 128 ))
+    trap - INT TERM EXIT
+    rm -f "$_active_tmpfifo" 2>/dev/null || true
+    kill -"$_rsig" $$
 fi
 
-if [ ! -z "$1" ] && [ "$1" == "rebuild" ]; then
-    CONTAINER_ID=$(docker container ls -a | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
-    if [ ! -z "$CONTAINER_ID" ]; then
-        echo -e "$YELLOW$(info_mark)$RESET Run: '${BLUE}docker container rm $CONTAINER_ID$RESET'"
-        docker container rm $CONTAINER_ID 1>/dev/null || exit 1
-    fi
-
-    echo -e "$YELLOW$(info_mark)$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" build --no-cache $DOCKER_COMPOSE_TARGET$RESET'"
-    (cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" build --no-cache $DOCKER_COMPOSE_TARGET) && exit 0 || exit 1
-fi
-
-# Get Git branch
-REGEX="([A-Z]+-[0-9]+)"
-BRANCH="$(/usr/bin/git branch --show-current)"
-
-if [[ $BRANCH =~ $REGEX ]]; then
-    BUILD_DIR="${BASH_REMATCH[1]}"
-else
-    BUILD_DIR=$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]' | sed 's/[\/_]/-/g')
-fi
-
-if [ ! -f "/tmp/docker-run/sock" ]; then
-    echo "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME: $GIT_DIR" >> /tmp/docker-run/sock
-else
-    cat /tmp/docker-run/sock | grep -v "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME:" > /tmp/docker-run/sock.tmp
-    mv /tmp/docker-run/sock.tmp /tmp/docker-run/sock
-    echo "$DOCKER_COMPOSE_PLATFORM-$DOCKER_COMPOSE_TARGET-$GIT_BASENAME: $GIT_DIR" >> /tmp/docker-run/sock
-fi
-
-# Get container id
-CONTAINER_ID=$(docker container ls | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
-
-# Abort if container isn't running
-if [ -z "$CONTAINER_ID" ]; then
-    if [ $? -ne 0 ]; then
-        echo -e "$RED[E]$RESET Failed to run '${BLUE}docker run --rm --privileged multiarch/qemu-user-static --reset -p yes$RESET'"
-        exit 1
-    fi
-    docker run --rm --privileged multiarch/qemu-user-static --reset -p yes &>/dev/null
-
-    echo -en "$YELLOW$(info_mark)$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
-    SECONDS=0
-
-    echo -e "\r$YELLOW$(info_mark)$RESET Run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
-    #while IFS= read -r line; do
-    #    echo -en "\r    ${YELLOW}Duration: ${RESET}${SECONDS}${YELLOW}s${RESET}    "
-    #done < <(cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
-    (cd $GIT_DIR && GIT_DIR="$GIT_DIR" docker compose -f "$DOCKER_COMPOSE_DIR/docker-compose.yml" -p "$GIT_BASENAME" up -d $DOCKER_COMPOSE_TARGET 2>&1)
-    RES_CODE=$?
-    echo -en "                                \r"
-    if [ $RES_CODE -ne 0 ]; then
-        echo -e "$RED$(info_mark)$RESET Failed to run: '${BLUE}GIT_DIR="$GIT_DIR" docker compose -f \"$DOCKER_COMPOSE_DIR/docker-compose.yml\" -p \"$GIT_BASENAME\" up -d \"$DOCKER_COMPOSE_TARGET\"$RESET'"
-        exit 1
-    fi
-fi
-
-CONTAINER_ID=$(docker container ls | grep "$GIT_BASENAME-$DOCKER_COMPOSE_TARGET" | cut -f1 -d' ')
-echo -e "$YELLOW$(info_mark)$RESET Use ${GREEN}container id${RESET}: '$BLUE$CONTAINER_ID$RESET'"
-
-# Detect relative path from repository root
-if [ ! -z ${CUR_DIR} ]; then
-    CUR_DIR="${WORKDIR##${CUR_DIR}}"
-fi
-
-run_command() {
-    OUTPUT=0
-    COLOR="${COLORS[$COLOR_SELECTION]}"
-    eval set -- "${line#"CMD:"}"
-    echo ""
-
-    # Executable header
-    echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-    echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$@$RESET'"
-    CMD="$@"
-    ENV_CHECK="${ENV_ARGS_BARE[@]}"
-    if [ ! -z "${ENV_CHECK}" ]; then
-        echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
-        for ENV in "${ENV_ARGS_BARE[@]}"; do
-            echo -e "$COLOR│$RESET ${YELLOW}    ⟡$RESET $BLUE${ENV}$RESET"
-        done
-    fi
-    if [ ! -z "${CUR_DIR}" ]; then
-        echo -e "$COLOR│$RESET ${YELLOW}Working Directory:$RESET '$BLUE/git/${CUR_DIR}$RESET'"
-    fi
-    if [ ! -z "$INTERACTIVE" ] && [ "$INTERACTIVE" == "YES" ]; then
-        echo -e "$COLOR│$RESET ${YELLOW}Interactive Mode:$RESET '${BLUE}YES$RESET'"
-        SECONDS=0
-        echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        trap '' SIGINT
-        eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
-        EXIT_CODE=$?
-        trap - SIGINT
-        STATUS_LINE="${GREEN}✔  ${RESET}"
-        if [ $EXIT_CODE -ne 0 ]; then
-            STATUS_LINE="${RED}❌ ${RESET}"
-        fi
-        echo -e "\r$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        echo -e "\r$COLOR│$RESET $STATUS_LINE ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET},                                                                                 "
-        echo -e "\r$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        if [ $EXIT_CODE -ne 0 ]; then
-            exit $EXIT_CODE
-        fi
-    else
-        LOG_FILE="$(mktemp -p /tmp/docker-run/)"
-        echo -e "$COLOR│$RESET ${YELLOW}Logfile:$RESET '$BLUE$LOG_FILE$RESET'"
-        echo -e "$COLOR└───┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        echo -en "\r    $COLOR│$RESET "
-
-        # Handle output
-        local output_line_no=0
-        local last_output_line_no=99
-        local output_lines=()
-        local max_output_lines=8
-
-        shopt -s lastpipe
-
-        SIGNAL=0
-
-        trap 'SIGNAL=2' SIGINT
-
-        SECONDS=0
-        docker exec -e "TZ=Europe/Berlin" ${ENV_ARGS[@]} --workdir "/git/$CUR_DIR" $CONTAINER_ID "$@" 2>&1 | while IFS= read FULL_LINE; do
-            NUM_COLS=$(tput cols)
-            NUM_COLS=$(($NUM_COLS - 7))
-
-            FULL_LINE="$(echo -en "$FULL_LINE")"
-            NEW_LINE="${FULL_LINE:0:$NUM_COLS}"
-            FULL_LINE="${FULL_LINE:$NUM_COLS}"
-
-            while [ ! -z "$NEW_LINE" ]; do
-                OUTPUT=1
-                OUTPUT_CONTENT=""
-                # Reprint last n-1 lines
-                if [ $output_line_no -ne $last_output_line_no ]; then
-                    if [ $output_line_no -gt 0 ]; then
-                        for line_index in $(seq $((output_line_no - 1))); do
-                            OUTPUT_CONTENT="$OUTPUT_CONTENT\033[F"
-                        done
-                        for output_line in "${output_lines[@]}"; do
-                            length=${#output_line}
-                            empty_string="$(printf '%*s' "$length" '')"
-                            OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $empty_string\n"
-                        done
-                        if [ $output_line_no -gt $(($max_output_lines - 1)) ]; then
-                            output_lines=("${output_lines[@]:1}")
-                            output_line_no=$max_output_lines
-                        fi
-                        for line_index in $(seq $output_line_no); do
-                            OUTPUT_CONTENT="$OUTPUT_CONTENT\033[F\r"
-                        done
-                        for output_line in "${output_lines[@]}"; do
-                            OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $output_line\n"
-                        done
-                        OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET "
-                    fi
-                    last_output_line_no=$output_line_no
-                fi
-
-                if [ ! -z "$NEW_LINE" ]; then
-                    OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET $NEW_LINE"
-                    output_lines+=("$NEW_LINE")
-                    if [ $output_line_no -lt $(($max_output_lines)) ]; then
-                        output_line_no=$(($output_line_no + 1))
-                    else
-                        last_output_line_no=0
-                    fi
-
-                    echo "$NEW_LINE" >> $LOG_FILE
-
-                    LOG_SIZE=$(du -b "$LOG_FILE" | tr "\t" " " | cut -f1 -d' ')
-                    if [ $LOG_SIZE -gt 2097152 ]; then
-                        mv $LOG_FILE ${LOG_FILE}.1
-                    fi
-                else
-                    OUTPUT_CONTENT="$OUTPUT_CONTENT\r    $COLOR│$RESET                                                                                               "
-                fi
-                echo -ne "$OUTPUT_CONTENT\r"
-
-                NEW_LINE="${FULL_LINE:0:$NUM_COLS}"
-                FULL_LINE="${FULL_LINE:$NUM_COLS}"
-            done
-
-            NEW_LINE=""
-            FULL_LINE=""
-        done
-        EXIT_CODE1=$((${PIPESTATUS[0]}))
-        EXIT_CODE2=$((${PIPESTATUS[0]}))
-        EXIT_CODE=0
-
-        trap - SIGINT
-
-        if [ $SIGNAL -ne 0 ]; then
-            EXIT_CODE=$SIGNAL
-        elif [ $EXIT_CODE1 -lt 128 ] && [ $EXIT_CODE1 -gt 0 ]; then
-            EXIT_CODE=$EXIT_CODE1
-        elif [ $EXIT_CODE1 -ne 0 ]; then
-            EXIT_CODE=$(($EXIT_CODE1 - 128))
-        elif [ $EXIT_CODE2 -lt 128 ] && [ $EXIT_CODE2 -gt 0 ]; then
-            EXIT_CODE=$EXIT_CODE2
-        elif [ $EXIT_CODE2 -ne 0 ]; then
-            EXIT_CODE=$(($EXIT_CODE2 - 128))
-        fi
-        EXEC_PID=$(echo $(docker top $CONTAINER_ID | grep "$CMD" 2>/dev/null | grep -v grep) | cut -f2 -d' ')
-        if [ ! -z "$EXEC_PID" ]; then
-            kill -$EXIT_CODE $EXEC_PID
-        fi
-
-        # Executable footer
-        if [ $OUTPUT -eq 1 ]; then
-            echo -e "\r    "
-            echo -e "\r$COLOR    ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        fi
-
-        STATUS_LINE="${GREEN}✔  ${RESET}"
-        if [ $EXIT_CODE -ne 0 ]; then
-            STATUS_LINE="${RED}❌ ${RESET}"
-        fi
-
-        echo -e "\r$COLOR    │$RESET $STATUS_LINE ${COLOR}Duration:${RESET} $SECONDS ${COLOR}sec${RESET}                                                                         "
-        echo -e "\r$COLOR    └────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-
-        if [ $EXIT_CODE -ne 0 ]; then
-            exit $EXIT_CODE
-        fi
-    fi
-
-    # Change color for next command
-    COLOR_SELECTION=$(($COLOR_SELECTION + 1))
-    if [ $COLOR_SELECTION -eq 3 ]; then
-        COLOR_SELECTION=0
-    fi
-}
-
-if [ ! -z "$1" ]; then
-    INPUT=""
-
-    if [ ! -z "$GLOBAL_COMMANDS_DIR" ]; then
-        INPUT="$GLOBAL_COMMANDS_DIR/.commands"
-        REPOSITORY="$GIT_DIR"
-    fi
-
-    if [ ! -z "$COMMANDS_DIR" ]; then
-        INPUT="$COMMANDS_DIR/.commands"
-    fi
-
-    if [ ! -z "$USER_COMMANDS_DIR" ]; then
-        INPUT="$USER_COMMANDS_DIR/.user-commands"
-    fi
-
-    CMD_EXECUTED=0
-    ENV_ARGS=()
-    ENV_ARGS_BARE=()
-    COLORS=("$CYAN" "$YELLOW" "$GREEN")
-    COLOR_SELECTION=0
-    while IFS= read -u 10 line; do
-        if [ ! -z "$line" ]; then
-            if [[ "$line" =~ ^ENV:.* ]]; then
-                ENV_ARGS+=("-e ${line#"ENV:"}")
-                ENV_ARGS_BARE+=("${line#"ENV:"}")
-            elif [[ "$line" =~ ^DIR:.* ]]; then
-                CUR_DIR="$(echo ${line#"DIR:"})"
-            elif [[ "$line" =~ ^INTERACTIVE:.* ]]; then
-                INTERACTIVE="$(echo ${line#"INTERACTIVE:"})"
-            elif [[ "$line" =~ ^CMD:.* ]]; then
-                run_command
-                CMD_EXECUTED=1
-            else
-                echo""
-                echo -e "${RED}$(info_mark)${RESET} Invalid input: '${RED}$line${RESET}'."
-            fi
-        fi
-    done 10< <("$INPUT" "$REPOSITORY" "$DOCKER_COMPOSE_TARGET" "$@" 2>/dev/null)
-
-    if [ $CMD_EXECUTED -eq 0 ]; then
-        # Run given commandline in the container
-        OUTPUT=0
-        COLOR="$BLUE"
-
-        echo -e "$COLOR┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        echo -e "$COLOR│$RESET ${YELLOW}Run:$RESET '$BLUE$@$RESET'"
-        ENV_CHECK="${ENV_ARGS_BARE[@]}"
-        if [ ! -z "${ENV_CHECK}" ]; then
-            echo -e "$COLOR│$RESET ${YELLOW}Environment:$RESET'"
-            for ENV in "${ENV_ARGS_BARE[@]}"; do
-                echo -e "$COLOR│$RESET ${YELLOW}    -$RESET $BLUE${ENV}$RESET"
-            done
-        fi
-        if [ ! -z "${CUR_DIR}" ]; then
-            echo -e "$COLOR│$RESET ${YELLOW}Working Directory:$RESET '$BLUE/git/${CUR_DIR}$RESET'"
-        fi
-        echo -e "$COLOR└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────$RESET"
-        eval "docker exec -e \"TZ=Europe/Berlin\" ${ENV_ARGS[@]} --workdir \"/git/$CUR_DIR\" -it $CONTAINER_ID $(printf '%q ' "$@")"
-    else
-        echo ""
-    fi
-else
-    echo -e "${RED}$(info_mark)${RESET} No command specified."
-fi
+exit "$_overall_exit"
