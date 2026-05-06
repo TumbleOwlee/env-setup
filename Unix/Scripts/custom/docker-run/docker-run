@@ -810,6 +810,9 @@ show_help() {
     printf "  ${YL}-h${R}, ${YL}--help${R}               Show this help message and exit\n"
     printf "  ${YL}-l${R}, ${YL}--list${R}               List all aliases for the selected profile and exit\n"
     printf "  ${YL}-p${R}, ${YL}--profile${R} ${B}<profile>${R}  Select a named profile\n"
+    printf "  ${YL}-e${R}, ${YL}--env${R} ${B}<spec>${R}         Extra environment variables (overrides config).\n"
+    printf "                           ${DIM}Accepts comma-separated specs: KEY=val,OTHER=val${R}\n"
+    printf "                           ${DIM}May be repeated: -e KEY=val -e OTHER=val${R}\n"
     printf "  ${YL}-I${R}, ${YL}--interactive${R}        Force all steps interactive (docker exec -it)\n"
     printf "  ${YL}-r${R}, ${YL}--restart${R}            Remove and recreate the container before running\n"
     printf "                           ${DIM}(applies updated port mappings and other creation-time settings)${R}\n"
@@ -870,6 +873,8 @@ show_help() {
     printf "  ${YL}%s ci${R}                   ${DIM}# Run the 'ci' pipeline (configure → build → test)${R}\n" "$SCRIPT_NAME"
     printf "  ${YL}%s -I bash${R}              ${DIM}# Open an interactive shell in the container${R}\n" "$SCRIPT_NAME"
     printf "  ${YL}%s -p clang build${R}       ${DIM}# Use the 'clang' profile, then run 'build'${R}\n" "$SCRIPT_NAME"
+    printf "  ${YL}%s -e JOBS=8 build${R}      ${DIM}# Pass an extra env var to the 'build' alias${R}\n" "$SCRIPT_NAME"
+    printf "  ${YL}%s -e A=1 -e B=2 build${R}  ${DIM}# Multiple env vars${R}\n"                          "$SCRIPT_NAME"
     printf "  ${YL}%s -b -r build${R}          ${DIM}# Rebuild image AND recreate container, then build${R}\n" "$SCRIPT_NAME"
     printf "  ${YL}%s -r build${R}             ${DIM}# Recreate container (e.g. after changing ports)${R}\n" "$SCRIPT_NAME"
 
@@ -890,6 +895,7 @@ FORCE_RESTART=0
 LIST_ALIASES=0
 PROFILE_OVERRIDE=""
 INTERACTIVE=0
+CLI_ENV=""   # extra env vars from -e / --env flags (comma-separated, highest priority)
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -902,6 +908,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 ]] && die "'${_CYL}$1${_CR}' requires a profile name argument."
             PROFILE_OVERRIDE="$2"; shift 2 ;;
         --profile=*)     PROFILE_OVERRIDE="${1#--profile=}"; shift ;;
+        -e|--env)
+            [[ $# -lt 2 ]] && die "'${_CYL}$1${_CR}' requires an argument."
+            CLI_ENV="${CLI_ENV}${CLI_ENV:+,}$2"; shift 2 ;;
+        --env=*)         _v="${1#--env=}"; CLI_ENV="${CLI_ENV}${CLI_ENV:+,}${_v}"; unset _v; shift ;;
         --)              shift; break ;;
         -*)              die "Unknown option: ${_CYL}$1${_CR}.  Run '${SCRIPT_NAME} --help' for usage." ;;
         *)               break ;;
@@ -1020,7 +1030,9 @@ _setup_step() {
         DISPLAY_CMD="[${step_alias}] → ${EXEC_CMD}"
     fi
     local _aenv="${ALIAS_ENV[$step_alias]-}"
-    COMBINED_ENV="${PROFILE_ENV}${PROFILE_ENV:+${_aenv:+,}}${_aenv}"
+    COMBINED_ENV="$PROFILE_ENV"
+    [[ -n "$_aenv"   ]] && COMBINED_ENV="${COMBINED_ENV}${COMBINED_ENV:+,}${_aenv}"
+    [[ -n "$CLI_ENV" ]] && COMBINED_ENV="${COMBINED_ENV}${COMBINED_ENV:+,}${CLI_ENV}"
     ENV_FLAGS=()
     while IFS= read -r -d '' flag; do
         ENV_FLAGS+=("$flag")
@@ -1070,6 +1082,7 @@ else
     DISPLAY_CMD="$(printf '%s ' "$@")"
     STEP_INTERACTIVE="$INTERACTIVE"
     COMBINED_ENV="$PROFILE_ENV"
+    [[ -n "$CLI_ENV" ]] && COMBINED_ENV="${COMBINED_ENV}${COMBINED_ENV:+,}${CLI_ENV}"
     ENV_FLAGS=()
     while IFS= read -r -d '' flag; do
         ENV_FLAGS+=("$flag")

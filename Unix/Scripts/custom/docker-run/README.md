@@ -84,6 +84,9 @@ docker-run ci                     # run the 'ci' pipeline
 docker-run -p clang build         # use the 'clang' profile
 docker-run cmake -S . -B build    # arbitrary command
 docker-run bash                   # interactive shell (if not aliased)
+docker-run -e JOBS=8 build        # pass an extra env var (overrides config)
+docker-run -e A=1 -e B=2 build    # multiple extra env vars
+docker-run -e 'TOKEN=$(cat ~/.token)' build  # command substitution in -e
 docker-run -l                     # list all aliases
 docker-run --help                 # full help
 ```
@@ -245,6 +248,15 @@ env = CC,CXX,MAKEFLAGS,BUILD_TYPE=Release,JIRA=$(git branch --show-current | gre
 env = CTEST_OUTPUT_ON_FAILURE=1,TEST_DATA=/workspace/testdata,BRANCH=$(git branch --show-current)
 ```
 
+You can also inject env vars at invocation time with `-e` / `--env`. These take the **highest priority** and override any same-named variable from config:
+
+```sh
+docker-run -e JOBS=8 build
+docker-run -e A=1 -e B=2 build          # repeat -e for multiple vars
+docker-run -e 'JOBS=8,VERBOSE=1' build  # or comma-separate in one -e
+docker-run -e 'TOKEN=$(cat ~/.token)' build  # command substitution works too
+```
+
 ---
 
 ## Dockerfile-based images
@@ -319,6 +331,7 @@ The output shows, for each alias: the command, working directory, alias-level en
 | `-h`, `--help` | Show help and exit. |
 | `-l`, `--list` | List all aliases for the selected profile and exit. |
 | `-p`, `--profile <name>` | Select a named profile defined in any config file. |
+| `-e`, `--env <spec>` | Inject extra environment variables for this invocation only (highest priority, overrides config). Accepts comma-separated specs (`KEY=val,OTHER=val`) and may be repeated (`-e KEY=val -e OTHER=val`). Supports the same forms as the `env` config key: plain pass-through (`KEY`), fixed value (`KEY=val`), and command substitution (`KEY=$(cmd)`). |
 | `-I`, `--interactive` | Force all commands to run with a TTY (`docker exec -it`). |
 | `-r`, `--restart` | Remove and recreate the container before running. Applies updated port mappings and other creation-time settings. |
 | `-b`, `--rebuild` | Force a rebuild of the Docker image (requires `dockerfile` in config). |
