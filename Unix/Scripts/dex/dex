@@ -146,6 +146,7 @@ PROJECT_DOCKERFILE=""
 REPO_CONFIG=""
 
 declare -A ALIAS_CMD=()
+declare -A ALIAS_DESC=()
 declare -A ALIAS_WORKDIR=()
 declare -A ALIAS_ENV=()
 declare -A ALIAS_PIPELINE=()
@@ -181,10 +182,11 @@ load_profile() {
     while IFS= read -r section; do
         [[ "$section" == "${_prefix}"* ]] || continue
         local aname="${section#"$_prefix"}"
-        ALIAS_CMD["$aname"]="$(      ini_get "$_src" "$section" "cmd")"
-        ALIAS_WORKDIR["$aname"]="$(  ini_get "$_src" "$section" "workdir" "$CONTAINER_MOUNT")"
-        ALIAS_ENV["$aname"]="$(      ini_get "$_src" "$section" "env")"
-        ALIAS_PIPELINE["$aname"]="$( ini_get "$_src" "$section" "pipeline")"
+        ALIAS_CMD["$aname"]="$(        ini_get "$_src" "$section" "cmd")"
+        ALIAS_DESC["$aname"]="$(ini_get "$_src" "$section" "desc")"
+        ALIAS_WORKDIR["$aname"]="$(    ini_get "$_src" "$section" "workdir" "$CONTAINER_MOUNT")"
+        ALIAS_ENV["$aname"]="$(        ini_get "$_src" "$section" "env")"
+        ALIAS_PIPELINE["$aname"]="$(   ini_get "$_src" "$section" "pipeline")"
         ALIAS_INTERACTIVE["$aname"]="$(ini_get "$_src" "$section" "interactive")"
     done < <(ini_sections "$_src")
 }
@@ -258,11 +260,13 @@ _apply_config_layer() {
         [[ "$section" == "${_prefix}"* ]] || continue
         aname="${section#"$_prefix"}"
         cmd="$(         ini_get "$src" "$section" "cmd")"
+        desc="$(        ini_get "$src" "$section" "desc")"
         workdir="$(     ini_get "$src" "$section" "workdir" "")"
         aenv="$(        ini_get "$src" "$section" "env")"
         apipeline="$(   ini_get "$src" "$section" "pipeline")"
         ainteractive="$(ini_get "$src" "$section" "interactive")"
         [[ -n "$cmd"          ]] && ALIAS_CMD["$aname"]="$cmd"
+        [[ -n "$desc"         ]] && ALIAS_DESC["$aname"]="$desc"
         [[ -n "$workdir"      ]] && ALIAS_WORKDIR["$aname"]="$workdir"
         ALIAS_ENV["$aname"]="$aenv"
         [[ -n "$apipeline"    ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
@@ -275,11 +279,13 @@ _apply_config_layer() {
         aname="${section#alias:}"
         [[ "$aname" == *:* ]] && continue   # skip profile-scoped (alias:<profile>:<name>)
         cmd="$(         ini_get "$src" "$section" "cmd")"
+        desc="$(        ini_get "$src" "$section" "desc")"
         workdir="$(     ini_get "$src" "$section" "workdir" "")"
         aenv="$(        ini_get "$src" "$section" "env")"
         apipeline="$(   ini_get "$src" "$section" "pipeline")"
         ainteractive="$(ini_get "$src" "$section" "interactive")"
         [[ -n "$cmd"          ]] && ALIAS_CMD["$aname"]="$cmd"
+        [[ -n "$desc"         ]] && ALIAS_DESC["$aname"]="$desc"
         [[ -n "$workdir"      ]] && ALIAS_WORKDIR["$aname"]="$workdir"
         ALIAS_ENV["$aname"]="$aenv"
         [[ -n "$apipeline"    ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
@@ -707,7 +713,7 @@ print_summary() {
 # ──────────────────────────────────────────────────────────────────────────────
 # Alias listing  (--list / -l)
 # Reads from globals: PROFILE_NAME, FINAL_IMAGE, PROFILE_ENV, GLOBAL_CONFIG,
-#   PROJECT_FILE, ALIAS_CMD, ALIAS_WORKDIR, ALIAS_ENV, ALIAS_PIPELINE,
+#   PROJECT_FILE, ALIAS_CMD, ALIAS_DESC, ALIAS_WORKDIR, ALIAS_ENV, ALIAS_PIPELINE,
 #   ALIAS_INTERACTIVE, CONTAINER_MOUNT
 # Outputs to stdout; uses ANSI only when stdout is a terminal.
 # ──────────────────────────────────────────────────────────────────────────────
@@ -730,7 +736,7 @@ list_aliases() {
         printf "${CY} │${R} ${B}Global   :${R} ${DIM}%s${R}\n" "$GLOBAL_CONFIG"
     fi
     if [[ -n "$REPO_CONFIG" ]]; then
-        printf "${CY} │${R} ${B}Repo     :${R} ${DIM}%s${R}\n" "$REPO_CONFIG"
+        printf "${CY} │${R} ${B}Repo     :${R} ${CY}%s${R}\n" "$REPO_CONFIG"
     fi
     if [[ -n "$PROJECT_FILE" ]]; then
         printf "${CY} │${R} ${B}Local    :${R} ${DIM}%s${R}\n" "$PROJECT_FILE"
@@ -764,25 +770,33 @@ list_aliases() {
                 local _steps_fmt
                 _steps_fmt="$(printf '%s' "${ALIAS_PIPELINE[$_n]}" \
                     | sed 's/[[:space:]]*,[[:space:]]*/  →  /g')"
-                printf "${CY} │${R}  ${MG}%-16s${R} ${DIM}[pipeline]${R}  %s\n" \
+                printf "${CY} │${R}  ${MG}%-10s${R} ${DIM}[pipeline]${R}  %s\n" \
                     "$_n" "$_steps_fmt"
             else
                 # Regular alias: name + command, then optional metadata line.
                 local _cmd="${ALIAS_CMD[$_n]}"
+                local _desc="${ALIAS_DESC[$_n]}"
                 local _workdir="${ALIAS_WORKDIR[$_n]:-$CONTAINER_MOUNT}"
                 local _aenv="${ALIAS_ENV[$_n]-}"
                 local _int="${ALIAS_INTERACTIVE[$_n]-}"
 
+                # Second line: always show workdir; show alias-level env if set.
+                if [[ -n "$_desc" ]]; then
+                    local _meta="${YL}${_desc}${R}    "
+                    printf "${CY} │${R}  ${YL}%-10s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
+                    _n=""
+                fi
+
                 local _tags=""
                 [[ "$_int" == "true" ]] && _tags="  ${CY}(interactive)${R}"
-                printf "${CY} │${R}  ${YL}%-16s${R} %s%s\n" "$_n" "$_cmd" "$_tags"
+                printf "${CY} │${R}  ${YL}%-10s${R} %-8s ${CY}%s${R}%s\n" "$_n" "command:" "$_cmd" "$_tags"
 
-                # Second line: always show workdir; show alias-level env if set.
-                local _meta="workdir: ${GR}${_workdir}${R}"
+                local _meta="${GR}${_workdir}${R}"
+                printf "${CY} │${R}  %-10s %-8s %s\n" "" "workdir:" "$_meta"
                 if [[ -n "$_aenv" ]]; then
-                    _meta+="   env: ${GR}${_aenv}${R}"
+                    local _meta="${YL}${_aenv}${R}"
+                    printf "${CY} │${R}  %-10s %-8s %s\n" "" "env:" "$_meta"
                 fi
-                printf "${CY} │${R}  %-16s %s\n" "" "$_meta"
             fi
         done
     fi
