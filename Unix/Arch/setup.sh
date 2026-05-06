@@ -28,7 +28,6 @@ else
     source "$SCRIPT_DIR/../common.sh" || exit
 fi
 
-
 # Cache sudo privileges
 check_sudo
 
