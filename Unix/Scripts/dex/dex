@@ -374,7 +374,7 @@ ensure_image() {
 }
 
 ensure_container() {
-    local container="$1" image="$2" git_root="$3" ports_spec="${4:-}" force_restart="${5:-0}"
+    local container="$1" image="$2" git_root="$3" ports_spec="${4:-}" force_restart="${5:-0}" force_stop="${6:-0}"
 
     # Build -p flags from the comma-separated ports spec (e.g. "8080:80,443:443").
     local -a _port_flags=()
@@ -385,6 +385,20 @@ ensure_container() {
             _p="${_p%"${_p##*[![:space:]]}"}"   # rtrim
             [[ -n "$_p" ]] && _port_flags+=("-p" "$_p")
         done
+    fi
+
+    if [[ "$force_stop" == "1" ]]; then
+        if docker container inspect "$container" &>/dev/null; then
+            info "Removing container '${_CDIM}${container}${_CR}' ..."
+            docker rm -f "$container" >/dev/null
+            if [ $? -ne 0 ]; then
+                die "Failed to remove container '${_CYL}${container}${_CR}'."
+                exit 1
+            fi
+        else
+            info "Container '${_CYL}$container${_CR}' already stopped."
+        fi
+        exit 0
     fi
 
     # --restart: remove the existing container so it is recreated fresh (e.g.
@@ -914,6 +928,7 @@ find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'dex.*.log' -mmin +3 \
 
 FORCE_REBUILD=0
 FORCE_RESTART=0
+FORCE_STOP=0
 LIST_ALIASES=0
 PROFILE_OVERRIDE=""
 INTERACTIVE=0
@@ -924,6 +939,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)       show_help; exit 0 ;;
         -b|--rebuild)    FORCE_REBUILD=1; shift ;;
         -r|--restart)    FORCE_RESTART=1; shift ;;
+        -s|--stop)       FORCE_STOP=1; shift ;;
         -l|--list)       LIST_ALIASES=1; shift ;;
         -I|--interactive) INTERACTIVE=1; shift ;;
         -p|--profile)
@@ -940,7 +956,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ $# -eq 0 && "$LIST_ALIASES" != "1" ]] && { show_help; exit 0; }
+[[ $# -eq 0 && "$LIST_ALIASES" != "1" && "$FORCE_STOP" != "1" ]] && { show_help; exit 0; }
 
 # ── Git root detection (supports normal repos and worktrees) ──────────────────
 GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
@@ -1028,7 +1044,7 @@ fi
 
 # ── Ensure image and container are ready ──────────────────────────────────────
 ensure_image     "$FINAL_IMAGE"    "$EFFECTIVE_DOCKERFILE" "$FORCE_REBUILD"
-ensure_container "$CONTAINER_NAME" "$FINAL_IMAGE"        "$GIT_ROOT" "$PROFILE_PORTS" "$FORCE_RESTART"
+ensure_container "$CONTAINER_NAME" "$FINAL_IMAGE"        "$GIT_ROOT" "$PROFILE_PORTS" "$FORCE_RESTART" "$FORCE_STOP"
 
 # ── Helper: set globals for one step alias and print its summary ──────────────
 _setup_step() {
