@@ -160,10 +160,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break
@@ -177,10 +178,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break
@@ -195,10 +197,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break
@@ -211,10 +214,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break
@@ -235,10 +239,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break
@@ -251,10 +256,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break
@@ -269,10 +275,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break
@@ -285,10 +292,11 @@ function run_with_retry {
                     SECONDS=0
                     while [ -z "$(cat $tmpfile)" ]; do
                         if [ $SECONDS -gt 0 ]; then
-                            echo -en "      Progress: ${YELLOW}${SECONDS}s${NONE}     \r"
+                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
                         fi
                         sleep 1
                     done
+                    echo -en "\r"
                     exitcode=$(cat $tmpfile)
                     rm $tmpfile
                     sim_exit $exitcode && break || retry || terminate || break

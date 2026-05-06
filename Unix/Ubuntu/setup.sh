@@ -76,13 +76,19 @@ fi
 # Install utility scripts
 resp=$(ask "Install utility scripts? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-    scripts=('Scripts/git-cmd/git-sync' 'Scripts/git-cmd/git-check' 'Scripts/git-cmd/git-hooks' 'Scripts/custom/dbg' 'Scripts/custom/dex/dex' 'Scripts/custom/finance' 'Scripts/bspwm/win-move')
+    scripts=('Scripts/git-sync' 'Scripts/git-check' 'Scripts/git-hooks' 'Scripts/dbg' 'Scripts/dex/dex' 'Scripts/finance' 'Scripts/win-move')
     STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.local/bin"
     for sc in ${scripts[@]}; do
         if [ "_$DEBUG" == "_" ]; then
             base="$(basename $sc)"
-            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/$sc" \
-                -o "$HOME/.local/bin/$base"
+
+            if [ "_$DEBUG" == "_" ]; then
+                run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/$sc" \
+                    -o "$HOME/.local/bin/$base"
+            else
+                run_with_retry cp "$SCRIPT_DIR/../$sc" "$HOME/.local/bin/$base"
+            fi
+
             chmod +x "$HOME/.local/bin/$base"
         else
             run_with_retry cp "$SCRIPT_DIR/../$sc" "$HOME/.local/bin/"
@@ -367,8 +373,12 @@ if [ -z "$SKIP_DELTA" ]; then
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
         STDOUT=/dev/null STDERR=/dev/null run_with_retry curl https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig -o "$HOME/.config/delta/themes.gitconfig"
 
-        STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
-            -o "$HOME/.gitconfig.new"
+        if [ "_$DEBUG" == "_" ]; then
+            STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
+                -o "$HOME/.gitconfig.new"
+        else
+            STDOUT=/dev/null STDERR=/dev/null run_with_retry cp "$SCRIPT_DIR/../Configs/git/gitconfig" "$HOME/.gitconfig.new"
+        fi
 
         if [ -f "$HOME/.gitconfig.new" ]; then
             cat "$HOME/.gitconfig.new" >>"$HOME/.gitconfig" 2>/dev/null

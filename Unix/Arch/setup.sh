@@ -28,11 +28,6 @@ else
     source "$SCRIPT_DIR/../common.sh" || exit
 fi
 
-# Abort if root
-if [ ! -z "$(whoami)" ] && [ "$(whoami)" == "root" ]; then
-    warn "Unable to setup environment as root. Please run it as non-root user."
-    exit 1
-fi
 
 # Cache sudo privileges
 check_sudo
@@ -55,15 +50,26 @@ fi
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel less
 
 tmpdir=$(mktemp -d)
-run_with_retry git clone https://aur.archlinux.org/yay-bin.git $tmpdir/yay-bin
-DIR=$tmpdir/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
+
+# Abort if root
+if [ ! -z "$(whoami)" ] && [ "$(whoami)" == "root" ]; then
+    useradd -m makepkg-builder
+    chown -R makepkg-builder:makepkg-builder "$tmpdir"
+    run_with_retry sudo -u makepkg-builder bash -c "git clone https://aur.archlinux.org/yay-bin.git $tmpdir/yay-bin"
+    DIR=$tmpdir/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry sudo -u makepkg-builder bash -c 'makepkg -s'
+    userdel -r makepkg-builder
+else
+    run_with_retry git clone https://aur.archlinux.org/yay-bin.git $tmpdir/yay-bin
+    DIR=$tmpdir/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
+fi
+
 STDOUT=/dev/null STDERR=/dev/null run_once rm $tmpdir/yay-bin/yay-bin-debug*.pkg.tar.zst
 run_with_retry $SUDO pacman -U --noconfirm $tmpdir/yay-bin/yay-bin-*.pkg.tar.zst
 rm -rf $tmpdir
 
 # Install requirements
 info "Install requirements."
-run_with_retry yay -S --noconfirm git python python-pipx unzip wget zoxide wget less
+run_with_retry yay -S --noconfirm git python python-pipx unzip wget zoxide wget less curl
 
 # Add .local/bin to PATH
 cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
@@ -166,7 +172,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
     resp=$(ask "Install neovim? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
-        run_with_retry yay -S --noconfirm ninja-build neovim-git
+        run_with_retry yay -S --noconfirm ninja-build neovim
 
         # Install NerdFont
         tmpdir=$(mktemp -d)
@@ -275,6 +281,7 @@ or set PATH ~/.cargo/bin $PATH' >>$HOME/.config/fish/config.fish
         export PATH=$PATH:~/.cargo/bin
 
         run_with_retry cargo install cross --git https://github.com/cross-rs/cross
+        run_with_retry yay -S --noconfirm clang
         run_with_retry cargo install --locked tree-sitter-cli
     fi
 fi
@@ -304,7 +311,7 @@ if [ -z "$SKIP_ALACRITTY" ]; then
     # Install utility scripts
     resp=$(ask "Install utility scripts? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        scripts=('Scripts/git-cmd/git-sync' 'Scripts/git-cmd/git-check' 'Scripts/git-cmd/git-hooks' 'Scripts/custom/dbg' 'Scripts/custom/dex/dex' 'Scripts/custom/finance' 'Scripts/bspwm/win-move')
+        scripts=('Scripts/git-sync' 'Scripts/git-check' 'Scripts/git-hooks' 'Scripts/dbg' 'Scripts/dex/dex' 'Scripts/finance' 'Scripts/win-move')
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.local/bin"
         for sc in ${scripts[@]}; do
             if [ "_$DEBUG" == "_" ]; then
@@ -345,8 +352,12 @@ if [ -z "$SKIP_DELTA" ]; then
         STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
         STDOUT=/dev/null STDERR=/dev/null run_with_retry curl https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig -o "$HOME/.config/delta/themes.gitconfig"
 
-        STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
-            -o "$HOME/.gitconfig.new"
+        if [ "_$DEBUG" == "_" ]; then
+            STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
+                -o "$HOME/.gitconfig.new"
+        else
+            STDOUT=/dev/null STDERR=/dev/null run_with_retry cp "$SCRIPT_DIR/../Configs/git/gitconfig" "$HOME/.gitconfig.new"
+        fi
 
         if [ -f "$HOME/.gitconfig.new" ]; then
             cat "$HOME/.gitconfig.new" >>"$HOME/.gitconfig" 2>/dev/null

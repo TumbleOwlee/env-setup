@@ -11,15 +11,34 @@ CYAN="\e[36m"
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-if ! command -v which >/dev/null 2>&1; then
-    echo "'which' could not be found"
-    exit 1
-fi
+for i in "$@"; do
+    case $i in
+    -d | --debug)
+        export DEBUG=y
+        ;;
+    *) ;;
+    esac
+done
 
-if ! command -v curl >/dev/null 2>&1; then
-    echo "'curl' could not be found"
-    exit 1
-fi
+function is_arch {
+    if type "yay" 2>/dev/null >/dev/null; then
+        return 0
+    else
+        if type "pacman" 2>/dev/null >/dev/null; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+}
+
+function is_ubuntu {
+    if type "apt" 2>/dev/null >/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
 
 # Check for sudo
 function check_sudo {
@@ -42,25 +61,48 @@ function check_sudo {
 
 check_sudo
 
-function is_arch {
-    if type "yay" 2>/dev/null >/dev/null; then
-        return 0
-    else
-        if type "pacman" 2>/dev/null >/dev/null; then
-            return 0
-        else
-            return 1
+function try_install() {
+    if ! command -v $1 >/dev/null 2>&1; then
+        if is_arch; then
+            $SUDO pacman -Sy
+            if [ $? -ne 0 ]; then
+                echo "Failed to install missing '$1'"
+                exit 1
+            fi
+
+            $SUDO pacman -S --noconfirm $1
+            if [ $? -ne 0 ]; then
+                echo "Failed to install missing '$1'"
+                exit 1
+            fi
+        fi
+
+        if is_ubuntu; then
+            $SUDO apt-get update
+            if [ $? -ne 0 ]; then
+                echo "Failed to install missing '$1'"
+                exit 1
+            fi
+
+            $SUDO apt-get install -y $1
+            if [ $? -ne 0 ]; then
+                echo "Failed to install missing '$1'"
+                exit 1
+            fi
+        fi
+
+        if ! command -v $1 >/dev/null 2>&1; then
+            echo "'$1' could not be found"
+            exit 1
         fi
     fi
 }
 
-function is_ubuntu {
-    if type "apt" 2>/dev/null >/dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
+try_install which || exit 1
+
+if [ -z "$DEBUG" ]; then
+    try_install curl || exit 1
+fi
 
 function sim_exit {
     if [ -z "$1" ]; then
@@ -101,15 +143,6 @@ function run_async() {
     rm $tmpfile
     sim_exit $exitcode || exit 1
 }
-
-for i in "$@"; do
-    case $i in
-    -d | --debug)
-        export DEBUG=y
-        ;;
-    *) ;;
-    esac
-done
 
 if is_arch; then
     if [ -z "$DEBUG" ]; then
