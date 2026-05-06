@@ -11,6 +11,7 @@ RUN \
 
 USER $USER
 
-RUN bash -c 'if [ -z "$(which curl)" ]; then echo "Curl missing. Aborting."; else bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh -- --noconfirm --skip=docker --skip=alacritty 2>/dev/null); fi'
+#RUN bash -c 'if [ -z "$(which curl)" ]; then echo "Curl missing. Aborting."; else bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh -- --noconfirm --skip=docker --skip=alacritty 2>/dev/null); fi'
+RUN curl -fsSL https://gh.io/copilot-install | bash
 
 ENTRYPOINT ["tail", "-F", "/dev/null"]

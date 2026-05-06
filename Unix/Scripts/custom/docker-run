@@ -4,10 +4,12 @@
 # The git repository root is auto-detected and mounted as /workspace. The
 # current working directory is translated to the equivalent container path.
 #
-# Global config:   ~/.docker-run.conf  or  ~/.local/share/.docker-run.conf
-# Project configs: ~/.docker-run.d/    or  ~/.local/share/.docker-run.d/  (*.conf files)
+# Config hierarchy (highest priority first):
+#   1. Local project config : ~/.docker-run.d/*.conf  (matched by 'pattern')
+#   2. Repository config    : <git-root>/.docker-run.conf
+#   3. Global config        : ~/.docker-run.conf
 #
-# Usage: docker-run [--rebuild] [-h|--help] [<alias>|<command> [args...]]
+# Usage: docker-run [OPTIONS] [<alias>|<command> [args...]]
 
 set -euo pipefail
 
@@ -35,9 +37,31 @@ readonly _SEP="::::"
 # ──────────────────────────────────────────────────────────────────────────────
 # Utilities
 # ──────────────────────────────────────────────────────────────────────────────
-die()  { printf '%s: error: %s\n'   "$SCRIPT_NAME" "$*" >&2; exit 1; }
-warn() { printf '%s: warning: %s\n' "$SCRIPT_NAME" "$*" >&2; }
-info() { printf '%s: %s\n'          "$SCRIPT_NAME" "$*" >&2; }
+die() {
+    local B="" RD="" R=""
+    [[ -t 2 ]] && { B=$'\033[1m'; RD=$'\033[1;31m'; R=$'\033[0m'; }
+    printf >&2 "\n ${RD}${B}✗  error:${R}  %b\n\n" "$*"
+    exit 1
+}
+warn() {
+    local B="" YL="" R=""
+    [[ -t 2 ]] && { B=$'\033[1m'; YL=$'\033[1;33m'; R=$'\033[0m'; }
+    printf >&2 " ${YL}${B}⚠  warning:${R}  %b\n" "$*"
+}
+info() {
+    local CY="" R=""
+    [[ -t 2 ]] && { CY=$'\033[36m'; R=$'\033[0m'; }
+    printf >&2 " ${CY}·${R}  %b\n" "$*"
+}
+
+# Inline colour variables for highlighted content inside messages.
+# Set once at startup; empty when stderr is not a TTY so messages stay plain
+# when piped or redirected.
+_CB="" _CCY="" _CYL="" _CGR="" _CDIM="" _CR=""
+[[ -t 2 ]] && {
+    _CB=$'\033[1m';   _CCY=$'\033[1;36m'; _CYL=$'\033[1;33m'
+    _CGR=$'\033[0;32m'; _CDIM=$'\033[2m'; _CR=$'\033[0m'
+}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # INI parser
@@ -114,31 +138,45 @@ ini_sections() {
 # ──────────────────────────────────────────────────────────────────────────────
 PROFILE_IMAGE=""
 PROFILE_ENV=""
+PROFILE_DOCKERFILE=""
+PROFILE_PORTS=""
 PROJECT_FILE=""
 PROJECT_IMAGE=""
 PROJECT_DOCKERFILE=""
+REPO_CONFIG=""
 
 declare -A ALIAS_CMD=()
 declare -A ALIAS_WORKDIR=()
 declare -A ALIAS_ENV=()
 declare -A ALIAS_PIPELINE=()
+declare -A ALIAS_INTERACTIVE=()
 
-# Load a profile section and its alias sub-sections.
-# Searches the global config first; falls back to the project config if the
-# profile is only defined there (allows project-specific profiles).
+# Load a profile section and its alias sub-sections from the lowest-priority
+# source that defines the profile (global config first, then repo config, then
+# local project config).  Higher-priority layers are applied afterwards by
+# apply_project_config via _apply_config_layer.
 load_profile() {
     local profile="$1"
     local _src=""
-    if [[ -n "$PROJECT_FILE" ]] && ini_has_section "$PROJECT_FILE" "$profile"; then
-        _src="$PROJECT_FILE"
-    elif ini_has_section "$GLOBAL_CONFIG" "$profile"; then
+    if ini_has_section "$GLOBAL_CONFIG" "$profile"; then
         _src="$GLOBAL_CONFIG"
+    elif [[ -n "$REPO_CONFIG" ]] && ini_has_section "$REPO_CONFIG" "$profile"; then
+        _src="$REPO_CONFIG"
+    elif [[ -n "$PROJECT_FILE" ]] && ini_has_section "$PROJECT_FILE" "$profile"; then
+        _src="$PROJECT_FILE"
     else
-        local _hint="${PROJECT_FILE:+ or ${PROJECT_FILE}}"
-        die "Profile '${profile}' not found in ${GLOBAL_CONFIG}${_hint}."
+        local _hint=""
+        [[ -n "$REPO_CONFIG"  ]] && _hint+=" or ${_CGR}${REPO_CONFIG}${_CR}"
+        [[ -n "$PROJECT_FILE" ]] && _hint+=" or ${_CGR}${PROJECT_FILE}${_CR}"
+        die "Profile '${_CCY}${profile}${_CR}' not found in ${_CGR}${GLOBAL_CONFIG}${_CR}${_hint}."
     fi
     PROFILE_IMAGE="$(ini_get "$_src" "$profile" "image")"
     PROFILE_ENV="$(  ini_get "$_src" "$profile" "env")"
+    PROFILE_DOCKERFILE="$(ini_get "$_src" "$profile" "dockerfile")"
+    if [[ -n "$PROFILE_DOCKERFILE" && "$PROFILE_DOCKERFILE" != /* ]]; then
+        PROFILE_DOCKERFILE="$(dirname "$_src")/${PROFILE_DOCKERFILE}"
+    fi
+    PROFILE_PORTS="$(ini_get "$_src" "$profile" "ports")"
     local section _prefix="alias:${profile}:"
     while IFS= read -r section; do
         [[ "$section" == "${_prefix}"* ]] || continue
@@ -147,6 +185,7 @@ load_profile() {
         ALIAS_WORKDIR["$aname"]="$(  ini_get "$_src" "$section" "workdir" "$CONTAINER_MOUNT")"
         ALIAS_ENV["$aname"]="$(      ini_get "$_src" "$section" "env")"
         ALIAS_PIPELINE["$aname"]="$( ini_get "$_src" "$section" "pipeline")"
+        ALIAS_INTERACTIVE["$aname"]="$(ini_get "$_src" "$section" "interactive")"
     done < <(ini_sections "$_src")
 }
 
@@ -167,87 +206,132 @@ find_project_config() {
     done
 }
 
-# Apply project config on top of the already-loaded profile.
-# Accepts the active profile name so it can handle profile-scoped overrides.
-#
-# Override precedence (highest wins):
-#   global alias  <  project profile-scoped alias  <  project unscoped alias
-#
-# Alias env is always overwritten (never merged) — req 4.
-apply_project_config() {
-    local profile="$1"
-    [[ -z "$PROJECT_FILE" ]] && return 0
+# Look for an in-repository config at <git-root>/.docker-run.conf.
+find_repo_config() {
+    local git_root="$1"
+    local _candidate="${git_root}/.docker-run.conf"
+    if [[ -f "$_candidate" ]]; then
+        REPO_CONFIG="$_candidate"
+        ini_parse "$REPO_CONFIG"
+    fi
+}
 
-    # Project-level image and dockerfile overrides (unchanged)
-    PROJECT_IMAGE="$(ini_get "$PROJECT_FILE" "project" "image")"
-    PROJECT_DOCKERFILE="$(ini_get "$PROJECT_FILE" "project" "dockerfile")"
-    if [[ -n "$PROJECT_DOCKERFILE" && "$PROJECT_DOCKERFILE" != /* ]]; then
-        PROJECT_DOCKERFILE="$(dirname "$PROJECT_FILE")/${PROJECT_DOCKERFILE}"
+# Apply one config layer's overrides on top of the already-loaded profile.
+# Handles [project] image/dockerfile, profile-level field overrides, and both
+# profile-scoped and unscoped alias definitions.
+# Called in ascending priority order: repo config first, then local project config.
+_apply_config_layer() {
+    local src="$1" profile="$2"
+    [[ -z "$src" || ! -f "$src" ]] && return 0
+
+    # [project] section: image and dockerfile overrides.
+    local _img _dockerfile
+    _img="$(ini_get "$src" "project" "image")"
+    _dockerfile="$(ini_get "$src" "project" "dockerfile")"
+    [[ -n "$_img" ]] && PROJECT_IMAGE="$_img"
+    if [[ -n "$_dockerfile" ]]; then
+        [[ "$_dockerfile" != /* ]] && _dockerfile="$(dirname "$src")/${_dockerfile}"
+        PROJECT_DOCKERFILE="$_dockerfile"
     fi
 
-    # Override profile image/env if the project file redefines the active profile.
-    # This lets the project config fully replace a global profile (req 3).
-    if ini_has_section "$PROJECT_FILE" "$profile"; then
-        local _pimg _penv
-        _pimg="$(ini_get "$PROJECT_FILE" "$profile" "image")"
-        _penv="$(ini_get "$PROJECT_FILE" "$profile" "env")"
-        [[ -n "$_pimg" ]] && PROFILE_IMAGE="$_pimg"
-        [[ -n "$_penv" ]] && PROFILE_ENV="$_penv"
+    # Profile section: override individual profile fields if present.
+    if ini_has_section "$src" "$profile"; then
+        local _pimg _penv _pdockerfile _pports
+        _pimg="$(       ini_get "$src" "$profile" "image")"
+        _penv="$(       ini_get "$src" "$profile" "env")"
+        _pdockerfile="$(ini_get "$src" "$profile" "dockerfile")"
+        _pports="$(     ini_get "$src" "$profile" "ports")"
+        [[ -n "$_pimg"   ]] && PROFILE_IMAGE="$_pimg"
+        [[ -n "$_penv"   ]] && PROFILE_ENV="$_penv"
+        if [[ -n "$_pdockerfile" ]]; then
+            [[ "$_pdockerfile" != /* ]] && _pdockerfile="$(dirname "$src")/${_pdockerfile}"
+            PROFILE_DOCKERFILE="$_pdockerfile"
+        fi
+        [[ -n "$_pports" ]] && PROFILE_PORTS="$_pports"
     fi
 
-    local section aname cmd workdir aenv apipeline
+    local section aname cmd workdir aenv apipeline ainteractive
 
-    # Pass 1: profile-scoped aliases in project file (alias:<profile>:<name>).
-    # Defined after a [<profile>] header in the project config.
-    # Overwrite global aliases for that name; env is always replaced (req 3, 4).
+    # Pass 1: profile-scoped aliases (alias:<profile>:<name>).
     local _prefix="alias:${profile}:"
     while IFS= read -r section; do
         [[ "$section" == "${_prefix}"* ]] || continue
         aname="${section#"$_prefix"}"
-        cmd="$(       ini_get "$PROJECT_FILE" "$section" "cmd")"
-        workdir="$(   ini_get "$PROJECT_FILE" "$section" "workdir" "")"
-        aenv="$(      ini_get "$PROJECT_FILE" "$section" "env")"
-        apipeline="$( ini_get "$PROJECT_FILE" "$section" "pipeline")"
-        [[ -n "$cmd"       ]] && ALIAS_CMD["$aname"]="$cmd"
-        [[ -n "$workdir"   ]] && ALIAS_WORKDIR["$aname"]="$workdir"
+        cmd="$(         ini_get "$src" "$section" "cmd")"
+        workdir="$(     ini_get "$src" "$section" "workdir" "")"
+        aenv="$(        ini_get "$src" "$section" "env")"
+        apipeline="$(   ini_get "$src" "$section" "pipeline")"
+        ainteractive="$(ini_get "$src" "$section" "interactive")"
+        [[ -n "$cmd"          ]] && ALIAS_CMD["$aname"]="$cmd"
+        [[ -n "$workdir"      ]] && ALIAS_WORKDIR["$aname"]="$workdir"
         ALIAS_ENV["$aname"]="$aenv"
-        [[ -n "$apipeline" ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
-    done < <(ini_sections "$PROJECT_FILE")
+        [[ -n "$apipeline"    ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
+        [[ -n "$ainteractive" ]] && ALIAS_INTERACTIVE["$aname"]="$ainteractive"
+    done < <(ini_sections "$src")
 
-    # Pass 2: unscoped aliases in project file (alias:<name>, no profile prefix).
-    # Defined before any profile header in the project config.
-    # Highest precedence — always overwrite whatever was loaded (req 2, 4).
+    # Pass 2: unscoped aliases (alias:<name>) — higher precedence within this layer.
     while IFS= read -r section; do
         [[ "$section" == "alias:"* ]] || continue
         aname="${section#alias:}"
         [[ "$aname" == *:* ]] && continue   # skip profile-scoped (alias:<profile>:<name>)
-        cmd="$(       ini_get "$PROJECT_FILE" "$section" "cmd")"
-        workdir="$(   ini_get "$PROJECT_FILE" "$section" "workdir" "")"
-        aenv="$(      ini_get "$PROJECT_FILE" "$section" "env")"
-        apipeline="$( ini_get "$PROJECT_FILE" "$section" "pipeline")"
-        [[ -n "$cmd"       ]] && ALIAS_CMD["$aname"]="$cmd"
-        [[ -n "$workdir"   ]] && ALIAS_WORKDIR["$aname"]="$workdir"
+        cmd="$(         ini_get "$src" "$section" "cmd")"
+        workdir="$(     ini_get "$src" "$section" "workdir" "")"
+        aenv="$(        ini_get "$src" "$section" "env")"
+        apipeline="$(   ini_get "$src" "$section" "pipeline")"
+        ainteractive="$(ini_get "$src" "$section" "interactive")"
+        [[ -n "$cmd"          ]] && ALIAS_CMD["$aname"]="$cmd"
+        [[ -n "$workdir"      ]] && ALIAS_WORKDIR["$aname"]="$workdir"
         ALIAS_ENV["$aname"]="$aenv"
-        [[ -n "$apipeline" ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
-    done < <(ini_sections "$PROJECT_FILE")
+        [[ -n "$apipeline"    ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
+        [[ -n "$ainteractive" ]] && ALIAS_INTERACTIVE["$aname"]="$ainteractive"
+    done < <(ini_sections "$src")
+}
+
+# Apply config layers in ascending priority: repo config first, then local
+# project config.  Each layer can override what was set by lower-priority layers.
+#
+# Overall alias precedence (highest wins):
+#   global base  <  repo layer  <  project-local layer
+#   within each layer: unscoped alias > profile-scoped alias
+apply_project_config() {
+    local profile="$1"
+    _apply_config_layer "$REPO_CONFIG"  "$profile"
+    _apply_config_layer "$PROJECT_FILE" "$profile"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Environment flag builder
-# Accepts a comma-separated list of "KEY" (host passthrough) or "KEY=VALUE" (fixed)
+# Accepts a comma-separated list of entries:
+#   KEY              — pass the host value of KEY (skipped if KEY is unset)
+#   KEY=VALUE        — set KEY to a fixed VALUE
+#   KEY=$(cmd)       — evaluate cmd on the host and use its output as the value
+#   KEY=`cmd`        — same, backtick style
 # Writes null-delimited "-e" / "KEY=VALUE" pairs to stdout for use with readarray
 # ──────────────────────────────────────────────────────────────────────────────
 build_env_flags() {
     local env_spec="$1"
     [[ -z "$env_spec" ]] && return 0
-    local spec
+    local spec _key _rawval _val
     local IFS=','
     for spec in $env_spec; do
         spec="${spec#"${spec%%[![:space:]]*}"}"   # ltrim
         spec="${spec%"${spec##*[![:space:]]}"}"   # rtrim
         [[ -z "$spec" ]] && continue
         if [[ "$spec" == *=* ]]; then
-            printf '%s\0' "-e" "$spec"
+            _key="${spec%%=*}"
+            _rawval="${spec#*=}"
+            # If the value contains a command substitution, evaluate it on the
+            # host before passing to the container.  Plain KEY=VALUE is unchanged.
+            # NOTE: do NOT wrap _rawval in extra double-quotes when calling eval —
+            # doing so turns single-quoted strings inside $(...) into literals,
+            # breaking patterns like grep -oP 'regex' and causing bash to corrupt
+            # its variable-context stack (pop_var_context error).
+            if [[ "$_rawval" == *'$('* || "$_rawval" == *'`'* ]]; then
+                eval "_val=${_rawval}"
+                printf '%s\0' "-e" "${_key}=${_val}"
+            else
+                printf '%s\0' "-e" "$spec"
+            fi
         else
             # Only pass through if the variable is set on the host
             [[ -n "${!spec+x}" ]] && printf '%s\0' "-e" "${spec}=${!spec}"
@@ -273,30 +357,50 @@ container_name_from_path() {
 ensure_image() {
     local image="$1" dockerfile="$2" force_rebuild="$3"
     if [[ -n "$dockerfile" ]]; then
-        [[ -f "$dockerfile" ]] || die "Dockerfile not found: ${dockerfile}"
+        [[ -f "$dockerfile" ]] || die "Dockerfile not found: ${_CGR}${dockerfile}${_CR}"
         if [[ "$force_rebuild" == "1" ]] || ! docker image inspect "$image" &>/dev/null; then
-            info "Building image '${image}' from ${dockerfile} ..."
+            info "Building image '${_CYL}${image}${_CR}' from ${_CGR}${dockerfile}${_CR} ..."
             docker build -t "$image" -f "$dockerfile" "$(dirname "$dockerfile")"
         fi
     elif [[ "$force_rebuild" == "1" ]]; then
-        warn "--rebuild has no effect: no dockerfile is configured for this project"
+        warn "--rebuild has no effect: no dockerfile is configured for profile '${_CCY}${PROFILE_NAME}${_CR}'"
     fi
 }
 
 ensure_container() {
-    local container="$1" image="$2" git_root="$3"
+    local container="$1" image="$2" git_root="$3" ports_spec="${4:-}" force_restart="${5:-0}"
+
+    # Build -p flags from the comma-separated ports spec (e.g. "8080:80,443:443").
+    local -a _port_flags=()
+    if [[ -n "$ports_spec" ]]; then
+        local IFS=',' _p
+        for _p in $ports_spec; do
+            _p="${_p#"${_p%%[![:space:]]*}"}"   # ltrim
+            _p="${_p%"${_p##*[![:space:]]}"}"   # rtrim
+            [[ -n "$_p" ]] && _port_flags+=("-p" "$_p")
+        done
+    fi
+
+    # --restart: remove the existing container so it is recreated fresh (e.g.
+    # to apply updated port mappings or pick up a new image).
+    if [[ "$force_restart" == "1" ]] && docker container inspect "$container" &>/dev/null; then
+        info "Removing container '${_CDIM}${container}${_CR}' for restart ..."
+        docker rm -f "$container" >/dev/null
+    fi
+
     if docker container inspect "$container" &>/dev/null; then
         local status
         status="$(docker container inspect --format '{{.State.Status}}' "$container")"
         if [[ "$status" != "running" ]]; then
-            info "Starting container '${container}' ..."
+            info "Starting container '${_CDIM}${container}${_CR}' ..."
             docker start "$container" >/dev/null
         fi
     else
-        info "Creating container '${container}' from image '${image}' ..."
+        info "Creating container '${_CDIM}${container}${_CR}' from image '${_CYL}${image}${_CR}' ..."
         docker run -d \
             --name "$container" \
             -v "${git_root}:${CONTAINER_MOUNT}" \
+            "${_port_flags[@]}" \
             "$image" \
             sleep infinity >/dev/null
     fi
@@ -307,18 +411,32 @@ ensure_container() {
 # Reads lines from stdin and keeps a live rolling window of the last N lines.
 # When stdout is a terminal, ANSI cursor movement is used to update in place.
 # When stdout is not a terminal (piped/redirected), lines are printed verbatim.
+#
+# Lines wider than the terminal are pre-split into physical-row–sized chunks
+# before being added to the buffer.  Each buffer slot therefore represents
+# exactly one physical row, so the cursor-up distance is always simply $max —
+# no need to recompute physical row counts on every iteration.
 # ──────────────────────────────────────────────────────────────────────────────
 _rolling_display() {
     local max="$1" logfile="${2:-}"
     local -a buf=()
     local is_tty=0
-    local cursor_up=0   # lines the cursor is currently above its resting position
+    local cursor_up=0   # physical rows the cursor is currently above resting pos
+    local content_width=0
     # Prefix for output lines — colored pipe when stdout is a TTY
-    local PFX="│ "
+    local PFX="   │ "
     if [[ -t 1 ]]; then
         is_tty=1
-        PFX="\033[36m│\033[0m "
+        PFX="   \033[36m│\033[0m "
+        local _tw
+        _tw="$(tput cols 2>/dev/null || echo 0)"
+        [[ "$_tw" =~ ^[0-9]+$ ]] || _tw=0
+        # Subtract the 5 display columns used by the "   │ " prefix.
+        (( _tw > 5 )) && content_width=$(( _tw - 5 )) || content_width=0
     fi
+
+    # Regex stored in a variable to avoid bash misparse of embedded '[' inside [[ ]].
+    local _ansi_re=$'\033\[[0-9;]*[A-Za-z]'
 
     while IFS= read -r line; do
         # Write raw line to logfile before any display processing.
@@ -328,26 +446,52 @@ _rolling_display() {
         # Strip everything up to and including the last \r so that progress-bar
         # style output (which uses \r to overwrite) doesn't clobber the │ border.
         line="${line##*$'\r'}"
-        if (( ${#buf[@]} >= max )); then
-            # Buffer full: drop oldest line and scroll the window up.
-            buf=("${buf[@]:1}")
-            buf+=("$line")
-            if [[ $is_tty -eq 1 ]]; then
-                # Record displacement BEFORE moving the cursor so that if SIGINT
-                # fires during or after the cursor-up but before the reprint
-                # completes, the cleanup below can move the cursor back down.
-                cursor_up=$max
-                printf '\033[%dA\033[J' "$max" 2>/dev/null || true
-                printf "${PFX}%s\n" "${buf[@]}" 2>/dev/null || true
-                cursor_up=0   # reprint finished; cursor is back at resting pos
-            else
-                printf "${PFX}%s\n" "$line" 2>/dev/null || true
-            fi
+
+        # Strip ANSI CSI escape sequences for display.  Escape bytes inflate the
+        # byte count without occupying terminal columns; preserving them correctly
+        # across arbitrary chunk boundaries is complex and unnecessary here since
+        # the logfile retains the full raw output.
+        local _plain="$line"
+        while [[ "$_plain" =~ $_ansi_re ]]; do
+            _plain="${_plain//"${BASH_REMATCH[0]}"/}"
+        done
+
+        # Split into physical-row–sized chunks.  Each chunk is at most
+        # content_width visible characters wide (fits one terminal row after the
+        # prefix).  When content_width is 0 (unknown terminal), no splitting.
+        local -a _chunks=()
+        if (( content_width > 0 && ${#_plain} > content_width )); then
+            local _pos=0
+            while (( _pos < ${#_plain} )); do
+                _chunks+=("${_plain:$_pos:$content_width}")
+                (( _pos += content_width ))
+            done
         else
-            # Buffer not yet full: just print the new line
-            buf+=("$line")
-            printf "${PFX}%s\n" "$line" 2>/dev/null || true
+            _chunks=("$_plain")
         fi
+
+        # Insert each chunk into the buffer using the rolling-window logic.
+        # Because each slot = 1 physical row, cursor-up is always $max.
+        local _chunk
+        for _chunk in "${_chunks[@]}"; do
+            if (( ${#buf[@]} >= max )); then
+                buf=("${buf[@]:1}")
+                buf+=("$_chunk")
+                if [[ $is_tty -eq 1 ]]; then
+                    # Record displacement BEFORE moving the cursor so that if
+                    # SIGINT fires mid-reprint the cleanup below can recover.
+                    cursor_up=$max
+                    printf '\033[%dA\033[J' "$max" 2>/dev/null || true
+                    printf "${PFX}%s\n" "${buf[@]}" 2>/dev/null || true
+                    cursor_up=0   # reprint done; cursor back at resting pos
+                else
+                    printf "${PFX}%s\n" "$_chunk" 2>/dev/null || true
+                fi
+            else
+                buf+=("$_chunk")
+                printf "${PFX}%s\n" "$_chunk" 2>/dev/null || true
+            fi
+        done
     done
 
     # If SIGINT interrupted a cursor-up+reprint cycle the cursor is still
@@ -405,13 +549,13 @@ print_footer() {
     #   footer       = └ + 67 ─ chars  = 68 display cols
     local hdr_line="──────────────────────────────────────────────────────────"
     local sep_line="└───────────────────────────────────────────────────────────────────"
-    printf >&2 "${CY}┌─ result %s${R}\n"          "$hdr_line"
-    printf >&2 "${CY}│${R} ${B}Status   :${R} ${status_color}%s${R}\n" "$status_label"
-    printf >&2 "${CY}│${R} ${B}Duration :${R} %s\n"            "$duration"
+    printf >&2 "${CY}\r ┌─ result %s${R}\n"          "$hdr_line"
+    printf >&2 "${CY}\r │${R} ${B}Status   :${R} ${status_color}%s${R}\n" "$status_label"
+    printf >&2 "${CY}\r │${R} ${B}Duration :${R} %s\n"            "$duration"
     if [[ -n "$logfile" ]]; then
-        printf >&2 "${CY}│${R} ${B}Log      :${R} ${YL}%s${R}\n" "$logfile"
+        printf >&2 "${CY}\r │${R} ${B}Log      :${R} ${YL}%s${R}\n" "$logfile"
     fi
-    printf >&2 "${CY}%s${R}\n\n"                      "$sep_line"
+    printf >&2 "${CY}\r %s${R}\n\n"                      "$sep_line"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -420,12 +564,13 @@ print_footer() {
 # Runs one command step (alias or literal) inside the container and prints the
 # footer when done.  Reads from globals:
 #   USE_ALIAS, EXEC_CMD, EXEC_ARGS[], EXEC_WORKDIR, ENV_FLAGS[], CONTAINER_NAME,
-#   INTERACTIVE
+#   STEP_INTERACTIVE
 # Optional parameter $1: path to logfile. If empty/omitted a new one is created.
 # Sets global after return:
 #   _STEP_SIG_RECEIVED — signal name (INT/TERM) if the step was interrupted, else ""
 # Returns the step's exit code.  Does NOT re-raise signals or call exit.
 # ──────────────────────────────────────────────────────────────────────────────
+STEP_INTERACTIVE=0
 _STEP_SIG_RECEIVED=""
 _active_tmpfifo=""   # cleaned up by EXIT trap if script dies mid-step
 
@@ -434,7 +579,7 @@ run_exec_step() {
     _step_start_ms="$(_now_ms)"
     _STEP_SIG_RECEIVED=""
 
-    if [[ "$INTERACTIVE" == "1" ]]; then
+    if [[ "$STEP_INTERACTIVE" == "1" ]]; then
         # Interactive: foreground docker exec; trap INT to prevent bash's default
         # re-raise (which would kill the script before print_footer runs).
         local _sig=""
@@ -526,7 +671,8 @@ run_exec_step() {
 
 
 print_summary() {
-    local profile="$1" image="$2" container="$3" workdir="$4" cmd="$5" env_display="$6"
+    local profile="$1" image="$2" container="$3" workdir="$4" cmd="$5" env_display="$6" \
+          ports_display="${7:-}"
 
     # ANSI colors — only when stderr is a terminal
     local B="" CY="" YL="" GR="" DIM="" R=""
@@ -539,71 +685,195 @@ print_summary() {
     # ┌─ docker-run  = 14 display cols, so the trailing dashes stay at 54 (14+54=68)
     # └─────────────  = └ + 13 dashes, then $line (54) = 1+13+54 = 68 display cols
     local footer="└─────────────${line}"
-    printf >&2 "\n${CY}┌─ docker-run %s${R}\n" "$line"
-    printf >&2 "${CY}│${R} ${B}Profile   :${R} ${YL}%s${R}\n"   "$profile"
-    printf >&2 "${CY}│${R} ${B}Image     :${R} %s\n"             "$image"
-    printf >&2 "${CY}│${R} ${B}Container :${R} ${DIM}%s${R}\n"  "$container"
-    printf >&2 "${CY}│${R} ${B}Directory :${R} ${GR}%s${R}\n"   "$workdir"
-    printf >&2 "${CY}│${R} ${B}Command   :${R} ${YL}%s${R}\n"   "$cmd"
-    if [[ -n "$env_display" ]]; then
-        printf >&2 "${CY}│${R} ${B}Env       :${R} ${GR}%s${R}\n" "$env_display"
+    printf >&2 "\n${CY} ┌─ docker-run %s${R}\n" "$line"
+    printf >&2 "${CY} │${R} ${B}Profile   :${R} ${YL}%s${R}\n"   "$profile"
+    printf >&2 "${CY} │${R} ${B}Image     :${R} %s\n"             "$image"
+    printf >&2 "${CY} │${R} ${B}Container :${R} ${DIM}%s${R}\n"  "$container"
+    if [[ -n "$ports_display" ]]; then
+        printf >&2 "${CY} │${R} ${B}Ports     :${R} ${GR}%s${R}\n" "$ports_display"
     fi
-    printf >&2 "${CY}%s${R}\n" "$footer"
+    printf >&2 "${CY} │${R} ${B}Directory :${R} ${GR}%s${R}\n"   "$workdir"
+    if [[ "$STEP_INTERACTIVE" == "1" ]]; then
+        printf >&2 "${CY} │${R} ${B}Command   :${R} ${YL}%s${R} ${CY}(interactive)${R}\n" "$cmd"
+    else
+        printf >&2 "${CY} │${R} ${B}Command   :${R} ${YL}%s${R}\n" "$cmd"
+    fi
+    if [[ -n "$env_display" ]]; then
+        printf >&2 "${CY} │${R} ${B}Env       :${R} ${GR}%s${R}\n" "$env_display"
+    fi
+    printf >&2 "${CY} %s${R}\n" "$footer"
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Alias listing  (--list / -l)
+# Reads from globals: PROFILE_NAME, FINAL_IMAGE, PROFILE_ENV, GLOBAL_CONFIG,
+#   PROJECT_FILE, ALIAS_CMD, ALIAS_WORKDIR, ALIAS_ENV, ALIAS_PIPELINE,
+#   ALIAS_INTERACTIVE, CONTAINER_MOUNT
+# Outputs to stdout; uses ANSI only when stdout is a terminal.
+# ──────────────────────────────────────────────────────────────────────────────
+list_aliases() {
+    local B="" CY="" YL="" GR="" DIM="" MG="" R=""
+    if [[ -t 1 ]]; then
+        B=$'\033[1m';     CY=$'\033[1;36m'; YL=$'\033[1;33m'
+        GR=$'\033[0;32m'; DIM=$'\033[2m';   MG=$'\033[1;35m'; R=$'\033[0m'
+    fi
+
+    # Header box: "┌─ docker-run aliases " (22 cols) + 46 dashes = 68 cols total
+    local _hdr_dashes="──────────────────────────────────────────────"
+    local _sep="├───────────────────────────────────────────────────────────────────"
+    local _ftr="└───────────────────────────────────────────────────────────────────"
+
+    printf "${CY} ┌─ docker-run aliases %s${R}\n" "$_hdr_dashes"
+    printf "${CY} │${R} ${B}Profile  :${R} ${YL}%s${R}\n"  "$PROFILE_NAME"
+    printf "${CY} │${R} ${B}Image    :${R} %s\n"            "$FINAL_IMAGE"
+    if [[ -f "$GLOBAL_CONFIG" ]]; then
+        printf "${CY} │${R} ${B}Global   :${R} ${DIM}%s${R}\n" "$GLOBAL_CONFIG"
+    fi
+    if [[ -n "$REPO_CONFIG" ]]; then
+        printf "${CY} │${R} ${B}Repo     :${R} ${DIM}%s${R}\n" "$REPO_CONFIG"
+    fi
+    if [[ -n "$PROJECT_FILE" ]]; then
+        printf "${CY} │${R} ${B}Local    :${R} ${DIM}%s${R}\n" "$PROJECT_FILE"
+    fi
+    if [[ -n "$PROFILE_ENV" ]]; then
+        printf "${CY} │${R} ${B}Base env :${R} ${GR}%s${R}\n" "$PROFILE_ENV"
+    fi
+    printf "${CY} %s${R}\n" "$_sep"
+
+    # Collect unique alias names from both maps, then sort alphabetically.
+    local -A _seen=()
+    local _n
+    for _n in "${!ALIAS_CMD[@]}";      do _seen["$_n"]=1; done
+    for _n in "${!ALIAS_PIPELINE[@]}"; do _seen["$_n"]=1; done
+
+    if [[ ${#_seen[@]} -eq 0 ]]; then
+        printf "${CY} │${R}  ${DIM}(no aliases defined for this profile)${R}\n"
+    else
+        local -a _names=()
+        while IFS= read -r _n; do
+            _names+=("$_n")
+        done < <(printf '%s\n' "${!_seen[@]}" | sort)
+
+        local _first=1
+        for _n in "${_names[@]}"; do
+            # Blank line between entries for readability.
+            [[ "$_first" == "1" ]] && _first=0 || printf "${CY} │${R}\n"
+
+            if [[ -n "${ALIAS_PIPELINE[$_n]-}" ]]; then
+                # Pipeline alias: show steps as a chain.
+                local _steps_fmt
+                _steps_fmt="$(printf '%s' "${ALIAS_PIPELINE[$_n]}" \
+                    | sed 's/[[:space:]]*,[[:space:]]*/  →  /g')"
+                printf "${CY} │${R}  ${MG}%-16s${R} ${DIM}[pipeline]${R}  %s\n" \
+                    "$_n" "$_steps_fmt"
+            else
+                # Regular alias: name + command, then optional metadata line.
+                local _cmd="${ALIAS_CMD[$_n]}"
+                local _workdir="${ALIAS_WORKDIR[$_n]:-$CONTAINER_MOUNT}"
+                local _aenv="${ALIAS_ENV[$_n]-}"
+                local _int="${ALIAS_INTERACTIVE[$_n]-}"
+
+                local _tags=""
+                [[ "$_int" == "true" ]] && _tags="  ${CY}(interactive)${R}"
+                printf "${CY} │${R}  ${YL}%-16s${R} %s%s\n" "$_n" "$_cmd" "$_tags"
+
+                # Second line: always show workdir; show alias-level env if set.
+                local _meta="workdir: ${GR}${_workdir}${R}"
+                if [[ -n "$_aenv" ]]; then
+                    _meta+="   env: ${GR}${_aenv}${R}"
+                fi
+                printf "${CY} │${R}  %-16s %s\n" "" "$_meta"
+            fi
+        done
+    fi
+
+    printf "${CY} %s${R}\n" "$_ftr"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Help
 # ──────────────────────────────────────────────────────────────────────────────
 show_help() {
-    cat <<EOF
-Usage: ${SCRIPT_NAME} [OPTIONS] [ALIAS | COMMAND [ARGS...]]
+    local B="" CY="" YL="" GR="" DIM="" R=""
+    if [[ -t 1 ]]; then
+        B=$'\033[1m'; CY=$'\033[1;36m'; YL=$'\033[1;33m'
+        GR=$'\033[0;32m'; DIM=$'\033[2m'; R=$'\033[0m'
+    fi
 
-Transparently run commands inside a persistent Docker container.
-The git repository root is mounted at ${CONTAINER_MOUNT}; the current working
-directory is translated to the equivalent path in the container automatically.
+    printf "${B}Usage:${R} ${YL}%s${R} [OPTIONS] [ALIAS | COMMAND [ARGS...]]\n" "$SCRIPT_NAME"
+    printf "\n"
+    printf "Transparently run commands inside a persistent Docker container.\n"
+    printf "The git repository root is mounted at ${GR}%s${R}; the current working\n" "$CONTAINER_MOUNT"
+    printf "directory is translated to the equivalent path in the container automatically.\n"
 
-Options:
-  -h, --help               Show this help message and exit
-  -p, --profile <profile>  Use the named profile from ${GLOBAL_CONFIG} (overrides project config)
-  -I, --interactive        Run interactively (docker exec -it); default is non-interactive
-  --rebuild                Force rebuild of the Docker image (requires dockerfile in project config)
+    printf "\n${CY}Options${R}\n"
+    printf "  ${YL}-h${R}, ${YL}--help${R}               Show this help message and exit\n"
+    printf "  ${YL}-l${R}, ${YL}--list${R}               List all aliases for the selected profile and exit\n"
+    printf "  ${YL}-p${R}, ${YL}--profile${R} ${B}<profile>${R}  Select a named profile\n"
+    printf "  ${YL}-I${R}, ${YL}--interactive${R}        Force all steps interactive (docker exec -it)\n"
+    printf "  ${YL}-r${R}, ${YL}--restart${R}            Remove and recreate the container before running\n"
+    printf "                           ${DIM}(applies updated port mappings and other creation-time settings)${R}\n"
+    printf "  ${YL}-b${R}, ${YL}--rebuild${R}            Force rebuild of the Docker image\n"
+    printf "                           ${DIM}(requires dockerfile in project config or profile)${R}\n"
 
-Configuration:
-  Global profiles : ~/.docker-run.conf
-                    ~/.local/share/.docker-run.conf  (fallback)
-  Project configs : ~/.docker-run.d/<name>.conf
-                    ~/.local/share/.docker-run.d/<name>.conf  (fallback)
-                    Matched by regex 'pattern' against the git root path.
+    printf "\n${CY}Configuration${R}\n"
+    printf "  Config files are loaded in priority order (highest wins):\n"
+    printf "\n"
+    printf "  ${B}1. Local project config${R}  ${DIM}(personal, not committed)${R}\n"
+    printf "     ${GR}~/.docker-run.d/<name>.conf${R}\n"
+    printf "     ${GR}~/.local/share/.docker-run.d/<name>.conf${R}  ${DIM}(fallback)${R}\n"
+    printf "     ${DIM}Matched by regex 'pattern' against the git root path.${R}\n"
+    printf "\n"
+    printf "  ${B}2. Repository config${R}  ${DIM}(committed, shared with the team)${R}\n"
+    printf "     ${GR}<git-root>/.docker-run.conf${R}\n"
+    printf "\n"
+    printf "  ${B}3. Global config${R}  ${DIM}(optional personal defaults)${R}\n"
+    printf "     ${GR}~/.docker-run.conf${R}\n"
+    printf "     ${GR}~/.local/share/.docker-run.conf${R}  ${DIM}(fallback)${R}\n"
 
-If the first argument matches a defined alias name, the alias's predefined
-command, working directory, and environment variables are used.  If the alias
-has a 'pipeline' key, each listed step alias is run in order — each with its
-own header, output display, and footer — stopping on the first failure.
-Otherwise the full command line is executed literally inside the container.
+    printf "\n${CY}Aliases${R}\n"
+    printf "  If the first argument matches a defined alias, its predefined command, working\n"
+    printf "  directory, and environment variables are used.  If the alias has a ${B}pipeline${R}\n"
+    printf "  key, each listed step alias is run in order — stopping on the first failure.\n"
+    printf "  Otherwise the full command line is executed literally inside the container.\n"
 
-Alias pipeline example (in the config file):
-  [alias:ci]
-  pipeline = configure,build,test
+    printf "\n${CY}Interactive mode${R}\n"
+    printf "  Set ${YL}interactive = true${R} in an alias section to make that alias always run\n"
+    printf "  with a TTY (docker exec -it), even inside a pipeline.  The global ${YL}-I${R} flag\n"
+    printf "  forces all steps interactive regardless of this setting.\n"
+    printf "\n"
+    printf "  ${DIM}[alias:shell]${R}\n"
+    printf "  ${DIM}cmd         = bash${R}\n"
+    printf "  ${DIM}interactive = true${R}\n"
 
-  [alias:configure]
-  cmd = cmake -S . -B build
+    printf "\n${CY}Port mapping${R}\n"
+    printf "  Set ${YL}ports${R} in a profile section to publish ports when the container is created.\n"
+    printf "  Accepts the same format as ${B}docker run -p${R} (comma-separated).\n"
+    printf "  Port bindings are fixed at container creation time; use ${YL}-r${R} to recreate.\n"
+    printf "\n"
+    printf "  ${DIM}[myprofile]${R}\n"
+    printf "  ${DIM}ports = 8080:8080,5432:5432${R}\n"
 
-  [alias:build]
-  cmd = cmake --build build
+    printf "\n${CY}Pipeline example${R}\n"
+    printf "  ${DIM}[alias:ci]${R}\n"
+    printf "  ${DIM}pipeline = configure,build,test${R}\n"
+    printf "\n"
+    printf "  ${DIM}[alias:configure]${R}  ${DIM}cmd = cmake -S . -B build${R}\n"
+    printf "  ${DIM}[alias:build]${R}      ${DIM}cmd = cmake --build build${R}\n"
+    printf "  ${DIM}[alias:test]${R}       ${DIM}cmd = ctest --test-dir build${R}\n"
 
-  [alias:test]
-  cmd = ctest --test-dir build
+    printf "\n${CY}Examples${R}\n"
+    printf "  ${YL}%s -l${R}                   ${DIM}# List all aliases for the active profile${R}\n"  "$SCRIPT_NAME"
+    printf "  ${YL}%s -l -p clang${R}          ${DIM}# List aliases for the 'clang' profile${R}\n"     "$SCRIPT_NAME"
+    printf "  ${YL}%s cmake -S . -B build${R}  ${DIM}# Run cmake (CWD mapped to %s/...)${R}\n"        "$SCRIPT_NAME" "$CONTAINER_MOUNT"
+    printf "  ${YL}%s build${R}                ${DIM}# Run the 'build' alias${R}\n"                    "$SCRIPT_NAME"
+    printf "  ${YL}%s ci${R}                   ${DIM}# Run the 'ci' pipeline (configure → build → test)${R}\n" "$SCRIPT_NAME"
+    printf "  ${YL}%s -I bash${R}              ${DIM}# Open an interactive shell in the container${R}\n" "$SCRIPT_NAME"
+    printf "  ${YL}%s -p clang build${R}       ${DIM}# Use the 'clang' profile, then run 'build'${R}\n" "$SCRIPT_NAME"
+    printf "  ${YL}%s -b -r build${R}          ${DIM}# Rebuild image AND recreate container, then build${R}\n" "$SCRIPT_NAME"
+    printf "  ${YL}%s -r build${R}             ${DIM}# Recreate container (e.g. after changing ports)${R}\n" "$SCRIPT_NAME"
 
-Examples:
-  ${SCRIPT_NAME} cmake -S . -B build           # Run cmake (CWD translated to ${CONTAINER_MOUNT}/...)
-  ${SCRIPT_NAME} build                         # Run the 'build' alias (non-interactive, last 10 lines)
-  ${SCRIPT_NAME} ci                            # Run the 'ci' pipeline (configure → build → test)
-  ${SCRIPT_NAME} -I bash                       # Open an interactive shell in the container
-  ${SCRIPT_NAME} -p clang build                # Use the 'clang' profile, then run 'build'
-  ${SCRIPT_NAME} --rebuild build               # Rebuild Docker image first, then run 'build'
-
-Config file format:  see docker-run.conf.example and docker-run.d/example.conf
-EOF
+    printf "\n${DIM}Config file format: see docker-run.conf.example and docker-run.d/example.conf${R}\n\n"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -616,46 +886,59 @@ find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'docker-run.*.log' -mmin +3 \
     -delete 2>/dev/null || true
 
 FORCE_REBUILD=0
+FORCE_RESTART=0
+LIST_ALIASES=0
 PROFILE_OVERRIDE=""
 INTERACTIVE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help)       show_help; exit 0 ;;
-        --rebuild)       FORCE_REBUILD=1; shift ;;
+        -b|--rebuild)    FORCE_REBUILD=1; shift ;;
+        -r|--restart)    FORCE_RESTART=1; shift ;;
+        -l|--list)       LIST_ALIASES=1; shift ;;
         -I|--interactive) INTERACTIVE=1; shift ;;
         -p|--profile)
-            [[ $# -lt 2 ]] && die "'$1' requires a profile name argument."
+            [[ $# -lt 2 ]] && die "'${_CYL}$1${_CR}' requires a profile name argument."
             PROFILE_OVERRIDE="$2"; shift 2 ;;
         --profile=*)     PROFILE_OVERRIDE="${1#--profile=}"; shift ;;
         --)              shift; break ;;
-        -*)              die "Unknown option: $1.  Run '${SCRIPT_NAME} --help' for usage." ;;
+        -*)              die "Unknown option: ${_CYL}$1${_CR}.  Run '${SCRIPT_NAME} --help' for usage." ;;
         *)               break ;;
     esac
 done
 
-[[ $# -eq 0 ]] && { show_help; exit 0; }
+[[ $# -eq 0 && "$LIST_ALIASES" != "1" ]] && { show_help; exit 0; }
 
 # ── Git root detection (supports normal repos and worktrees) ──────────────────
 GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
     || die "Not inside a git repository."
 
-# ── Global config ─────────────────────────────────────────────────────────────
-[[ -f "$GLOBAL_CONFIG" ]] \
-    || die "Global config not found.\nCopy docker-run.conf.example to ~/.docker-run.conf (or ~/.local/share/.docker-run.conf) and edit it."
-ini_parse "$GLOBAL_CONFIG"
+# ── Config loading: global (optional) → repo → local project ─────────────────
+# Global config is optional; a repo or project config alone is sufficient.
+[[ -f "$GLOBAL_CONFIG" ]] && ini_parse "$GLOBAL_CONFIG"
 
-# ── Project config ────────────────────────────────────────────────────────────
+# In-repository config: <git-root>/.docker-run.conf  (committed, shared)
+find_repo_config "$GIT_ROOT"
+
+# Local user project config: ~/.docker-run.d/*.conf  (personal, not committed)
 find_project_config "$GIT_ROOT"
 
+# ── Profile name resolution ───────────────────────────────────────────────────
+# Default is "default"; repo config can suggest a different default; local
+# project config can override that; -p / --profile overrides everything.
 PROFILE_NAME="default"
-if [[ -n "$PROFILE_OVERRIDE" ]]; then
-    PROFILE_NAME="$PROFILE_OVERRIDE"
-elif [[ -n "$PROJECT_FILE" ]]; then
+if [[ -n "$REPO_CONFIG" ]]; then
+    _p="$(ini_get "$REPO_CONFIG" "project" "profile")"
+    [[ -n "$_p" ]] && PROFILE_NAME="$_p"
+    unset _p
+fi
+if [[ -n "$PROJECT_FILE" ]]; then
     _p="$(ini_get "$PROJECT_FILE" "project" "profile")"
     [[ -n "$_p" ]] && PROFILE_NAME="$_p"
     unset _p
 fi
+[[ -n "$PROFILE_OVERRIDE" ]] && PROFILE_NAME="$PROFILE_OVERRIDE"
 
 # ── Load profile, then overlay project settings ───────────────────────────────
 load_profile "$PROFILE_NAME"
@@ -669,7 +952,9 @@ _profile_slug="$(printf '%s' "$PROFILE_NAME" \
     | sed 's/^-\+//;s/-\+$//')"
 
 FINAL_IMAGE=""
-if [[ -n "$PROJECT_DOCKERFILE" ]]; then
+# Prefer PROJECT_DOCKERFILE (from [project] section) over PROFILE_DOCKERFILE.
+EFFECTIVE_DOCKERFILE="${PROJECT_DOCKERFILE:-$PROFILE_DOCKERFILE}"
+if [[ -n "$EFFECTIVE_DOCKERFILE" ]]; then
     # Dockerfile-built image: tag derived from git root + profile so each profile
     # can have its own image when different dockerfiles are in play.
     _slug="$(printf '%s' "$GIT_ROOT" \
@@ -682,7 +967,7 @@ fi
 [[ -z "$FINAL_IMAGE" && -n "$PROJECT_IMAGE"  ]] && FINAL_IMAGE="$PROJECT_IMAGE"
 [[ -z "$FINAL_IMAGE" && -n "$PROFILE_IMAGE"  ]] && FINAL_IMAGE="$PROFILE_IMAGE"
 [[ -z "$FINAL_IMAGE" ]] \
-    && die "No Docker image configured. Set 'image' in profile '${PROFILE_NAME}' or the project config."
+    && die "No Docker image configured. Set 'image' in profile '${_CCY}${PROFILE_NAME}${_CR}' or the project config."
 
 # Container name includes the profile so each profile gets its own container.
 CONTAINER_NAME="$(container_name_from_path "$GIT_ROOT")-${_profile_slug}"
@@ -706,15 +991,29 @@ elif [[ $# -gt 0 && -n "${ALIAS_PIPELINE["$1"]+x}" ]]; then
     ALIAS_NAME="$1"
 fi
 
+# ── List aliases and exit (--list / -l) ──────────────────────────────────────
+[[ "$LIST_ALIASES" == "1" ]] && { list_aliases; exit 0; }
+
 # ── Ensure image and container are ready ──────────────────────────────────────
-ensure_image     "$FINAL_IMAGE"    "$PROJECT_DOCKERFILE" "$FORCE_REBUILD"
-ensure_container "$CONTAINER_NAME" "$FINAL_IMAGE"        "$GIT_ROOT"
+ensure_image     "$FINAL_IMAGE"    "$EFFECTIVE_DOCKERFILE" "$FORCE_REBUILD"
+ensure_container "$CONTAINER_NAME" "$FINAL_IMAGE"        "$GIT_ROOT" "$PROFILE_PORTS" "$FORCE_RESTART"
 
 # ── Helper: set globals for one step alias and print its summary ──────────────
 _setup_step() {
     local step_alias="$1" pipeline_label="${2:-}"
     EXEC_WORKDIR="${ALIAS_WORKDIR[$step_alias]:-$CONTAINER_WORKDIR}"
+    # Evaluate command substitutions in the workdir value, e.g.
+    #   workdir = /workspace/$(git branch --show-current)
+    if [[ "$EXEC_WORKDIR" == *'$('* || "$EXEC_WORKDIR" == *'`'* ]]; then
+        eval "EXEC_WORKDIR=${EXEC_WORKDIR}"
+    fi
     EXEC_CMD="${ALIAS_CMD[$step_alias]}"
+    # A step is interactive if the alias declares it OR the global -I flag is set.
+    if [[ "${ALIAS_INTERACTIVE[$step_alias]-}" == "true" || "$INTERACTIVE" == "1" ]]; then
+        STEP_INTERACTIVE=1
+    else
+        STEP_INTERACTIVE=0
+    fi
     if [[ -n "$pipeline_label" ]]; then
         DISPLAY_CMD="[${pipeline_label}:${step_alias}] → ${EXEC_CMD}"
     else
@@ -732,18 +1031,16 @@ _setup_step() {
     done
     ENV_DISPLAY="${ENV_DISPLAY%, }"
     print_summary "$PROFILE_NAME" "$FINAL_IMAGE" "$CONTAINER_NAME" \
-                  "$EXEC_WORKDIR" "$DISPLAY_CMD" "$ENV_DISPLAY"
+                  "$EXEC_WORKDIR" "$DISPLAY_CMD" "$ENV_DISPLAY" "$PROFILE_PORTS"
 }
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 _overall_exit=0
 
 # Create a single logfile for the entire invocation (shared across pipeline steps).
-# Interactive mode doesn't use a logfile (output goes directly to the terminal).
-_run_logfile=""
-if [[ "$INTERACTIVE" != "1" ]]; then
-    _run_logfile="$(mktemp -t docker-run.XXXXXX.log)"
-fi
+# Interactive steps skip writing to it, but non-interactive steps in the same
+# pipeline still use it for capture.
+_run_logfile="$(mktemp -t docker-run.XXXXXX.log)"
 
 if [[ "$USE_ALIAS" == "1" && -n "${ALIAS_PIPELINE[$ALIAS_NAME]-}" ]]; then
     # Pipeline alias: run each referenced step alias in order, fail-fast.
@@ -751,7 +1048,7 @@ if [[ "$USE_ALIAS" == "1" && -n "${ALIAS_PIPELINE[$ALIAS_NAME]-}" ]]; then
     for _step in "${_pipeline_steps[@]}"; do
         _step="${_step// /}"   # trim any whitespace around the comma
         [[ -n "${ALIAS_CMD[$_step]+x}" ]] \
-            || die "Pipeline '${ALIAS_NAME}': step '${_step}' is not a defined alias"
+            || die "Pipeline '${_CCY}${ALIAS_NAME}${_CR}': step '${_CYL}${_step}${_CR}' is not a defined alias"
         USE_ALIAS=1
         _setup_step "$_step" "$ALIAS_NAME"
         run_exec_step "$_run_logfile" || _overall_exit=$?
@@ -771,6 +1068,7 @@ else
     EXEC_WORKDIR="$CONTAINER_WORKDIR"
     EXEC_CMD=""
     DISPLAY_CMD="$(printf '%s ' "$@")"
+    STEP_INTERACTIVE="$INTERACTIVE"
     COMBINED_ENV="$PROFILE_ENV"
     ENV_FLAGS=()
     while IFS= read -r -d '' flag; do
@@ -782,7 +1080,7 @@ else
     done
     ENV_DISPLAY="${ENV_DISPLAY%, }"
     print_summary "$PROFILE_NAME" "$FINAL_IMAGE" "$CONTAINER_NAME" \
-                  "$EXEC_WORKDIR" "$DISPLAY_CMD" "$ENV_DISPLAY"
+                  "$EXEC_WORKDIR" "$DISPLAY_CMD" "$ENV_DISPLAY" "$PROFILE_PORTS"
     run_exec_step "$_run_logfile" || _overall_exit=$?
 fi
 
