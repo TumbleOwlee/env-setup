@@ -1,4 +1,4 @@
-# docker-run
+# dex — Docker Execute
 
 Run commands transparently inside a **persistent Docker container** without thinking about container lifecycle. The git repository root is automatically mounted as `/workspace`; your current working directory is translated to the equivalent path inside the container so every command behaves as if it runs locally.
 
@@ -30,18 +30,18 @@ Run commands transparently inside a **persistent Docker container** without thin
 
 ```sh
 # 1. Put the script somewhere on your PATH
-cp docker-run ~/.local/bin/docker-run
-chmod +x ~/.local/bin/docker-run
+cp dex ~/.local/bin/dex
+chmod +x ~/.local/bin/dex
 
 # 2. Drop a config into the repository root (or create a global/local one)
-cp docker-run.repo.conf.example /path/to/your-repo/.docker-run.conf
-#    edit .docker-run.conf — set image, aliases, etc.
+cp dex.repo.conf.example /path/to/your-repo/.dex.conf
+#    edit .dex.conf — set image, aliases, etc.
 
 # 3. Use it
 cd /path/to/your-repo
-docker-run build          # run the 'build' alias
-docker-run cmake -S . -B build   # or any arbitrary command
-docker-run -l             # list all aliases
+dex build          # run the 'build' alias
+dex cmake -S . -B build   # or any arbitrary command
+dex -l             # list all aliases
 ```
 
 ---
@@ -59,11 +59,11 @@ docker-run -l             # list all aliases
 
 ```sh
 # Option A: copy to a directory on $PATH
-cp docker-run ~/.local/bin/docker-run
-chmod +x ~/.local/bin/docker-run
+cp dex ~/.local/bin/dex
+chmod +x ~/.local/bin/dex
 
 # Option B: symlink (stays in sync with edits here)
-ln -s "$(pwd)/docker-run" ~/.local/bin/docker-run
+ln -s "$(pwd)/dex" ~/.local/bin/dex
 ```
 
 No external dependencies beyond **bash ≥ 4.2** and **docker** (accessible without `sudo`).
@@ -73,22 +73,22 @@ No external dependencies beyond **bash ≥ 4.2** and **docker** (accessible with
 ## Usage
 
 ```
-docker-run [OPTIONS] [ALIAS | COMMAND [ARGS...]]
+dex [OPTIONS] [ALIAS | COMMAND [ARGS...]]
 ```
 
 If the first positional argument matches a defined alias the alias is expanded; otherwise the full argument list is passed verbatim to the container shell.
 
 ```sh
-docker-run build                  # run the 'build' alias
-docker-run ci                     # run the 'ci' pipeline
-docker-run -p clang build         # use the 'clang' profile
-docker-run cmake -S . -B build    # arbitrary command
-docker-run bash                   # interactive shell (if not aliased)
-docker-run -e JOBS=8 build        # pass an extra env var (overrides config)
-docker-run -e A=1 -e B=2 build    # multiple extra env vars
-docker-run -e 'TOKEN=$(cat ~/.token)' build  # command substitution in -e
-docker-run -l                     # list all aliases
-docker-run --help                 # full help
+dex build                  # run the 'build' alias
+dex ci                     # run the 'ci' pipeline
+dex -p clang build         # use the 'clang' profile
+dex cmake -S . -B build    # arbitrary command
+dex bash                   # interactive shell (if not aliased)
+dex -e JOBS=8 build        # pass an extra env var (overrides config)
+dex -e A=1 -e B=2 build    # multiple extra env vars
+dex -e 'TOKEN=$(cat ~/.token)' build  # command substitution in -e
+dex -l                     # list all aliases
+dex --help                 # full help
 ```
 
 ---
@@ -99,15 +99,15 @@ Config files are **merged** in the following priority order (highest priority fi
 
 | Priority | Location | Purpose |
 |----------|----------|---------|
-| **1 – Local project** | `~/.docker-run.d/<name>.conf` (or `~/.local/share/.docker-run.d/<name>.conf`) | Personal overrides, never committed |
-| **2 – Repository** | `<git-root>/.docker-run.conf` | Committed defaults, shared with the team |
-| **3 – Global** | `~/.docker-run.conf` (or `~/.local/share/.docker-run.conf`) | Optional personal defaults across all projects |
+| **1 – Local project** | `~/.dex.d/<name>.conf` (or `~/.local/share/.dex.d/<name>.conf`) | Personal overrides, never committed |
+| **2 – Repository** | `<git-root>/.dex.conf` | Committed defaults, shared with the team |
+| **3 – Global** | `~/.dex.conf` (or `~/.local/share/.dex.conf`) | Optional personal defaults across all projects |
 
 When the same key is defined in multiple files the **highest-priority file wins**. All three files are optional — a project only needs the repository config to work out of the box.
 
 ### Local project config matching
 
-Files in `~/.docker-run.d/` are scanned in alphabetical order. The first file whose `pattern` key (a bash ERE regex) matches the absolute path of the current git root is selected. This lets one file cover all worktrees of a project.
+Files in `~/.dex.d/` are scanned in alphabetical order. The first file whose `pattern` key (a bash ERE regex) matches the absolute path of the current git root is selected. This lets one file cover all worktrees of a project.
 
 ```ini
 [project]
@@ -150,7 +150,7 @@ env   = CC=clang,CXX=clang++
 ```
 
 ```sh
-docker-run -p clang build
+dex -p clang build
 ```
 
 ### Alias sections
@@ -201,7 +201,7 @@ cmd = ctest --test-dir build --output-on-failure
 ```
 
 ```sh
-docker-run ci   # runs configure → build → test
+dex ci   # runs configure → build → test
 ```
 
 Each step prints its own summary header and footer. The overall pipeline stops immediately if any step fails.
@@ -251,17 +251,17 @@ env = CTEST_OUTPUT_ON_FAILURE=1,TEST_DATA=/workspace/testdata,BRANCH=$(git branc
 You can also inject env vars at invocation time with `-e` / `--env`. These take the **highest priority** and override any same-named variable from config:
 
 ```sh
-docker-run -e JOBS=8 build
-docker-run -e A=1 -e B=2 build          # repeat -e for multiple vars
-docker-run -e 'JOBS=8,VERBOSE=1' build  # or comma-separate in one -e
-docker-run -e 'TOKEN=$(cat ~/.token)' build  # command substitution works too
+dex -e JOBS=8 build
+dex -e A=1 -e B=2 build          # repeat -e for multiple vars
+dex -e 'JOBS=8,VERBOSE=1' build  # or comma-separate in one -e
+dex -e 'TOKEN=$(cat ~/.token)' build  # command substitution works too
 ```
 
 ---
 
 ## Dockerfile-based images
 
-Instead of pulling a pre-built image you can point to a local Dockerfile. The script builds the image automatically on first use and tags it as `docker-run-<project-slug>-<profile-slug>:local`.
+Instead of pulling a pre-built image you can point to a local Dockerfile. The script builds the image automatically on first use and tags it as `dex-<project-slug>-<profile-slug>:local`.
 
 ```ini
 # In a profile or [project] section:
@@ -273,7 +273,7 @@ dockerfile = Dockerfile.dev
 - The `dockerfile` key in a `[project]` section takes precedence over one in a profile section.
 
 ```sh
-docker-run --rebuild build   # rebuild image, then run 'build' alias
+dex --rebuild build   # rebuild image, then run 'build' alias
 ```
 
 ---
@@ -288,7 +288,7 @@ ports = 8080:8080,5432:5432
 Port bindings are applied **only at container creation time** (like `docker run -p`). If you change `ports` after the container already exists, recreate it:
 
 ```sh
-docker-run --restart build
+dex --restart build
 ```
 
 ---
@@ -308,7 +308,7 @@ interactive = true
 **2. Global flag** — pass `-I` / `--interactive` on the command line to force all steps interactive:
 
 ```sh
-docker-run -I shell
+dex -I shell
 ```
 
 ---
@@ -316,8 +316,8 @@ docker-run -I shell
 ## Listing aliases
 
 ```sh
-docker-run -l           # list aliases for the active (default) profile
-docker-run -l -p clang  # list aliases for the 'clang' profile
+dex -l           # list aliases for the active (default) profile
+dex -l -p clang  # list aliases for the 'clang' profile
 ```
 
 The output shows, for each alias: the command, working directory, alias-level env vars, and whether it is interactive or a pipeline. Config file sources are shown in the header so you can see which layer each setting comes from.
@@ -342,9 +342,9 @@ The output shows, for each alias: the command, working directory, alias-level en
 
 | File | Description |
 |------|-------------|
-| [`docker-run.conf.example`](docker-run.conf.example) | Global config template — copy to `~/.docker-run.conf`. Defines profiles, aliases, and pipelines. |
-| [`docker-run.repo.conf.example`](docker-run.repo.conf.example) | Repository config template — copy to `<git-root>/.docker-run.conf`. Committed and shared with the team. |
-| [`docker-run.d/example.conf`](docker-run.d/example.conf) | Local project config template — copy to `~/.docker-run.d/<project>.conf`. Personal, never committed. |
+| [`dex.conf.example`](dex.conf.example) | Global config template — copy to `~/.dex.conf`. Defines profiles, aliases, and pipelines. |
+| [`dex.repo.conf.example`](dex.repo.conf.example) | Repository config template — copy to `<git-root>/.dex.conf`. Committed and shared with the team. |
+| [`dex.d/example.conf`](dex.d/example.conf) | Local project config template — copy to `~/.dex.d/<project>.conf`. Personal, never committed. |
 
 ---
 
@@ -352,13 +352,13 @@ The output shows, for each alias: the command, working directory, alias-level en
 
 ```
 your-repo/
-├── .docker-run.conf          ← committed: image, shared aliases, pipeline
+├── .dex.conf          ← committed: image, shared aliases, pipeline
 └── ...
 
-~/.docker-run.d/
+~/.dex.d/
 └── myproject.conf            ← personal: pattern match + local overrides
 
-~/.docker-run.conf            ← optional: global personal defaults
+~/.dex.conf            ← optional: global personal defaults
 ```
 
-With this setup any developer clones the repo and `docker-run build` works immediately. Individuals can layer personal overrides (different image tags, extra env vars, custom aliases) without touching the committed config.
+With this setup any developer clones the repo and `dex build` works immediately. Individuals can layer personal overrides (different image tags, extra env vars, custom aliases) without touching the committed config.

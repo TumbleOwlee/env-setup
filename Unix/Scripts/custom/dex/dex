@@ -1,33 +1,33 @@
 #!/usr/bin/env bash
-# docker-run: Run commands in a persistent Docker container.
+# dex: Run commands in a persistent Docker container.
 #
 # The git repository root is auto-detected and mounted as /workspace. The
 # current working directory is translated to the equivalent container path.
 #
 # Config hierarchy (highest priority first):
-#   1. Local project config : ~/.docker-run.d/*.conf  (matched by 'pattern')
-#   2. Repository config    : <git-root>/.docker-run.conf
-#   3. Global config        : ~/.docker-run.conf
+#   1. Local project config : ~/.dex.d/*.conf  (matched by 'pattern')
+#   2. Repository config    : <git-root>/.dex.conf
+#   3. Global config        : ~/.dex.conf
 #
-# Usage: docker-run [OPTIONS] [<alias>|<command> [args...]]
+# Usage: dex [OPTIONS] [<alias>|<command> [args...]]
 
 set -euo pipefail
 
 readonly SCRIPT_NAME="$(basename "$0")"
 
 # Resolve global config: prefer $HOME, fall back to $HOME/.local/share
-if [[ -f "${HOME}/.docker-run.conf" ]]; then
-    GLOBAL_CONFIG="${HOME}/.docker-run.conf"
+if [[ -f "${HOME}/.dex.conf" ]]; then
+    GLOBAL_CONFIG="${HOME}/.dex.conf"
 else
-    GLOBAL_CONFIG="${HOME}/.local/share/.docker-run.conf"
+    GLOBAL_CONFIG="${HOME}/.local/share/.dex.conf"
 fi
 readonly GLOBAL_CONFIG
 
 # Resolve project config dir: prefer $HOME, fall back to $HOME/.local/share
-if [[ -d "${HOME}/.docker-run.d" ]]; then
-    PROJECT_CONFIG_DIR="${HOME}/.docker-run.d"
+if [[ -d "${HOME}/.dex.d" ]]; then
+    PROJECT_CONFIG_DIR="${HOME}/.dex.d"
 else
-    PROJECT_CONFIG_DIR="${HOME}/.local/share/.docker-run.d"
+    PROJECT_CONFIG_DIR="${HOME}/.local/share/.dex.d"
 fi
 readonly PROJECT_CONFIG_DIR
 readonly CONTAINER_MOUNT="/workspace"
@@ -189,7 +189,7 @@ load_profile() {
     done < <(ini_sections "$_src")
 }
 
-# Scan ~/.docker-run.d/*.conf for a file whose 'pattern' matches the git root
+# Scan ~/.dex.d/*.conf for a file whose 'pattern' matches the git root
 find_project_config() {
     local git_root="$1"
     [[ -d "$PROJECT_CONFIG_DIR" ]] || return 0
@@ -206,10 +206,10 @@ find_project_config() {
     done
 }
 
-# Look for an in-repository config at <git-root>/.docker-run.conf.
+# Look for an in-repository config at <git-root>/.dex.conf.
 find_repo_config() {
     local git_root="$1"
-    local _candidate="${git_root}/.docker-run.conf"
+    local _candidate="${git_root}/.dex.conf"
     if [[ -f "$_candidate" ]]; then
         REPO_CONFIG="$_candidate"
         ini_parse "$REPO_CONFIG"
@@ -348,7 +348,7 @@ container_name_from_path() {
         | tr '[:upper:]' '[:lower:]' \
         | tr -cs 'a-z0-9' '-' \
         | sed 's/^-\+//;s/-\+$//')"
-    printf 'docker-run-%s' "$slug"
+    printf 'dex-%s' "$slug"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -613,7 +613,7 @@ run_exec_step() {
         # Use the provided logfile or create a fresh one for this step.
         # Logfiles are NOT removed so the user can inspect them after failure.
         if [[ -z "$_logfile" ]]; then
-            _logfile="$(mktemp -t docker-run.XXXXXX.log)"
+            _logfile="$(mktemp -t dex.XXXXXX.log)"
         fi
 
         # Write a plain-text step header to the logfile (no ANSI codes) so that
@@ -681,11 +681,11 @@ print_summary() {
         GR="\033[0;32m"; DIM="\033[2m"; R="\033[0m"
     fi
 
-    local line="──────────────────────────────────────────────────────"
-    # ┌─ docker-run  = 14 display cols, so the trailing dashes stay at 54 (14+54=68)
-    # └─────────────  = └ + 13 dashes, then $line (54) = 1+13+54 = 68 display cols
-    local footer="└─────────────${line}"
-    printf >&2 "\n${CY} ┌─ docker-run %s${R}\n" "$line"
+    local line="─────────────────────────────────────────────────────────────"
+    # " ┌─ dex " = 8 display cols  →  61 ─ chars gives total width of 69
+    # footer: " └" + 67 ─ chars = 69 display cols (same total)
+    local footer="└───────────────────────────────────────────────────────────────────"
+    printf >&2 "\n${CY} ┌─ dex %s${R}\n" "$line"
     printf >&2 "${CY} │${R} ${B}Profile   :${R} ${YL}%s${R}\n"   "$profile"
     printf >&2 "${CY} │${R} ${B}Image     :${R} %s\n"             "$image"
     printf >&2 "${CY} │${R} ${B}Container :${R} ${DIM}%s${R}\n"  "$container"
@@ -718,12 +718,12 @@ list_aliases() {
         GR=$'\033[0;32m'; DIM=$'\033[2m';   MG=$'\033[1;35m'; R=$'\033[0m'
     fi
 
-    # Header box: "┌─ docker-run aliases " (22 cols) + 46 dashes = 68 cols total
-    local _hdr_dashes="──────────────────────────────────────────────"
+    # Header box: " ┌─ dex aliases " (16 cols) + 53 dashes = 69 cols total
+    local _hdr_dashes="─────────────────────────────────────────────────────"
     local _sep="├───────────────────────────────────────────────────────────────────"
     local _ftr="└───────────────────────────────────────────────────────────────────"
 
-    printf "${CY} ┌─ docker-run aliases %s${R}\n" "$_hdr_dashes"
+    printf "${CY} ┌─ dex aliases %s${R}\n" "$_hdr_dashes"
     printf "${CY} │${R} ${B}Profile  :${R} ${YL}%s${R}\n"  "$PROFILE_NAME"
     printf "${CY} │${R} ${B}Image    :${R} %s\n"            "$FINAL_IMAGE"
     if [[ -f "$GLOBAL_CONFIG" ]]; then
@@ -823,16 +823,16 @@ show_help() {
     printf "  Config files are loaded in priority order (highest wins):\n"
     printf "\n"
     printf "  ${B}1. Local project config${R}  ${DIM}(personal, not committed)${R}\n"
-    printf "     ${GR}~/.docker-run.d/<name>.conf${R}\n"
-    printf "     ${GR}~/.local/share/.docker-run.d/<name>.conf${R}  ${DIM}(fallback)${R}\n"
+    printf "     ${GR}~/.dex.d/<name>.conf${R}\n"
+    printf "     ${GR}~/.local/share/.dex.d/<name>.conf${R}  ${DIM}(fallback)${R}\n"
     printf "     ${DIM}Matched by regex 'pattern' against the git root path.${R}\n"
     printf "\n"
     printf "  ${B}2. Repository config${R}  ${DIM}(committed, shared with the team)${R}\n"
-    printf "     ${GR}<git-root>/.docker-run.conf${R}\n"
+    printf "     ${GR}<git-root>/.dex.conf${R}\n"
     printf "\n"
     printf "  ${B}3. Global config${R}  ${DIM}(optional personal defaults)${R}\n"
-    printf "     ${GR}~/.docker-run.conf${R}\n"
-    printf "     ${GR}~/.local/share/.docker-run.conf${R}  ${DIM}(fallback)${R}\n"
+    printf "     ${GR}~/.dex.conf${R}\n"
+    printf "     ${GR}~/.local/share/.dex.conf${R}  ${DIM}(fallback)${R}\n"
 
     printf "\n${CY}Aliases${R}\n"
     printf "  If the first argument matches a defined alias, its predefined command, working\n"
@@ -878,7 +878,7 @@ show_help() {
     printf "  ${YL}%s -b -r build${R}          ${DIM}# Rebuild image AND recreate container, then build${R}\n" "$SCRIPT_NAME"
     printf "  ${YL}%s -r build${R}             ${DIM}# Recreate container (e.g. after changing ports)${R}\n" "$SCRIPT_NAME"
 
-    printf "\n${DIM}Config file format: see docker-run.conf.example and docker-run.d/example.conf${R}\n\n"
+    printf "\n${DIM}Config file format: see dex.conf.example and dex.d/example.conf${R}\n\n"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -886,8 +886,8 @@ show_help() {
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Clean up log files from previous runs that are older than 3 minutes.
-# Log files are created with mktemp -t docker-run.XXXXXX.log in /tmp (or $TMPDIR).
-find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'docker-run.*.log' -mmin +3 \
+# Log files are created with mktemp -t dex.XXXXXX.log in /tmp (or $TMPDIR).
+find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'dex.*.log' -mmin +3 \
     -delete 2>/dev/null || true
 
 FORCE_REBUILD=0
@@ -928,10 +928,10 @@ GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
 # Global config is optional; a repo or project config alone is sufficient.
 [[ -f "$GLOBAL_CONFIG" ]] && ini_parse "$GLOBAL_CONFIG"
 
-# In-repository config: <git-root>/.docker-run.conf  (committed, shared)
+# In-repository config: <git-root>/.dex.conf  (committed, shared)
 find_repo_config "$GIT_ROOT"
 
-# Local user project config: ~/.docker-run.d/*.conf  (personal, not committed)
+# Local user project config: ~/.dex.d/*.conf  (personal, not committed)
 find_project_config "$GIT_ROOT"
 
 # ── Profile name resolution ───────────────────────────────────────────────────
@@ -971,7 +971,7 @@ if [[ -n "$EFFECTIVE_DOCKERFILE" ]]; then
         | tr '[:upper:]' '[:lower:]' \
         | tr -cs 'a-z0-9' '-' \
         | sed 's/^-\+//;s/-\+$//')"
-    FINAL_IMAGE="docker-run-${_slug}-${_profile_slug}:local"
+    FINAL_IMAGE="dex-${_slug}-${_profile_slug}:local"
     unset _slug
 fi
 [[ -z "$FINAL_IMAGE" && -n "$PROJECT_IMAGE"  ]] && FINAL_IMAGE="$PROJECT_IMAGE"
@@ -1052,7 +1052,7 @@ _overall_exit=0
 # Create a single logfile for the entire invocation (shared across pipeline steps).
 # Interactive steps skip writing to it, but non-interactive steps in the same
 # pipeline still use it for capture.
-_run_logfile="$(mktemp -t docker-run.XXXXXX.log)"
+_run_logfile="$(mktemp -t dex.XXXXXX.log)"
 
 if [[ "$USE_ALIAS" == "1" && -n "${ALIAS_PIPELINE[$ALIAS_NAME]-}" ]]; then
     # Pipeline alias: run each referenced step alias in order, fail-fast.

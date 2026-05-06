@@ -1,14 +1,14 @@
-# docker-run repository config  —  place at <git-root>/.docker-run.conf
+# dex repository config  —  place at <git-root>/.dex.conf
 #
 # This file is committed to the repository and shared with the whole team.
 # It provides the default Docker image, profile settings, and alias definitions
 # for the project.  Individual developers can override any setting by creating
-# a personal local project config in ~/.docker-run.d/ (higher priority).
+# a personal local project config in ~/.dex.d/ (higher priority).
 #
 # Config hierarchy (highest priority first):
-#   1. ~/.docker-run.d/<name>.conf   — personal local overrides (not committed)
-#   2. <git-root>/.docker-run.conf   — this file (committed, team defaults)
-#   3. ~/.docker-run.conf            — global personal defaults (optional)
+#   1. ~/.dex.d/<name>.conf   — personal local overrides (not committed)
+#   2. <git-root>/.dex.conf   — this file (committed, team defaults)
+#   3. ~/.dex.conf            — global personal defaults (optional)
 #
 # ──────────────────────────────────────────────────────────────────────────────
 # [project] section

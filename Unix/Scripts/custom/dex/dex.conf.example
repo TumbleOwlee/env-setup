@@ -1,12 +1,12 @@
-# docker-run global profile configuration
-# Copy this file to ~/.docker-run.conf and edit it to suit your setup.
+# dex global profile configuration
+# Copy this file to ~/.dex.conf and edit it to suit your setup.
 #
 # This file defines named profiles. Each profile specifies the Docker image to
 # use and a base set of environment variables to pass into the container.
 # Profiles can also define command aliases (see [alias:<name>] sections below).
 #
 # Per-project configuration (which profile to use, custom aliases, optional
-# image/Dockerfile overrides) lives in ~/.docker-run.d/<name>.conf files.
+# image/Dockerfile overrides) lives in ~/.dex.d/<name>.conf files.
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Profile: default
@@ -18,7 +18,7 @@ image = ubuntu:22.04
 # Optional: build the container image from a local Dockerfile instead of
 # pulling a pre-built image.  Absolute paths are used as-is; relative paths
 # are resolved relative to the directory that contains this config file.
-# The built image is tagged as "docker-run-<repo-slug>-<profile-slug>:local".
+# The built image is tagged as "dex-<repo-slug>-<profile-slug>:local".
 # It is built automatically on first use, or when --rebuild is passed.
 #dockerfile = Dockerfile.dev
 
@@ -38,7 +38,7 @@ env = CC,CXX,MAKEFLAGS
 # ──────────────────────────────────────────────────────────────────────────────
 # Aliases for the [default] profile
 # Each [alias:<name>] section defines a shorthand command.
-#   docker-run <name>  →  runs 'cmd' in 'workdir' with 'env' applied
+#   dex <name>  →  runs 'cmd' in 'workdir' with 'env' applied
 # ──────────────────────────────────────────────────────────────────────────────
 
 [alias:configure]

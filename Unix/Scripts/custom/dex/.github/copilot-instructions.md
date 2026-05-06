@@ -1,17 +1,17 @@
-# Copilot Instructions — `docker-run`
+# Copilot Instructions — `dex`
 
-`docker-run` is a **single-file Bash script** (~1160 lines) that runs commands inside a persistent Docker container, transparently mirroring the developer's host environment. The git repository root is auto-detected and mounted as `/workspace`; the host working directory is translated to the equivalent container path automatically.
+`dex` is a **single-file Bash script** (~1160 lines) that runs commands inside a persistent Docker container, transparently mirroring the developer's host environment. The git repository root is auto-detected and mounted as `/workspace`; the host working directory is translated to the equivalent container path automatically.
 
 ## Repository layout
 
 ```
-Unix/Scripts/custom/docker-run/
-├── docker-run                      ← the script (bash, executable)
+Unix/Scripts/custom/dex/
+├── dex                      ← the script (bash, executable)
 ├── README.md                       ← user-facing documentation
-├── docker-run.conf.example         ← global config template  (~/.docker-run.conf)
-├── docker-run.repo.conf.example    ← repo config template    (<git-root>/.docker-run.conf)
-├── docker-run.d/
-│   └── example.conf                ← local project config template (~/.docker-run.d/)
+├── dex.conf.example         ← global config template  (~/.dex.conf)
+├── dex.repo.conf.example    ← repo config template    (<git-root>/.dex.conf)
+├── dex.d/
+│   └── example.conf                ← local project config template (~/.dex.d/)
 └── .github/
     └── copilot-instructions.md     ← this file
 ```
@@ -24,13 +24,13 @@ Config files are loaded in **ascending priority order** (lowest first, highest w
 
 | Priority | Location | Typical use |
 |---|---|---|
-| 3 – Global (lowest) | `~/.docker-run.conf` (fallback `~/.local/share/.docker-run.conf`) | Optional personal defaults |
-| 2 – Repository | `<git-root>/.docker-run.conf` | Committed shared defaults |
-| 1 – Local project (highest) | `~/.docker-run.d/<name>.conf` (fallback `~/.local/share/.docker-run.d/`) | Personal per-project overrides |
+| 3 – Global (lowest) | `~/.dex.conf` (fallback `~/.local/share/.dex.conf`) | Optional personal defaults |
+| 2 – Repository | `<git-root>/.dex.conf` | Committed shared defaults |
+| 1 – Local project (highest) | `~/.dex.d/<name>.conf` (fallback `~/.local/share/.dex.d/`) | Personal per-project overrides |
 
 All three sources are **optional**. At least one must define the active profile.
 
-**Local project config matching:** files in `~/.docker-run.d/` are scanned alphabetically; the first whose `pattern` key (bash ERE) matches the absolute git root path is used.
+**Local project config matching:** files in `~/.dex.d/` are scanned alphabetically; the first whose `pattern` key (bash ERE) matches the absolute git root path is used.
 
 **Profile name resolution order:**
 1. Start with `"default"`
@@ -60,7 +60,7 @@ Helper functions: `ini_get <file> <section> <key> [default]`, `ini_has_section <
 
 ## Config file format
 
-### Global config (`~/.docker-run.conf`)
+### Global config (`~/.dex.conf`)
 
 ```ini
 [<profile-name>]
@@ -77,7 +77,7 @@ pipeline    = alias1,alias2,...   # pipeline alias; cmd is unused
 interactive = true                # always run with docker exec -it
 ```
 
-### Repo config (`<git-root>/.docker-run.conf`) and local project config (`~/.docker-run.d/<name>.conf`)
+### Repo config (`<git-root>/.dex.conf`) and local project config (`~/.dex.d/<name>.conf`)
 
 ```ini
 [project]
@@ -146,9 +146,9 @@ COMBINED_ENV="$PROFILE_ENV"
 | Variable | Type | Purpose |
 |---|---|---|
 | `_CFG` | `declare -A` | All parsed INI values |
-| `GLOBAL_CONFIG` | string | `~/.docker-run.conf` path |
-| `PROJECT_CONFIG_DIR` | string | `~/.docker-run.d/` path |
-| `REPO_CONFIG` | string | `<git-root>/.docker-run.conf` if found, else `""` |
+| `GLOBAL_CONFIG` | string | `~/.dex.conf` path |
+| `PROJECT_CONFIG_DIR` | string | `~/.dex.d/` path |
+| `REPO_CONFIG` | string | `<git-root>/.dex.conf` if found, else `""` |
 | `PROJECT_FILE` | string | Matched local project config path, else `""` |
 | `PROFILE_IMAGE` | string | Image from base profile section |
 | `PROFILE_ENV` | string | Base env from profile section |
@@ -158,7 +158,7 @@ COMBINED_ENV="$PROFILE_ENV"
 | `PROJECT_DOCKERFILE` | string | Dockerfile from `[project]` section |
 | `EFFECTIVE_DOCKERFILE` | string | `PROJECT_DOCKERFILE ?: PROFILE_DOCKERFILE` |
 | `FINAL_IMAGE` | string | Resolved Docker image used for the run |
-| `CONTAINER_NAME` | string | `docker-run-<git-slug>-<profile-slug>` |
+| `CONTAINER_NAME` | string | `dex-<git-slug>-<profile-slug>` |
 | `ALIAS_CMD` | `declare -A` | name → shell command string |
 | `ALIAS_WORKDIR` | `declare -A` | name → container working directory |
 | `ALIAS_ENV` | `declare -A` | name → env spec string |
@@ -187,8 +187,8 @@ COMBINED_ENV="$PROFILE_ENV"
 | `die` / `warn` / `info` | Styled output to stderr; detect TTY for colors |
 | `ini_parse` / `ini_get` / `ini_has_section` / `ini_sections` | INI config parser |
 | `load_profile(profile)` | Load the base profile from the lowest-priority source that has it |
-| `find_project_config(git_root)` | Scan `~/.docker-run.d/` for a matching local project config |
-| `find_repo_config(git_root)` | Look for `<git-root>/.docker-run.conf` and parse it |
+| `find_project_config(git_root)` | Scan `~/.dex.d/` for a matching local project config |
+| `find_repo_config(git_root)` | Look for `<git-root>/.dex.conf` and parse it |
 | `_apply_config_layer(src, profile)` | Apply one config layer's overrides on top of already-loaded state |
 | `apply_project_config(profile)` | Call `_apply_config_layer` for repo then local project config |
 | `build_env_flags(env_spec)` | Output null-delimited `-e KEY=VAL` pairs from comma-separated spec |
@@ -246,7 +246,7 @@ docker exec (no -t) → stdout+stderr → FIFO → _rolling_display → terminal
 ```
 - FIFO: `mktemp -u` + `mkfifo`; cleaned up by EXIT trap and at end of step
 - Rolling display: last 10 physical rows live in terminal
-- Logfile: `mktemp -t docker-run.XXXXXX.log`; **not removed**; old files (>3 min) purged at startup
+- Logfile: `mktemp -t dex.XXXXXX.log`; **not removed**; old files (>3 min) purged at startup
 - SIGINT/SIGTERM: host-side signal to docker PID + `docker exec … sh -c "kill -SIG -1"` in container
 
 ### Interactive (`-I` or `interactive = true`)
@@ -293,7 +293,7 @@ Plain `"\033[..."` is used when appearing only in format strings.
 
 ## Container lifecycle
 
-- Name: `docker-run-<git-root-slug>-<profile-slug>` (one per profile per repo)
+- Name: `dex-<git-root-slug>-<profile-slug>` (one per profile per repo)
 - `ensure_image`: builds from Dockerfile if configured; skips if image exists (unless `--rebuild`)
 - `ensure_container`: creates with `docker run -d --name … -v git_root:/workspace [-p …] image sleep infinity`, or starts if stopped
 - Port mappings applied **only at container creation time** — use `--restart` to recreate after changing `ports`
