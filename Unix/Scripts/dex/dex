@@ -760,6 +760,14 @@ list_aliases() {
             _names+=("$_n")
         done < <(printf '%s\n' "${!_seen[@]}" | sort)
 
+        local _length=10
+        for _n in "${_names[@]}"; do
+            local _l=$(echo -n "$_n" | wc -m)
+            if [[ $_l -gt $_length ]]; then
+                _length=$_l
+            fi
+        done
+
         local _first=1
         for _n in "${_names[@]}"; do
             # Blank line between entries for readability.
@@ -770,7 +778,7 @@ list_aliases() {
                 local _steps_fmt
                 _steps_fmt="$(printf '%s' "${ALIAS_PIPELINE[$_n]}" \
                     | sed 's/[[:space:]]*,[[:space:]]*/  →  /g')"
-                printf "${CY} │${R}  ${MG}%-10s${R} ${DIM}[pipeline]${R}  %s\n" \
+                printf "${CY} │${R}  ${MG}%-${_length}s${R} ${DIM}[pipeline]${R}  %s\n" \
                     "$_n" "$_steps_fmt"
             else
                 # Regular alias: name + command, then optional metadata line.
@@ -783,19 +791,19 @@ list_aliases() {
                 # Second line: always show workdir; show alias-level env if set.
                 if [[ -n "$_desc" ]]; then
                     local _meta="${YL}${_desc}${R}    "
-                    printf "${CY} │${R}  ${YL}%-10s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
+                    printf "${CY} │${R}  ${YL}%-${_length}s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
                     _n=""
                 fi
 
                 local _tags=""
                 [[ "$_int" == "true" ]] && _tags="  ${CY}(interactive)${R}"
-                printf "${CY} │${R}  ${YL}%-10s${R} %-8s ${CY}%s${R}%s\n" "$_n" "command:" "$_cmd" "$_tags"
+                printf "${CY} │${R}  ${YL}%-${_length}s${R} %-8s ${CY}%s${R}%s\n" "$_n" "command:" "$_cmd" "$_tags"
 
                 local _meta="${GR}${_workdir}${R}"
-                printf "${CY} │${R}  %-10s %-8s %s\n" "" "workdir:" "$_meta"
+                printf "${CY} │${R}  %-${_length}s %-8s %s\n" "" "workdir:" "$_meta"
                 if [[ -n "$_aenv" ]]; then
                     local _meta="${YL}${_aenv}${R}"
-                    printf "${CY} │${R}  %-10s %-8s %s\n" "" "env:" "$_meta"
+                    printf "${CY} │${R}  %-${_length}s %-8s %s\n" "" "env:" "$_meta"
                 fi
             fi
         done
