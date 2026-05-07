@@ -1,0 +1,3 @@
+[submodule "Unix/Scripts/dex"]
+	path = Unix/Scripts/dex
+	url = https://github.com/tumbleowlee/dex
