@@ -151,6 +151,7 @@ declare -A ALIAS_WORKDIR=()
 declare -A ALIAS_ENV=()
 declare -A ALIAS_PIPELINE=()
 declare -A ALIAS_INTERACTIVE=()
+declare -A ALIAS_HIDDEN=()
 
 # Load a profile section and its alias sub-sections from the lowest-priority
 # source that defines the profile (global config first, then repo config, then
@@ -183,11 +184,12 @@ load_profile() {
         [[ "$section" == "${_prefix}"* ]] || continue
         local aname="${section#"$_prefix"}"
         ALIAS_CMD["$aname"]="$(        ini_get "$_src" "$section" "cmd")"
-        ALIAS_DESC["$aname"]="$(ini_get "$_src" "$section" "desc")"
+        ALIAS_DESC["$aname"]="$(       ini_get "$_src" "$section" "desc")"
         ALIAS_WORKDIR["$aname"]="$(    ini_get "$_src" "$section" "workdir" "$CONTAINER_MOUNT")"
         ALIAS_ENV["$aname"]="$(        ini_get "$_src" "$section" "env")"
         ALIAS_PIPELINE["$aname"]="$(   ini_get "$_src" "$section" "pipeline")"
         ALIAS_INTERACTIVE["$aname"]="$(ini_get "$_src" "$section" "interactive")"
+        ALIAS_HIDDEN["$aname"]="$(     ini_get "$_src" "$section" "hidden")"
     done < <(ini_sections "$_src")
 }
 
@@ -252,7 +254,7 @@ _apply_config_layer() {
         [[ -n "$_pports" ]] && PROFILE_PORTS="$_pports"
     fi
 
-    local section aname cmd workdir aenv apipeline ainteractive
+    local section aname cmd workdir aenv apipeline ainteractive ahidden
 
     # Pass 1: profile-scoped aliases (alias:<profile>:<name>).
     local _prefix="alias:${profile}:"
@@ -265,12 +267,14 @@ _apply_config_layer() {
         aenv="$(        ini_get "$src" "$section" "env")"
         apipeline="$(   ini_get "$src" "$section" "pipeline")"
         ainteractive="$(ini_get "$src" "$section" "interactive")"
+        ahidden="$(     ini_get "$src" "$section" "hidden")"
         [[ -n "$cmd"          ]] && ALIAS_CMD["$aname"]="$cmd"
         [[ -n "$desc"         ]] && ALIAS_DESC["$aname"]="$desc"
         [[ -n "$workdir"      ]] && ALIAS_WORKDIR["$aname"]="$workdir"
         ALIAS_ENV["$aname"]="$aenv"
         [[ -n "$apipeline"    ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
         [[ -n "$ainteractive" ]] && ALIAS_INTERACTIVE["$aname"]="$ainteractive"
+        [[ -n "$ahidden"      ]] && ALIAS_HIDDEN["$aname"]="$ahidden"
     done < <(ini_sections "$src")
 
     # Pass 2: unscoped aliases (alias:<name>) — higher precedence within this layer.
@@ -284,12 +288,14 @@ _apply_config_layer() {
         aenv="$(        ini_get "$src" "$section" "env")"
         apipeline="$(   ini_get "$src" "$section" "pipeline")"
         ainteractive="$(ini_get "$src" "$section" "interactive")"
+        ahidden="$(     ini_get "$src" "$section" "hidden")"
         [[ -n "$cmd"          ]] && ALIAS_CMD["$aname"]="$cmd"
         [[ -n "$desc"         ]] && ALIAS_DESC["$aname"]="$desc"
         [[ -n "$workdir"      ]] && ALIAS_WORKDIR["$aname"]="$workdir"
         ALIAS_ENV["$aname"]="$aenv"
         [[ -n "$apipeline"    ]] && ALIAS_PIPELINE["$aname"]="$apipeline"
         [[ -n "$ainteractive" ]] && ALIAS_INTERACTIVE["$aname"]="$ainteractive"
+        [[ -n "$ahidden"      ]] && ALIAS_HIDDEN["$aname"]="$ahidden"
     done < <(ini_sections "$src")
 }
 
@@ -661,8 +667,15 @@ run_exec_step() {
             local sig="$1"
             _sig="$sig"
             kill -"$sig" "$_docker_pid" 2>/dev/null || true
-            docker exec "$CONTAINER_NAME" \
-                sh -c "kill -${sig} -1 2>/dev/null" 2>/dev/null || true
+            local _exec_pid=$(docker exec "$CONTAINER_NAME" ps ax | grep "$EXEC_CMD" | grep -v "sh -c $EXEC_CMD"| sed -E 's,[[:space:]]+, ,g' | cut -f2 -d' ')
+            if [[ -n "$_exec_pid" ]]; then
+                docker exec "$CONTAINER_NAME" sh -c "kill -${sig} $_exec_pid 2>/dev/null" 2>/dev/null || true
+            else
+                local _exec_pid=$(docker exec "$CONTAINER_NAME" ps ax | grep "$EXEC_CMD" | grep -v "sh -c $EXEC_CMD"| sed -E 's,[[:space:]]+, ,g' | cut -f2 -d' ')
+                if [[ -n "$_exec_pid" ]]; then
+                    die "Failed to find PID of docker exec process inside container to kill on signal ${sig}."
+                fi
+            fi
         }
         trap '_kill_step INT'  INT
         trap '_kill_step TERM' TERM
@@ -728,7 +741,7 @@ print_summary() {
 # Alias listing  (--list / -l)
 # Reads from globals: PROFILE_NAME, FINAL_IMAGE, PROFILE_ENV, GLOBAL_CONFIG,
 #   PROJECT_FILE, ALIAS_CMD, ALIAS_DESC, ALIAS_WORKDIR, ALIAS_ENV, ALIAS_PIPELINE,
-#   ALIAS_INTERACTIVE, CONTAINER_MOUNT
+#   ALIAS_INTERACTIVE, ALIAS_HIDDEN, CONTAINER_MOUNT
 # Outputs to stdout; uses ANSI only when stdout is a terminal.
 # ──────────────────────────────────────────────────────────────────────────────
 list_aliases() {
@@ -761,10 +774,16 @@ list_aliases() {
     printf "${CY} %s${R}\n" "$_sep"
 
     # Collect unique alias names from both maps, then sort alphabetically.
+    # Hidden aliases (hidden = true) are excluded from the listing.
     local -A _seen=()
     local _n
-    for _n in "${!ALIAS_CMD[@]}";      do _seen["$_n"]=1; done
-    for _n in "${!ALIAS_PIPELINE[@]}"; do _seen["$_n"]=1; done
+    for _n in "${!ALIAS_CMD[@]}"; do
+        [[ "${ALIAS_HIDDEN[$_n]-}" == "true" ]] && continue
+        _seen["$_n"]=1
+    done
+    for _n in "${!ALIAS_PIPELINE[@]}"; do
+        [[ -n "${ALIAS_PIPELINE[$_n]}" ]] && _seen["$_n"]=1
+    done
 
     if [[ ${#_seen[@]} -eq 0 ]]; then
         printf "${CY} │${R}  ${DIM}(no aliases defined for this profile)${R}\n"
@@ -792,12 +811,22 @@ list_aliases() {
                 local _steps_fmt
                 _steps_fmt="$(printf '%s' "${ALIAS_PIPELINE[$_n]}" \
                     | sed 's/[[:space:]]*,[[:space:]]*/  →  /g')"
-                printf "${CY} │${R}  ${MG}%-${_length}s${R} ${DIM}[pipeline]${R}  %s\n" \
-                    "$_n" "$_steps_fmt"
+                local _desc="${ALIAS_DESC[$_n]-}"
+
+                if [[ -n "$_desc" ]]; then
+                    local _meta="${YL}${_desc}${R}    "
+                    printf "${CY} │${R}  ${MG}%-${_length}s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
+                    _n=""
+                    printf "${CY} │${R}  ${MG}%-${_length}s${R} ${CY}[pipeline]${R}  %s\n" \
+                        "" "$_steps_fmt"
+                else
+                    printf "${CY} │${R}  ${MG}%-${_length}s${R} ${CY}[pipeline]${R}  %s\n" \
+                        "$_n" "$_steps_fmt"
+                fi
             else
                 # Regular alias: name + command, then optional metadata line.
                 local _cmd="${ALIAS_CMD[$_n]}"
-                local _desc="${ALIAS_DESC[$_n]}"
+                local _desc="${ALIAS_DESC[$_n]-}"
                 local _workdir="${ALIAS_WORKDIR[$_n]:-$CONTAINER_MOUNT}"
                 local _aenv="${ALIAS_ENV[$_n]-}"
                 local _int="${ALIAS_INTERACTIVE[$_n]-}"
@@ -810,8 +839,8 @@ list_aliases() {
                 fi
 
                 local _tags=""
-                [[ "$_int" == "true" ]] && _tags="  ${CY}(interactive)${R}"
-                printf "${CY} │${R}  ${YL}%-${_length}s${R} %-8s ${CY}%s${R}%s\n" "$_n" "command:" "$_cmd" "$_tags"
+                [[ "$_int" == "true" ]] && _tags="  ${MG}(interactive)${R}"
+                printf "${CY} │${R}  ${YL}%-${_length}s${R} %-8s ${DIM}%s${R}%s\n" "$_n" "command:" "$_cmd" "$_tags"
 
                 local _meta="${GR}${_workdir}${R}"
                 printf "${CY} │${R}  %-${_length}s %-8s %s\n" "" "workdir:" "$_meta"
@@ -1031,10 +1060,10 @@ trap 'rm -f "$_active_tmpfifo"' EXIT
 # ── Resolve first argument: alias, pipeline alias, or literal command ─────────
 USE_ALIAS=0
 ALIAS_NAME=""
-if [[ $# -gt 0 && -n "${ALIAS_CMD["$1"]+x}" ]]; then
+if [[ $# -gt 0 && -n "${ALIAS_CMD["$1"]+x}" && "${ALIAS_HIDDEN["$1"]-}" != "true" ]]; then
     USE_ALIAS=1
     ALIAS_NAME="$1"
-elif [[ $# -gt 0 && -n "${ALIAS_PIPELINE["$1"]+x}" ]]; then
+elif [[ $# -gt 0 && -n "${ALIAS_PIPELINE["$1"]-}" ]]; then
     USE_ALIAS=1
     ALIAS_NAME="$1"
 fi

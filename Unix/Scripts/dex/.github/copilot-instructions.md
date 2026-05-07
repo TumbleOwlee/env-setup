@@ -103,6 +103,19 @@ cmd = ...
 
 ---
 
+## Alias keys reference
+
+| Key | Description |
+|---|---|
+| `cmd` | Shell command run via `sh -c` inside the container. Required for non-pipeline aliases. |
+| `workdir` | Container working directory; supports `$(cmd)` substitution. Defaults to `/workspace`. |
+| `env` | Comma-separated env spec (same forms as profile `env`). Merged with profile env at runtime. |
+| `pipeline` | Comma-separated list of step alias names. Makes this a pipeline alias; `cmd` is unused. |
+| `interactive` | `true` → always run with `docker exec -it`, even inside a pipeline. |
+| `hidden` | `true` → exclude from `--list` and disable direct invocation; usable only as a pipeline step. |
+
+---
+
 ## Alias precedence (highest wins within a layer; layers stack lowest→highest)
 
 ```
@@ -164,6 +177,7 @@ COMBINED_ENV="$PROFILE_ENV"
 | `ALIAS_ENV` | `declare -A` | name → env spec string |
 | `ALIAS_PIPELINE` | `declare -A` | name → comma-separated step list |
 | `ALIAS_INTERACTIVE` | `declare -A` | name → `"true"` or `""` |
+| `ALIAS_HIDDEN` | `declare -A` | name → `"true"` or `""`; hidden aliases are excluded from `--list` and direct invocation |
 | `INTERACTIVE` | int | `1` if `-I` was passed |
 | `STEP_INTERACTIVE` | int | `1` for the current step |
 | `CLI_ENV` | string | Extra env from `-e`/`--env` CLI flags |
@@ -336,7 +350,7 @@ Plain `"\033[..."` is used when appearing only in format strings.
 1. Add `declare -A ALIAS_<KEY>=()` global alongside the others
 2. Read it in `load_profile()` alias loop
 3. Read/override it in `_apply_config_layer()` Pass 1 (profile-scoped) and Pass 2 (unscoped)
-4. Consume it in `_setup_step()`
+4. Consume it in `_setup_step()` (and/or dispatch section if it affects alias resolution)
 5. Optionally display it in `list_aliases()`
 
 **New profile/project key:**

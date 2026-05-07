@@ -175,6 +175,7 @@ interactive = true
 | `workdir` | Working directory inside the container. Defaults to `/workspace`. Supports command substitution: `workdir = /workspace/$(git branch --show-current)`. |
 | `env` | Alias-level environment variables (see [Environment variables in config](#environment-variables-in-config)). These are merged on top of the profile-level env. |
 | `interactive` | Set to `true` to always run with a TTY (`docker exec -it`), even inside a pipeline. |
+| `hidden` | Set to `true` to make this alias internal-only: it is excluded from `--list` output and cannot be invoked directly. Hidden aliases can still be used as steps inside a pipeline. |
 
 #### Alias precedence (highest wins)
 
@@ -205,6 +206,31 @@ dex ci   # runs configure → build → test
 ```
 
 Each step prints its own summary header and footer. The overall pipeline stops immediately if any step fails.
+
+#### Hidden aliases — internal pipeline steps
+
+If a step alias is only meant to be used inside a pipeline and should not be callable directly or appear in `--list`, mark it as hidden:
+
+```ini
+[alias:ci]
+pipeline = _prepare,build,test
+
+[alias:_prepare]
+hidden  = true
+cmd     = cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+workdir = /workspace
+
+[alias:build]
+cmd = cmake --build build
+
+[alias:test]
+cmd = ctest --test-dir build --output-on-failure
+```
+
+With `hidden = true`:
+- `dex _prepare` runs `_prepare` as a literal command in the container (the alias is ignored).
+- `dex -l` does not show `_prepare` in the alias table.
+- `dex ci` still executes `_prepare` as a pipeline step normally.
 
 ### The [project] section
 

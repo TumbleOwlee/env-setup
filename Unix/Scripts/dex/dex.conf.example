@@ -80,6 +80,20 @@ interactive = true
 pipeline = configure,build,test
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Hidden aliases
+# Set hidden = true to make an alias internal-only: it will not appear in
+# --list output and cannot be invoked directly (dex <name> runs the literal
+# command in the container instead).  Hidden aliases can still be used as
+# steps inside a pipeline.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Example: 'prepare' is only called by the 'ci' pipeline, never directly.
+#[alias:prepare]
+#hidden  = true
+#cmd     = cmake -S /workspace -B /workspace/build -DCMAKE_BUILD_TYPE=Release
+#workdir = /workspace
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Profile: clang
 # Example of an alternate profile using a Clang-based image.
 # ──────────────────────────────────────────────────────────────────────────────
