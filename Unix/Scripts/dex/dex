@@ -432,6 +432,11 @@ ensure_container() {
     fi
 }
 
+_TERM_COLS=$(tput cols 2>/dev/null || echo 120)
+if [ $_TERM_COLS -gt 120 ]; then
+    _TERM_COLS=120
+fi
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Rolling output display (non-interactive mode)
 # Reads lines from stdin and keeps a live rolling window of the last N lines.
@@ -454,9 +459,9 @@ _rolling_display() {
     if [[ -t 1 ]]; then
         is_tty=1
         PFX="   \033[36m│\033[0m "
-        local _tw
-        _tw="$(tput cols 2>/dev/null || echo 0)"
-        [[ "$_tw" =~ ^[0-9]+$ ]] || _tw=0
+        local _tw=$_TERM_COLS
+        #_tw="$(tput cols 2>/dev/null || echo 0)"
+        [[ "$_tw" =~ ^[0-9]+$ ]] || _tw=80
         # Subtract the 5 display columns used by the "   │ " prefix.
         (( _tw > 5 )) && content_width=$(( _tw - 5 )) || content_width=0
     fi
@@ -469,9 +474,18 @@ _rolling_display() {
         if [[ -n "$logfile" ]]; then
             printf '%s\n' "$line" >>"$logfile" 2>/dev/null || true
         fi
+
+        # If line ends with \r, remove it to prevent empty lines
+        if [[ "$line" =~ \r[[:space:]]*$ ]]; then
+            line="${line%%$'\r'*}"
+        fi
         # Strip everything up to and including the last \r so that progress-bar
         # style output (which uses \r to overwrite) doesn't clobber the │ border.
         line="${line##*$'\r'}"
+
+        if [ -z "$line" ]; then
+            continue
+        fi
 
         # Strip ANSI CSI escape sequences for display.  Escape bytes inflate the
         # byte count without occupying terminal columns; preserving them correctly
@@ -548,6 +562,17 @@ _fmt_duration() {
     fi
 }
 
+_line_extension() {
+    local _ext="────────────────────"
+    local _offset=90
+    local _line=""
+    while [ $_offset -lt $_TERM_COLS ]; do
+        _line+="$_ext"
+        _offset=$(($_offset + 10))
+    done
+    echo "$_line"
+}
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Post-execution footer
 # Prints status (green/red) and elapsed duration to stderr.
@@ -573,8 +598,8 @@ print_footer() {
     # Line widths (display columns) must total 68 each:
     #   "┌─ result " = 10 display cols  →  58 ─ chars to follow
     #   footer       = └ + 67 ─ chars  = 68 display cols
-    local hdr_line="──────────────────────────────────────────────────────────"
-    local sep_line="└───────────────────────────────────────────────────────────────────"
+    local hdr_line="──────────────────────────────────────────────────────────$(_line_extension)"
+    local sep_line="└───────────────────────────────────────────────────────────────────$(_line_extension)"
     printf >&2 "${CY}\r ┌─ result %s${R}\n"          "$hdr_line"
     printf >&2 "${CY}\r │${R} ${B}Status   :${R} ${status_color}%s${R}\n" "$status_label"
     printf >&2 "${CY}\r │${R} ${B}Duration :${R} %s\n"            "$duration"
@@ -714,10 +739,10 @@ print_summary() {
         GR="\033[0;32m"; DIM="\033[2m"; R="\033[0m"
     fi
 
-    local line="─────────────────────────────────────────────────────────────"
+    local line="─────────────────────────────────────────────────────────────$(_line_extension)"
     # " ┌─ dex " = 8 display cols  →  61 ─ chars gives total width of 69
     # footer: " └" + 67 ─ chars = 69 display cols (same total)
-    local footer="└───────────────────────────────────────────────────────────────────"
+    local footer="└───────────────────────────────────────────────────────────────────$(_line_extension)"
     printf >&2 "\n${CY} ┌─ dex %s${R}\n" "$line"
     printf >&2 "${CY} │${R} ${B}Profile   :${R} ${YL}%s${R}\n"   "$profile"
     printf >&2 "${CY} │${R} ${B}Image     :${R} %s\n"             "$image"
@@ -752,9 +777,9 @@ list_aliases() {
     fi
 
     # Header box: " ┌─ dex aliases " (16 cols) + 53 dashes = 69 cols total
-    local _hdr_dashes="─────────────────────────────────────────────────────"
-    local _sep="├───────────────────────────────────────────────────────────────────"
-    local _ftr="└───────────────────────────────────────────────────────────────────"
+    local _hdr_dashes="─────────────────────────────────────────────────────$(_line_extension)"
+    local _sep="└───────────────────────────────────────────────────────────────────$(_line_extension)"
+    local _ftr="  └─────────────────────────────────────────────────────────────────$(_line_extension)"
 
     printf "${CY} ┌─ dex aliases %s${R}\n" "$_hdr_dashes"
     printf "${CY} │${R} ${B}Profile  :${R} ${YL}%s${R}\n"  "$PROFILE_NAME"
@@ -786,7 +811,7 @@ list_aliases() {
     done
 
     if [[ ${#_seen[@]} -eq 0 ]]; then
-        printf "${CY} │${R}  ${DIM}(no aliases defined for this profile)${R}\n"
+        printf "${CY}   │${R}  ${DIM}(no aliases defined for this profile)${R}\n"
     else
         local -a _names=()
         while IFS= read -r _n; do
@@ -804,7 +829,7 @@ list_aliases() {
         local _first=1
         for _n in "${_names[@]}"; do
             # Blank line between entries for readability.
-            [[ "$_first" == "1" ]] && _first=0 || printf "${CY} │${R}\n"
+            [[ "$_first" == "1" ]] && _first=0 || printf "${CY}   │${R}\n"
 
             if [[ -n "${ALIAS_PIPELINE[$_n]-}" ]]; then
                 # Pipeline alias: show steps as a chain.
@@ -815,12 +840,12 @@ list_aliases() {
 
                 if [[ -n "$_desc" ]]; then
                     local _meta="${YL}${_desc}${R}    "
-                    printf "${CY} │${R}  ${MG}%-${_length}s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
+                    printf "${CY}   │${R}  ${MG}%-${_length}s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
                     _n=""
-                    printf "${CY} │${R}  ${MG}%-${_length}s${R} ${CY}[pipeline]${R}  %s\n" \
+                    printf "${CY}   │${R}  ${MG}%-${_length}s${R} ${CY}[pipeline]${R}  %s\n" \
                         "" "$_steps_fmt"
                 else
-                    printf "${CY} │${R}  ${MG}%-${_length}s${R} ${CY}[pipeline]${R}  %s\n" \
+                    printf "${CY}   │${R}  ${MG}%-${_length}s${R} ${CY}[pipeline]${R}  %s\n" \
                         "$_n" "$_steps_fmt"
                 fi
             else
@@ -834,19 +859,19 @@ list_aliases() {
                 # Second line: always show workdir; show alias-level env if set.
                 if [[ -n "$_desc" ]]; then
                     local _meta="${YL}${_desc}${R}    "
-                    printf "${CY} │${R}  ${YL}%-${_length}s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
+                    printf "${CY}   │${R}  ${YL}%-${_length}s${R} %-8s %s\n" "$_n" "desc:" "$_meta"
                     _n=""
                 fi
 
                 local _tags=""
                 [[ "$_int" == "true" ]] && _tags="  ${MG}(interactive)${R}"
-                printf "${CY} │${R}  ${YL}%-${_length}s${R} %-8s ${DIM}%s${R}%s\n" "$_n" "command:" "$_cmd" "$_tags"
+                printf "${CY}   │${R}  ${YL}%-${_length}s${R} %-8s ${DIM}%s${R}%s\n" "$_n" "command:" "$_cmd" "$_tags"
 
                 local _meta="${GR}${_workdir}${R}"
-                printf "${CY} │${R}  %-${_length}s %-8s %s\n" "" "workdir:" "$_meta"
+                printf "${CY}   │${R}  %-${_length}s %-8s %s\n" "" "workdir:" "$_meta"
                 if [[ -n "$_aenv" ]]; then
                     local _meta="${YL}${_aenv}${R}"
-                    printf "${CY} │${R}  %-${_length}s %-8s %s\n" "" "env:" "$_meta"
+                    printf "${CY}   │${R}  %-${_length}s %-8s %s\n" "" "env:" "$_meta"
                 fi
             fi
         done
