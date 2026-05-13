@@ -1,0 +1,358 @@
+#!/usr/bin/env bash
+# jira-status-tracker.sh — fetch Jira tickets and report status changes
+
+set -euo pipefail
+
+# ── Colours & symbols ─────────────────────────────────────────────────────────
+RESET='\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[0;37m'
+
+ICON_NEW='✦'
+ICON_CHANGED='⟳'
+ICON_EPIC='◈'
+ICON_TICKET='◆'
+ICON_PARENT='↳'
+
+# ── Defaults ──────────────────────────────────────────────────────────────────
+MAX_RESULTS=100
+CACHE_FILE=""
+
+# ── Helper: print usage ───────────────────────────────────────────────────────
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [OPTIONS]
+
+Fetch all Jira tickets for a project, compare against a local cache,
+and print newly added or status-changed tickets in a readable format.
+
+Options:
+  -p PROJECT    Jira project key (e.g. MYAPP)       [required]
+  -u URL        Jira base URL                        [required]
+  -U USER       Jira username / email                [required]
+  -t TOKEN      Jira API token                       [required]
+  -c FILE       Cache file path                      [default: ~/.jira-cache/<project>.json]
+  -m MAX        Max results per page                 [default: 100]
+  -h            Show this help and exit
+
+Required options can also be supplied as environment variables:
+  JIRA_PROJECT, JIRA_URL, JIRA_USER, JIRA_TOKEN
+EOF
+  exit 0
+}
+
+# ── Helper: die with error ────────────────────────────────────────────────────
+die() { echo -e "${RED}${BOLD}ERROR:${RESET} $*" >&2; exit 1; }
+
+# ── Helper: require a command ─────────────────────────────────────────────────
+require() { command -v "$1" &>/dev/null || die "'$1' is required but not installed."; }
+
+# ── Parse arguments ───────────────────────────────────────────────────────────
+while getopts ":p:u:U:t:c:m:h" opt; do
+  case $opt in
+    p) JIRA_PROJECT="$OPTARG" ;;
+    u) JIRA_URL="$OPTARG" ;;
+    U) JIRA_USER="$OPTARG" ;;
+    t) JIRA_TOKEN="$OPTARG" ;;
+    c) CACHE_FILE="$OPTARG" ;;
+    m) MAX_RESULTS="$OPTARG" ;;
+    h) usage ;;
+    :) die "Option -$OPTARG requires an argument." ;;
+    \?) die "Unknown option: -$OPTARG" ;;
+  esac
+done
+
+# ── Validate required config ──────────────────────────────────────────────────
+: "${JIRA_URL:?  Set -u or export JIRA_URL=https://your-domain.atlassian.net}"
+: "${JIRA_USER:? Set -U or export JIRA_USER=you@example.com}"
+: "${JIRA_TOKEN:?Set -t or export JIRA_TOKEN=your_api_token}"
+: "${JIRA_PROJECT:?Set -p or export JIRA_PROJECT=MYAPP}"
+
+JIRA_URL="${JIRA_URL%/}"   # strip trailing slash
+
+# ── Default cache path ────────────────────────────────────────────────────────
+if [[ -z "$CACHE_FILE" ]]; then
+  CACHE_DIR="${HOME}/.jira-cache"
+  mkdir -p "$CACHE_DIR"
+  CACHE_FILE="${CACHE_DIR}/${JIRA_PROJECT}.json"
+fi
+
+# ── Dependency checks ─────────────────────────────────────────────────────────
+require curl
+require jq
+
+# ── Status colour mapper ──────────────────────────────────────────────────────
+status_color() {
+  local status="${1,,}"   # lowercase
+  case "$status" in
+    "to do"|"open"|"backlog")              echo -e "${WHITE}" ;;
+    "in progress"|"in review"|"started")   echo -e "${CYAN}" ;;
+    "done"|"closed"|"resolved"|"complete") echo -e "${GREEN}" ;;
+    "blocked"|"impediment")                echo -e "${RED}" ;;
+    "in testing"|"qa"|"testing")           echo -e "${YELLOW}" ;;
+    "cancelled"|"rejected"|"wont fix")     echo -e "${DIM}" ;;
+    *)                                      echo -e "${MAGENTA}" ;;
+  esac
+}
+
+# ── Issue type icon ───────────────────────────────────────────────────────────
+type_icon() {
+  local itype="${1,,}"
+  case "$itype" in
+    epic)    echo "$ICON_EPIC" ;;
+    bug)     echo "🐛" ;;
+    story)   echo "📖" ;;
+    task)    echo "✓" ;;
+    subtask) echo "⌙" ;;
+    *)       echo "$ICON_TICKET" ;;
+  esac
+}
+
+# ── Fetch all issues for project (handles pagination) ─────────────────────────
+fetch_all_issues() {
+  local project="$1"
+  local all_issues='[]'
+  local next_page_token=""
+  local fetched=0
+
+  echo -e "   Fetching issues for project ${BOLD}${project}${RESET}${DIM}...${RESET}" >&2
+
+  while true; do
+    local url="${JIRA_URL}/rest/api/3/search/jql"
+    local body
+    body=$(jq -n \
+      --arg jql "project=${project} ORDER BY created DESC" \
+      --arg max "$MAX_RESULTS" \
+      --arg token "$next_page_token" \
+      '{
+        jql:    $jql,
+        fields: ["summary","status","issuetype","parent","customfield_10014"],
+        maxResults: ($max | tonumber),
+        nextPageToken: (if $token == "" then null else $token end)
+      } | del(.[] | nulls)')
+
+    local response http_code
+    response=$(curl -s -w "\n%{http_code}" \
+      --user "${JIRA_USER}:${JIRA_TOKEN}" \
+      -H "Accept: application/json" \
+      -H "Content-Type: application/json" \
+      -X POST -d "$body" \
+      "$url")
+    http_code=$(echo "$response" | tail -n1)
+    response=$(echo "$response" | head -n -1)
+
+    if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+      local error_msg; error_msg=$(echo "$response" | jq -r '.errorMessages[]?, .message? // empty' 2>/dev/null || echo "$response")
+      die "Jira API returned HTTP $http_code.\n  ${error_msg}"
+    fi
+
+    local issues
+    issues=$(echo "$response" | jq '.issues')
+    local count; count=$(echo "$issues" | jq 'length')
+    all_issues=$(printf '%s\n%s' "$all_issues" "$issues" | jq -s 'add')
+    fetched=$((fetched + count))
+    echo -e "${DIM}     → fetched ${fetched} tickets${RESET}" >&2
+
+    next_page_token=$(echo "$response" | jq -r '.nextPageToken // empty')
+    [[ -z "$next_page_token" ]] && break
+  done
+
+  echo "$all_issues"
+}
+
+# ── Build a compact cache object from raw issues ──────────────────────────────
+# Structure: { "KEY-1": { "status": "...", "summary": "...", "type": "...",
+#                          "epic_key": "...", "epic_summary": "..." } }
+build_cache_object() {
+  local issues_json="$1"
+
+  # First pass: build a key→epic_key lookup from epic links / parent fields
+  # epic_key = customfield_10014 (classic projects) OR parent key when parent is an Epic
+  jq '
+    reduce .[] as $i (
+      {};
+      . + {
+        ($i.key): {
+          status:       ($i.fields.status.name // "Unknown"),
+          summary:      ($i.fields.summary // ""),
+          type:         ($i.fields.issuetype.name // "Unknown"),
+          epic_key:     (
+            if ($i.fields.issuetype.name == "Epic") then null
+            elif ($i.fields.customfield_10014 != null) then $i.fields.customfield_10014
+            elif ($i.fields.parent != null and $i.fields.parent.fields.issuetype.name == "Epic") then $i.fields.parent.key
+            else null
+            end
+          ),
+          epic_summary: (
+            if ($i.fields.issuetype.name == "Epic") then null
+            elif ($i.fields.parent != null and $i.fields.parent.fields.issuetype.name == "Epic") then ($i.fields.parent.fields.summary // "")
+            else null
+            end
+          )
+        }
+      }
+    )
+  ' <<< "$issues_json"
+}
+
+# ── Pretty-print a single ticket change ──────────────────────────────────────
+print_ticket() {
+  local key="$1"
+  local summary="$2"
+  local status="$3"
+  local itype="$4"
+  local epic_key="$5"
+  local epic_summary="$6"
+  local change_type="$7"   # "new" or "changed"
+  local old_status="${8:-}"
+
+  local sc; sc=$(status_color "$status")
+  local icon; icon=$(type_icon "$itype")
+
+  if [[ "$change_type" == "new" ]]; then
+    local label="${GREEN}${BOLD}${ICON_NEW} NEW${RESET}"
+  else
+    local label="${YELLOW}${BOLD}${ICON_CHANGED} CHANGED${RESET}"
+  fi
+
+  echo -e "  ${label}  ${BOLD}${BLUE}${key}${RESET}  ${icon} ${DIM}${itype}${RESET}"
+  echo -e "    ${BOLD}${summary}${RESET}"
+
+  if [[ "$change_type" == "changed" && -n "$old_status" ]]; then
+    local osc; osc=$(status_color "$old_status")
+    echo -e "    Status: ${osc}${old_status}${RESET} → ${sc}${BOLD}${status}${RESET}"
+  else
+    echo -e "    Status: ${sc}${BOLD}${status}${RESET}"
+  fi
+
+  if [[ -n "$epic_key" ]]; then
+    local es_display="${epic_summary:-$epic_key}"
+    echo -e "    ${DIM}${ICON_PARENT} Epic: ${CYAN}${epic_key}${RESET}${DIM} — ${es_display}${RESET}"
+  fi
+
+  echo ""
+}
+
+# ── Header banner ─────────────────────────────────────────────────────────────
+print_header() {
+  local project="$1"
+  local timestamp; timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  echo ""
+
+  echo -e "${BOLD}${BLUE} ╔═══════════════════════════════════════════════════════════════════${RESET}"
+  echo -e "${BOLD}${BLUE} ║${RESET}  ${BOLD}Jira Status Tracker${RESET} · Project: ${BOLD}${CYAN}${project}${RESET}"
+  echo -e "${BOLD}${BLUE} ║${RESET}  ${DIM}${timestamp}${RESET}"
+  echo -e "${BOLD}${BLUE} ╚═══════════════════════════════════════════════════════════════════${RESET}"
+  echo ""
+}
+
+# ── Summary footer ────────────────────────────────────────────────────────────
+print_summary() {
+  local new_count="$1"
+  local changed_count="$2"
+  local total="$3"
+
+  echo -e " ${BOLD}${BLUE}╔═══════════════════════════════════════════════════════════════════${RESET}"
+  echo -e " ${BOLD}${BLUE}║${RESET}  ${GREEN}${BOLD}${ICON_NEW}  New tickets:${RESET}     ${new_count}"
+  echo -e " ${BOLD}${BLUE}║${RESET}  ${YELLOW}${BOLD}${ICON_CHANGED}  Status changes:${RESET}  ${changed_count}"
+  echo -e " ${BOLD}${BLUE}║${RESET}  ${DIM}   Total fetched:   ${total}${RESET}"
+  echo -e " ${BOLD}${BLUE}╚═══════════════════════════════════════════════════════════════════${RESET}"
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════════════
+main() {
+  print_header "$JIRA_PROJECT"
+
+  # 1. Fetch current issues from Jira
+  local raw_issues
+  raw_issues=$(fetch_all_issues "$JIRA_PROJECT")
+  local total; total=$(echo "$raw_issues" | jq 'length')
+
+  # 2. Build new cache object
+  local new_cache
+  new_cache=$(build_cache_object "$raw_issues")
+
+  # 3. Load old cache (empty object if file doesn't exist)
+  local old_cache='{}'
+  if [[ -f "$CACHE_FILE" ]]; then
+    old_cache=$(jq '.' "$CACHE_FILE" 2>/dev/null || echo '{}')
+  else
+    echo -e "${DIM}No existing cache found — all tickets will be treated as new.${RESET}\n" >&2
+  fi
+
+  # 4. Compare and collect changes
+  local new_count=0
+  local changed_count=0
+
+  # Separate arrays for new and changed (to print in sections)
+  local new_tickets=()
+  local changed_tickets=()
+
+  # Iterate over every key in new_cache
+  while IFS= read -r key; do
+    local new_entry; new_entry=$(echo "$new_cache" | jq -r --arg k "$key" '.[$k]')
+    local new_status; new_status=$(echo "$new_entry" | jq -r '.status')
+    local summary;    summary=$(echo "$new_entry"    | jq -r '.summary')
+    local itype;      itype=$(echo "$new_entry"      | jq -r '.type')
+    local epic_key;   epic_key=$(echo "$new_entry"   | jq -r '.epic_key // ""')
+    local epic_sum;   epic_sum=$(echo "$new_entry"   | jq -r '.epic_summary // ""')
+
+    # If epic_summary is still empty, try to look it up in new_cache
+    if [[ -z "$epic_sum" && -n "$epic_key" ]]; then
+      epic_sum=$(echo "$new_cache" | jq -r --arg ek "$epic_key" '.[$ek].summary // ""')
+    fi
+
+    local exists; exists=$(echo "$old_cache" | jq -r --arg k "$key" 'has($k) | tostring')
+
+    if [[ "$exists" == "false" ]]; then
+      # Brand new ticket
+      new_tickets+=("$(print_ticket "$key" "$summary" "$new_status" "$itype" "$epic_key" "$epic_sum" "new")")
+      new_count=$((new_count + 1))
+    else
+      local old_status; old_status=$(echo "$old_cache" | jq -r --arg k "$key" '.[$k].status')
+      if [[ "$new_status" != "$old_status" ]]; then
+        changed_tickets+=("$(print_ticket "$key" "$summary" "$new_status" "$itype" "$epic_key" "$epic_sum" "changed" "$old_status")")
+        changed_count=$((changed_count + 1))
+      fi
+    fi
+  done < <(echo "$new_cache" | jq -r 'keys[]')
+
+  # 5. Print results
+  if [[ ${#new_tickets[@]} -gt 0 ]]; then
+    echo -e "${GREEN}${BOLD} ╔═ NEW TICKETS ═════════════════════════════════════════════════════${RESET}"
+    echo ""
+    for t in "${new_tickets[@]}"; do echo -e "$t"; done
+  fi
+
+  if [[ ${#changed_tickets[@]} -gt 0 ]]; then
+    echo -e "${YELLOW}${BOLD} ╔═ STATUS CHANGES ══════════════════════════════════════════════════${RESET}"
+    echo ""
+    for t in "${changed_tickets[@]}"; do echo -e "$t"; done
+  fi
+
+  echo ""
+
+  if [[ $new_count -eq 0 && $changed_count -eq 0 ]]; then
+    echo -e "  ${GREEN}${BOLD}✔  No changes detected — everything is up to date.${RESET}"
+    echo ""
+  fi
+
+  print_summary "$new_count" "$changed_count" "$total"
+
+  # 6. Write updated cache
+  echo "$new_cache" > "$CACHE_FILE"
+  echo -e "${DIM}   Cache updated: ${CACHE_FILE}${RESET}\n"
+}
+
+main "$@"
