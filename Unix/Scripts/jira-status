@@ -328,17 +328,24 @@ main() {
     fi
   done < <(echo "$new_cache" | jq -r 'keys[]')
 
+  echo ""
   # 5. Print results
   if [[ ${#new_tickets[@]} -gt 0 ]]; then
     echo -e "${GREEN}${BOLD} ╔═ NEW TICKETS ═════════════════════════════════════════════════════${RESET}"
     echo ""
     for t in "${new_tickets[@]}"; do echo -e "$t"; done
+    echo ""
+    echo -e "${GREEN}${BOLD} ╚═══════════════════════════════════════════════════════════════════${RESET}"
+    echo ""
   fi
 
   if [[ ${#changed_tickets[@]} -gt 0 ]]; then
     echo -e "${YELLOW}${BOLD} ╔═ STATUS CHANGES ══════════════════════════════════════════════════${RESET}"
     echo ""
     for t in "${changed_tickets[@]}"; do echo -e "$t"; done
+    echo ""
+    echo -e "${YELLOW}${BOLD} ╚═══════════════════════════════════════════════════════════════════${RESET}"
+    echo ""
   fi
 
   echo ""
