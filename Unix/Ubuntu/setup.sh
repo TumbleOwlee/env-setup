@@ -49,7 +49,7 @@ run_with_retry $SUDO apt-get upgrade -y
 
 # Install requirements
 info "Install requirements."
-run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv gpg curl which fzf
+run_with_retry $SUDO apt-get install -y git python3 pipx unzip less wget python3-venv gpg curl fzf
 
 $SUDO apt-get install -y software-properties-common &>/dev/null
 
