@@ -179,9 +179,16 @@ function run_once {
     return "$exitcode"
 }
 
+# Return 0 if nvim exists and is new enough for the neovim configuration (>= 0.12).
+# An older nvim makes the config abort at "Press any key" and hang headless runs.
+function nvim_usable {
+    command -v nvim >/dev/null 2>&1 &&
+        nvim --clean --headless -c 'if has("nvim-0.12") | qall | else | cquit | endif' </dev/null >/dev/null 2>&1
+}
+
 # Install neovim LSP
 function nvim_install_lsp {
-    if [ ! -z "$(which nvim)" ]; then
+    if nvim_usable; then
         run_with_retry nvim --headless -c "MasonInstall $1" -c "quitall"
     fi
 }
