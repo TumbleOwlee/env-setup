@@ -153,19 +153,14 @@ def display_table(table: Table, branches: [(str, str | None, str, str)], merged:
         row = [tag, b[0].strftime("%Y-%m-%d %H:%M:%S"), b[1], b[2]]
         for m in merged:
             local = b[2] in m[1]
-            remote = True if b[1] is None else b[1] + "/" + b[2] in m[1]
-            if local == remote:
-                if local:
-                    entry = "[green]Yes[/green]"
-                else:
-                    entry = "[red]No[/red]"
+            entry = "[green]Yes[/green]" if local else "[red]No[/red]"
 
             if b[1]:
                 br = b[1] + "/" + b[2]
                 if br in m[1]:
-                    entry = "[green]Yes[/green]" if entry is None else f"{entry} / [green]Yes[/green]"
+                    entry += " / [green]Yes[/green]"
                 else:
-                    entry = "[red]No[/red]" if entry is None else f"{entry} / [red]No[/red]"
+                    entry += " / [red]No[/red]"
             row.append(entry)
         table.add_row(*row)
     console.print(table)
