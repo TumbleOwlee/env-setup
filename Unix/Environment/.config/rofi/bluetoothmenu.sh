@@ -1,57 +1,47 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
-ps5controller="7C:66:EF:50:AE:10"
-headphones="F8:4E:17:E8:B9:DF"
+# BT_DEVICES is a bash array of 'Name|AA:BB:CC:DD:EE:FF' entries,
+# defined in ~/.config/env-setup/local.conf
+BT_DEVICES=()
+# shellcheck source=/dev/null
+[ -f "$HOME/.config/env-setup/local.conf" ] && . "$HOME/.config/env-setup/local.conf"
 
-bluetoothctl devices Connected | grep "${ps5controller}" >/dev/null
-if [ $? -eq 0 ]; then
-    ps5controller_option="Disconnect PS5 Controller"
-    ps5controller_cmd="bluetoothctl disconnect $ps5controller"
-else
-    bluetoothctl devices Paired | grep "${ps5controller}" >/dev/null
-    if [ $? -eq 0 ]; then
-        ps5controller_option="Connect PS5 Controller"
-        ps5controller_cmd="bluetoothctl connect $ps5controller"
-    else
-        ps5controller_option="Pair PS5 Controller"
-        ps5controller_cmd="bluetoothctl pair $ps5controller"
-    fi
+if [ "${#BT_DEVICES[@]}" -eq 0 ]; then
+    echo "no devices configured" | rofi -dmenu -i -p "Bluetooth" \
+        -config "$HOME/.config/rofi/bluetoothmenu.rasi" \
+        -font "Nerd Font 12" \
+        -theme-str 'listview { lines: 1; scrollbar: false; }' >/dev/null
+    exit 0
 fi
 
-bluetoothctl devices Connected | grep "${headphones}" >/dev/null
-if [ $? -eq 0 ]; then
-    headphones_option="Disconnect Headphones"
-    headphones_cmd="bluetoothctl disconnect $headphones"
-else
-    bluetoothctl devices Paired | grep "${headphones}" >/dev/null
-    if [ $? -eq 0 ]; then
-        headphones_option="Connect Headphones"
-        headphones_cmd="bluetoothctl connect $headphones"
+options=()
+cmds=()
+for entry in "${BT_DEVICES[@]}"; do
+    name="${entry%%|*}"
+    mac="${entry#*|}"
+    if bluetoothctl devices Connected | grep -q "$mac"; then
+        options+=("Disconnect $name")
+        cmds+=("disconnect $mac")
+    elif bluetoothctl devices Paired | grep -q "$mac"; then
+        options+=("Connect $name")
+        cmds+=("connect $mac")
     else
-        headphones_option="Pair Headphones"
-        headphones_cmd="bluetoothctl pair $headphones"
+        options+=("Pair $name")
+        cmds+=("pair $mac")
     fi
-fi
-
-activatescan_option="Activate Scan"
-activatescan_cmd="bluetoothctl scan on"
+done
+options+=("Activate Scan")
+cmds+=("scan on")
 
 # Get answer from user via rofi
-selected_option=$(echo "$ps5controller_option
-$headphones_option
-$activatescan_option" | rofi -dmenu -i -p "Bluetooth" \
-    -config "~/.config/rofi/bluetoothmenu.rasi" \
+selected_index=$(printf '%s\n' "${options[@]}" | rofi -dmenu -i -p "Bluetooth" -format i \
+    -config "$HOME/.config/rofi/bluetoothmenu.rasi" \
     -font "Nerd Font 12" \
-    -width "15" \
-    -lines 1 -line-margin 3 -line-padding 10 -scrollbar-width "0")
+    -theme-str "listview { lines: ${#options[@]}; scrollbar: false; }")
 
-# Do something based on selected option
-if [ "$selected_option" == "$headphones_option" ]; then
-    $headphones_cmd
-elif [ "$selected_option" == "$ps5controller_option" ]; then
-    $ps5controller_cmd
-elif [ "$selected_option" == "$activatescan_option" ]; then
-    $activatescan_cmd
+if [ -n "$selected_index" ]; then
+    # shellcheck disable=SC2086
+    bluetoothctl ${cmds[$selected_index]}
 else
     echo "No match"
 fi

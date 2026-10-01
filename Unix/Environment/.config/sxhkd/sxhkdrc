@@ -4,7 +4,7 @@
 
 # Move windows to preselected locations
 super + shift + ctrl + {u,i,o,j,k,l}
-    ~/.local/bin/win-move {up_left,up_center,up_right,down_left,down_center,down_right}
+    "$HOME/.local/bin/win-move" {up_left,up_center,up_right,down_left,down_center,down_right}
 
 # terminal emulator
 super + Return
@@ -12,25 +12,25 @@ super + Return
 
 # program launcher
 super + d
-    rofi -modi drun -show drun -line-padding 4 \
-                -columns 2 -padding 50 -hide-scrollbar -terminal xfce4-terminal \
-                -show-icons -drun-icon-theme "Arc-X-D" -font "Droid Sans Regular 10"
+    rofi -modi drun -show drun -terminal alacritty \
+                -show-icons -drun-icon-theme "Arc-X-D" -font "Droid Sans Regular 10" \
+                -theme-str 'listview { columns: 2; scrollbar: false; } window { padding: 50px; }'
 
 # show open window
 super + ctrl + d
-    rofi -modi drun -show window -line-padding 4 \
-                -columns 2 -padding 50 -hide-scrollbar -terminal xfce4-terminal \
-                -show-icons -drun-icon-theme "Arc-X-D" -font "Droid Sans Regular 10"
+    rofi -modi drun -show window -terminal alacritty \
+                -show-icons -drun-icon-theme "Arc-X-D" -font "Droid Sans Regular 10" \
+                -theme-str 'listview { columns: 2; scrollbar: false; } window { padding: 50px; }'
 
-# show ssh sesssions
+# show ssh sessions
 super + shift + d
-    rofi -modi drun -show ssh -line-padding 4 \
-                -columns 2 -padding 50 -hide-scrollbar -terminal xfce4-terminal \
-                -show-icons -drun-icon-theme "Arc-X-D" -font "Droid Sans Regular 10"
+    rofi -modi drun -show ssh -terminal alacritty \
+                -show-icons -drun-icon-theme "Arc-X-D" -font "Droid Sans Regular 10" \
+                -theme-str 'listview { columns: 2; scrollbar: false; } window { padding: 50px; }'
 
 # power-menu
 super + shift + e
-     ~/.config/rofi/powermenu.sh
+    "$HOME/.config/rofi/powermenu.sh"
 
 # make sxhkd reload its configuration files:
 super + Escape
@@ -38,7 +38,7 @@ super + Escape
 
 # Lock screen
 super + ctrl + shift + q
-    ~/.config/rofi/fancy_lock.sh
+    "$HOME/.config/rofi/fancy_lock.sh"
 
 #
 # bspwm hotkeys
@@ -149,28 +149,25 @@ super + {Left,Down,Up,Right}
 # Special hotkeys
 #
 
-# Multimedia keys
+# Volume up
 super + Page_Up
   amixer -q set Master 5%+ unmute
 
-# Still muøltimedia
+# Volume down
 super + Page_Down
   amixer -q set Master 5%- unmute
 
-# Multimedia keys
+# Volume up
 XF86AudioRaiseVolume
   amixer -q set Master 5%+ unmute
 
-# Still muøltimedia
+# Volume down
 XF86AudioLowerVolume
   amixer -q set Master 5%- unmute
 
 # still
 XF86AudioMute
-  amixer -D pulse sset Master toggle-mute
-
-# amixer -q set Master toggle
-# Simple amixer command seems to have problems unmuting device
+  amixer -q set Master toggle
 
 # Brightness up
 XF86MonBrightnessUp
@@ -182,19 +179,14 @@ XF86MonBrightnessDown
 
 # Screenshot
 Print
-  scrot ~/Pictures/Screenshot-$(date +%F_%T).png
+  scrot "$HOME/Pictures/Screenshot-$(date +%F_%T).png"
 
 super+Print
-  ~/.config/bspwm/scripts/screenshot.sh
-
-# Shortcut: Swtich between us and us_intl
-super + shift + m
-  /usr/bin/switch_layout
+  "$HOME/.config/bspwm/scripts/screenshot.sh"
 
 # Shortcut: Bluetooth connect headset
 super + shift + b
-  ~/.config/rofi/bluetoothmenu.sh
-#  /usr/bin/bluetooth-auto-connect
+  "$HOME/.config/rofi/bluetoothmenu.sh"
 
 # Shortcuts
 super + w
@@ -204,4 +196,4 @@ super + n
   thunar
 
 super + F1
-  ~/.config/bspwm/scripts/keybindings_rofi.sh
+  "$HOME/.config/bspwm/scripts/keybindings_rofi.sh"

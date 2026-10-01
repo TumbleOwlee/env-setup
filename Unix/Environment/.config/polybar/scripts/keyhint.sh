@@ -1,14 +1,22 @@
 #!/bin/sh
-yad --title="EndeavourOS bspwm keybindings:" \
-    --no-buttons --geometry=400x345-15-400 --list --column=key: --column=description: --column=command: "ESC" "close this app" "" \
-    "=" "modkey" "(set mod Mod4)" \
-    "+enter" "open a terminal" "" \
-    "+w" "open Browser" "" \
-    "+n" "open Filebrowser" "" \
-    "+d" "app menu" "(rofi)" \
-    "+Shift+q" "close focused app" \
-    "(kill)" "Print-key" "screenshot" "(scrot)" \
-    "+Shift+e" "logout menu" "(rofi)" \
-    "+F1" "open keybinding helper" "full list" \
-    "+Alt+r" "reload bspwm" "bpsc restart" \
-    "+ESC" "reload sxhkd" "pkill -USR1 -x sxhkd"
+yad --title="bspwm keybindings:" \
+    --no-buttons --geometry=450x500-15-400 --list \
+    --column=key: --column=description: --column=command: \
+    "ESC" "close this app" "" \
+    "Super" "modkey" "(Mod4)" \
+    "+Return" "open a terminal" "(alacritty)" \
+    "+w" "open browser" "(firefox)" \
+    "+n" "open file browser" "(thunar)" \
+    "+d" "app menu" "(rofi)" \
+    "+Ctrl+d" "window switcher" "(rofi)" \
+    "+Shift+d" "ssh sessions" "(rofi)" \
+    "+q" "close focused app" "(bspc node -c)" \
+    "+Shift+q" "kill focused app" "(bspc node -k)" \
+    "Print" "screenshot" "(scrot)" \
+    "+Print" "screenshot menu" "(rofi)" \
+    "+Shift+e" "power menu" "(rofi)" \
+    "+Ctrl+Shift+q" "lock screen" "(i3lock)" \
+    "+Shift+b" "bluetooth menu" "(rofi)" \
+    "+F1" "open keybinding helper" "full list" \
+    "+Shift+r" "restart bspwm" "bspc wm -r" \
+    "+ESC" "reload sxhkd" "pkill -USR1 -x sxhkd"

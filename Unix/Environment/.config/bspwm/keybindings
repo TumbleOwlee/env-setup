@@ -17,20 +17,23 @@ Utility Keyboard Shortcuts
 
 ###################
 
--> Open terminal (xfce4-terminal)
+-> Open terminal (alacritty + tmux)
 Super + Return
 
 -> App launcher (Rofi)
 Super + d
 
 -> Window switcher
-Super + Ctrl
+Super + Ctrl + d
 
 -> Show SSH sessions
 Super + Shift + d
 
 -> Power Menu
 Super + Shift + e
+
+-> Lock screen
+Super + Ctrl + Shift + q
 
 -> Reload Sxhkd (you need to do this after you modify sxhkdrc)
 Super + Escape
@@ -41,11 +44,23 @@ Print
 -> Show screenshot menu
 Super + Print
 
+-> Bluetooth menu
+Super + Shift + b
+
+-> Volume up / down
+Super + Page_Up / Super + Page_Down (or the volume keys)
+
 -> Launch Firefox
 Super + w
 
 -> Launch Thunar
 Super + n
+
+-> Show this keybinding list
+Super + F1
+
+-> Move window to preselected screen location
+Super + Shift + Ctrl + {u, i, o, j, k, l}
 
 
 
@@ -58,23 +73,41 @@ Bspwm Keyboard Shortcuts
 ###################
 
 -> Restart Bspwm
-Super + Alt + r
+Super + Shift + r
 
--> Quit Bspwm
-Super + Alt + q
-
--> Close focused window
-Super + Shift + q
+-> Close / kill focused window
+Super + q / Super + Shift + q
 
 -> Switch between tiled and monocle layout
 Super + m
 
+-> Send newest marked node to newest preselected node
+Super + y
+
 -> Swap current and largest window
 Super + g
+
+-> Set window state {tiled, pseudo_tiled, floating, fullscreen}
+Super + {t, Shift + t, s, f}
+
+-> Set node flag {marked, locked, sticky, private}
+Super + Ctrl + {m, x, y, z}
 
 -> Change focus {west, south, north, east}
 Super + {h, j, k, l}
 It's like vim keys :)
+
+-> Swap window {west, south, north, east}
+Super + Shift + {h, j, k, l}
+
+-> Focus {parent, brother, first, second}
+Super + {p, b, comma, period}
+
+-> Focus next / previous window
+Super + c / Super + Shift + c
+
+-> Focus previous / next desktop
+Super + bracketleft / Super + bracketright
 
 -> Switch to different desktop
 Super + <number>
@@ -82,14 +115,23 @@ Super + <number>
 -> Send current node to different desktop
 Super + Shift + <number>
 
--> Expand a window {left, bottom, top, right}
-Super + Alt + {h, j, k l}
+-> Preselect direction {west, south, north, east}
+Super + Ctrl + {h, j, k, l}
 
--> Contract a window {left, bottom, top, right}
+-> Preselect ratio
+Super + Ctrl + <1-9>
+
+-> Cancel preselection (node / desktop)
+Super + Ctrl + space / Super + Ctrl + Shift + space
+
+-> Expand a window {left, bottom, top, right}
+Super + Alt + {h, j, k, l}
+
+-> Contract a window {right, top, bottom, left}
 Super + Alt + Shift + {h, j, k, l}
 
 -> Move a floating window
-Super + {left, down, up, right}
+Super + {Left, Down, Up, Right}
 
 -> Focus the last node
 Super + grave

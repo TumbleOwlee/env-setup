@@ -1,27 +1,25 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 # Options for powermenu
-logout="      "
-#Logout"
-lock="    Lock"
-shutdown="    Shutdown"
-reboot="    Reboot"
-sleep="    Sleep"
+logout="    Logout"
+lock="    Lock"
+shutdown="    Shutdown"
+reboot="    Reboot"
+sleep="    Sleep"
 
-# Get answer from user via rofi
-# $logout
+# Get answer from user via rofi (size comes from powermenu.rasi)
 selected_option=$(echo "$lock
+$logout
 $sleep
 $reboot
 $shutdown" | rofi -dmenu -i -p "Power" \
-    -config "~/.config/rofi/powermenu.rasi" \
+    -config "$HOME/.config/rofi/powermenu.rasi" \
     -font "Nerd Font 12" \
-    -width "15" \
-    -lines 4 -line-margin 3 -line-padding 10 -scrollbar-width "0")
+    -theme-str 'listview { lines: 5; scrollbar: false; }')
 
 # Do something based on selected option
 if [ "$selected_option" == "$lock" ]; then
-    ~/.config/rofi/fancy_lock.sh
+    "$HOME/.config/rofi/fancy_lock.sh"
 elif [ "$selected_option" == "$logout" ]; then
     bspc quit
 elif [ "$selected_option" == "$shutdown" ]; then
