@@ -97,8 +97,14 @@ function _download {
 # Base requirements, zoxide and the owned bash snippet
 function step_base {
     info "Install requirements."
-    local pkgs=(git python pipx unzip wget less curl gnupg fzf)
-    [ "$(_steps_distro)" == "debian" ] && pkgs+=(python3-venv)
+    local pkgs=(git python unzip wget less curl gnupg fzf)
+    if [ "$(_steps_distro)" == "debian" ]; then
+        pkgs+=(python3-venv)
+        # Older releases have no pipx package, the distro script falls back to pip
+        pkg_version pipx >/dev/null 2>&1 && pkgs+=(pipx)
+    else
+        pkgs+=(pipx)
+    fi
     pkg_install "${pkgs[@]}" || return 1
 
     if ! command -v zoxide >/dev/null 2>&1; then
@@ -248,11 +254,13 @@ function step_neovim_config {
         run_with_retry git clone "$url" "$dir"
     fi
 
-    if command -v nvim >/dev/null 2>&1; then
+    if nvim_usable; then
         run_once nvim --headless -c 'SyncInstall' -c qall
         run_with_retry nvim --headless -c 'SyncInstall' -c qall
         nvim_install_lsp "lua-language-server"
         nvim_install_lsp "python-lsp-server"
+    elif command -v nvim >/dev/null 2>&1; then
+        warn "Installed neovim is older than 0.12, skipping plugin sync. Use the upstream release."
     fi
 }
 
