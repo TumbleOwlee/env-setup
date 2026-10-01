@@ -1,0 +1,27 @@
+# env-setup local configuration.
+# Copy to ~/.config/env-setup/local.conf and edit. This file is sourced by
+# bash, so use shell syntax. install.sh never overwrites an existing local.conf.
+
+# Bluetooth devices shown in the rofi bluetooth menu (Super+Shift+b).
+# Bash array of 'Name|AA:BB:CC:DD:EE:FF'. Leave empty for none.
+BT_DEVICES=(
+    # 'Headphones|AA:BB:CC:DD:EE:FF'
+    # 'Controller|11:22:33:44:55:66'
+)
+
+# Screen size in pixels used by win-move (Super+Shift+Ctrl+u/i/o/j/k/l)
+# for the preselected window sizes.
+WIN_MOVE_WIDTH=1280
+WIN_MOVE_HEIGHT=720
+
+# Optional overrides. Leave commented to auto-detect.
+# Primary monitor name as shown by `bspc query -M --names`.
+# MONITOR_PRIMARY="eDP-1"
+# Wireless interface name for the polybar network module.
+# WLAN_IF="wlan0"
+# Battery name under /sys/class/power_supply.
+# BATTERY="BAT0"
+# AC adapter name under /sys/class/power_supply.
+# ADAPTER="AC"
+# Backlight device under /sys/class/backlight.
+# BACKLIGHT="intel_backlight"
