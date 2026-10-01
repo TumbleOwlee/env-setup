@@ -1,77 +1,153 @@
 # Environment Setup
 
-[![Formatter](https://github.com/TumbleOwlee/env-setup/actions/workflows/shfmt.yml/badge.svg)](https://github.com/TumbleOwlee/env-setup/actions/workflows/shfmt.yml)
+[![Lint](https://github.com/TumbleOwlee/env-setup/actions/workflows/lint.yml/badge.svg)](https://github.com/TumbleOwlee/env-setup/actions/workflows/lint.yml)
 
-This repository contains various scripts and configuration that I use in my various environments - private or work, bare metal or virtual machine. 
-I created this collection since I'm usally working with various virtual machine and I want to have my environment set as fast as possible while providing the same user experience on each of them. Everything is done using only Bash since it's the common base of every Unix install. Of course it would be fancier using e.g. Python's full capabilities.
+This repository contains various scripts and configuration that I use in my various environments - private or work, bare metal or virtual machine.
+I created this collection since I'm usually working with various virtual machines and I want to have my environment set as fast as possible while providing the same user experience on each of them. Everything is done using only Bash since it's the common base of every Unix install. Of course it would be fancier using e.g. Python's full capabilities.
 
 ## Set up Unix Environment
 
-The script `./unix/setup.sh` provides a simple but clear entry point to setup any Unix environment (currently arch and ubuntu are supported). Everything can be set up by executing the following command - an internet connection and `curl` are required since the script will get other scripts and configurations from this repository.
+`Unix/setup.sh` is the entry point. It detects the distribution from `/etc/os-release` and runs `Unix/Arch/setup.sh` or `Unix/Debian/setup.sh`, which in turn use the shared `Unix/common.sh` and `Unix/steps.sh`.
+
+**Supported:** Arch Linux, Ubuntu LTS (22.04+), Debian stable. Running as root (e.g. in containers) works, otherwise `sudo` is required.
+
+**Prerequisites:** `bash` and an internet connection. `curl` is installed by `setup.sh` if it is missing. Run:
 
 ```bash
-bash -c 'if [ -z "$(which curl)" ]; then echo "Curl missing. Aborting."; else bash <(curl https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh 2>/dev/null); fi'
+bash <(curl -fsSL https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh)
 ```
 
-But make sure you have at least `which` and `curl` installed. Else the oneliner won't work.
+Flags can be appended to the command, e.g. `bash <(curl -fsSL ...) --noconfirm --skip=docker`.
 
-If you are behind a proxy, keep in mind to set `http_proxy` and `https_proxy` accordingly. Currently no offline installation is supported. The command only uses `bash -c` calling `bash` because the command should work by copy&paste in any shell you are currently using.
+If you are behind a proxy, set `http_proxy` and `https_proxy` accordingly (the setup asks `Behind a proxy?` and aborts if they are empty). Offline installation is not supported.
 
-In case you cloned the repository and want to execute the script `./Unix/setup.sh` directly using only local files, just use the following command instead.
+If you cloned the repository, use only local files with:
 
 ```bash
-DEBUG=y ./Unix/setup.sh
+./Unix/setup.sh --debug
 ```
 
-This will source the other scripts instead of using `curl` to retrieve the files from the repository on Github.
+### Flags
+
+| Flag | Effect |
+| --- | --- |
+| `-d`, `--debug` | Use the files of the local checkout instead of downloading them. |
+| `-n`, `--noconfirm` | Answer every prompt with its default (also makes apt non-interactive on Debian/Ubuntu). |
+| `--skip=<name>` | Skip a part. Can be given multiple times. |
+
+Names for `--skip`: `fish`, `tmux`, `neovim`, `docker`, `rust`, `alacritty`, `cxx`, `delta`, `mise`, `scripts`, `fonts`. `neovim` skips both the binary and the configuration.
+
+The environment variable `ENV_SETUP_URL` replaces the base URL (default `https://raw.githubusercontent.com/TumbleOwlee/env-setup/main`) that files are downloaded from, e.g. for a fork or a mirror.
+
+### Prompts
+
+Every optional part asks `Install <part>? [Y/n]` (default yes). Besides that the setup asks:
+
+* `Behind a proxy? [y/N]`
+* `Update and upgrade? [Y/n]`
+* `Use upstream release instead of packaged <tool> <version>? [y/N]` for zoxide, rustup, delta, mise and (Debian/Ubuntu) neovim. The default is the distribution package. If the package manager has no such package, the upstream release is used without asking.
+* `Install Conan? [Y/n]` as part of the C++ environment
+* `Replace existing nvim configuration? [Y/n]` if `~/.config/nvim` exists and is not a git checkout
+
+If a command fails you are asked whether to show the log and whether to retry or terminate. With `--noconfirm` a failure prints the log tail and aborts.
+
+**Neovim on Debian/Ubuntu:** the neovim configuration requires Neovim 0.12 or newer. If the packaged neovim is older, the upstream prebuilt release is installed into `/opt/nvim` (linked to `/usr/local/bin/nvim`) without asking. Otherwise you are asked whether to use the package or the upstream release; `--noconfirm` picks the package. If the installed neovim is too old, the plugin synchronization is skipped with a warning. On Arch the package is used.
 
 ## Packages
 
-While executing you can choose the parts you like to install and skip any you don't need. Basic package requirements - e.g. python or git - are installed by default.
+Package names are mapped per distribution (e.g. `fd-find` and `ninja-build` on Debian). The steps are idempotent, so the script can be run again to update.
 
-**List of non-optional packages:**
-* Git
-* Python
-* Zip
-* Curl
-* GPG
-* FZF
-* Zoxide
+**Always installed:**
+* Git, Python (+ `python3-venv` on Debian), pipx, Unzip, Wget, Less, Curl, GPG, FZF
+* Zoxide (package or upstream installer)
 
-**List of optional applications:**
-* Alacritty
-* Fish Shell
-* Tmux
-* Neovim
-* Docker
-* Rust Environment
-* C++ Environment
-* Git Delta
+On Arch additionally `base-devel` and `yay` (built from the AUR, as a temporary build user when running as root).
 
-If available the configurations from this repository are also installed for the applications respectively. In case of Neovim, the configuration is taken from [here](https://github.com/TumbleOwlee/neovim-config). I will add additional parts as time goes on and my demands change.
+**Optional parts:**
+
+| Part | Installs |
+| --- | --- |
+| `fish` | Fish shell as login shell, prompt/greeting/`colored_cat` functions |
+| `tmux` | tmux and its configuration |
+| `neovim` | Neovim, ninja, [neovim-config](https://github.com/TumbleOwlee/neovim-config) (plugins and the LSPs `lua-language-server`, `python-lsp-server` via Mason) |
+| `fonts` | FiraCode Nerd Font (asked as part of `neovim` and `alacritty`) |
+| `docker` | docker, compose (+ buildx if available), user added to the `docker` group |
+| `rust` | rustup with the stable toolchain, `rust-src`, `rust-analyzer`, libclang, `cross`, `tree-sitter-cli` |
+| `cxx` | clang, gcc, cmake, lldb (+ `clang-format` on Debian/Ubuntu), optionally Conan via pipx |
+| `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu (this requires rust and installs it even with `--skip=rust`) |
+| `delta` | git-delta and its git configuration |
+| `mise` | mise |
+| `scripts` | `git-sync`, `git-check`, `git-hooks`, `dbg`, `finance`, `win-move` in `~/.local/bin` |
+
+### Written files and backups
+
+Files managed by the setup are rewritten on every run and must not be edited.
+
+| File | Content |
+| --- | --- |
+| `~/.config/env-setup/bashrc.sh` | PATH (`~/.local/bin`, `~/.cargo/bin`) and zoxide for bash. Sourced from one line the setup appends to `~/.bashrc`. |
+| `~/.config/fish/conf.d/env-setup.fish` | The same for fish, plus the `cat` alias and `vim`/`vi`/`v` abbreviations for nvim. |
+| `~/.config/fish/functions/` | `fish_greeting`, `fish_prompt`, `colored_cat`. |
+| `~/.config/tmux/env-setup.local.conf` | Sets fish as tmux `default-shell`. Sourced by `~/.tmux.conf`. |
+| `~/.tmux.conf` | Repository configuration. |
+| `~/.config/git/env-setup.gitconfig` | Delta settings, added to the global git config through an `include.path` entry. |
+| `~/.config/delta/themes.gitconfig` | Delta themes. |
+| `~/.config/alacritty/alacritty.toml` | Repository configuration. An old `alacritty.yml` is renamed. |
+| `~/.config/nvim` | Clone of neovim-config, updated with `git pull --ff-only`. |
+| `~/.local/share/fonts/FiraCode` | Nerd font. |
+
+Before an existing file is replaced (`~/.tmux.conf`, `alacritty.toml`, `alacritty.yml`, a non-git `~/.config/nvim`) a copy is saved as `<file>.bak.<YYYYmmddHHMMSS>`. Blocks appended to `~/.bashrc` and `~/.config/fish/config.fish` by older versions of these scripts are removed automatically, after saving a backup of the file in the same way.
+
+## Desktop Environment (bspwm, Arch)
+
+`Unix/Environment/install.sh` installs the bspwm based desktop (bspwm, sxhkd, polybar, rofi, dunst, picom, ...). It is not part of `setup.sh`; run it separately on Arch from a checkout:
+
+```bash
+./Unix/Environment/install.sh
+```
+
+It installs the packages in `packages.txt` with pacman and the ones in `aur-packages.txt` with `yay` (only a warning if `yay` is missing), then copies `.config`, `.screenlayout`, `.backgrounds` and `.gtkrc-2.0` into your home directory, **overwriting existing files of the same name**.
+
+Machine specific settings live in `~/.config/env-setup/local.conf`. The installer creates it from `Unix/Environment/local.conf.example` if it does not exist and never overwrites it. The file is sourced by bash and supports:
+
+| Variable | Purpose |
+| --- | --- |
+| `BT_DEVICES` | Array of `'Name\|AA:BB:CC:DD:EE:FF'` entries for the rofi bluetooth menu |
+| `WIN_MOVE_WIDTH`, `WIN_MOVE_HEIGHT` | Override the screen size detected by `win-move` |
+| `MONITOR_PRIMARY` | Primary monitor name (`bspc query -M --names`) |
+| `WLAN_IF` | Wireless interface for polybar |
+| `BATTERY`, `ADAPTER` | Names under `/sys/class/power_supply` |
+| `BACKLIGHT` | Device under `/sys/class/backlight` |
+
+All overrides except `BT_DEVICES` are optional; unset values are auto-detected.
+
+## Development
+
+The workflow `.github/workflows/lint.yml` runs `shfmt -d -i 4` and `shellcheck -x` on all tracked shell scripts (`*.sh`, shell shebangs and `bspwmrc`). Use 4 spaces for indentation.
 
 ## Set up Windows Environment
 
 Since I'm mainly developing on Unix based operating systems, this repository doesn't contain any script to setup a full environment on a Windows host. Instead it contains scripts to provide helper functions to simplify the interaction with Unix systems.
 
-To get the provided helper function in your PowerShell environment, just install the files in `./windows/Scripts` into `%USERPROFILE%\Scripts` and `./windows/Documents/PowerShell` into `%USERPROFILE%\Documents\PowerShell`.
+To get the provided helper functions in your PowerShell environment, install `Windows/Scripts/connect.py` into `%USERPROFILE%\Scripts` and `Windows/Documents/WindowsPowerShell/profile.ps1` into `%USERPROFILE%\Documents\WindowsPowerShell`.
 
 ```powershell
 mkdir $home\Scripts
+mkdir $home\Documents\WindowsPowerShell
 
 # Wrapper to provide `Connect-SSH` in PowerShell for easy SSH connection
-curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Scripts/connect.py" -o "$home\Scripts\connect.py"
+curl.exe -fsSL "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Scripts/connect.py" -o "$home\Scripts\connect.py"
 
 # Install PowerShell profile that provides the aliases for all functions
-curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Documents/WindowsPowerShell/profile.ps1" -o "$home\Documents\WindowsPowerShell\profile.ps1"
+curl.exe -fsSL "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Documents/WindowsPowerShell/profile.ps1" -o "$home\Documents\WindowsPowerShell\profile.ps1"
 
 # Disable Bing Search in start menu
 Set-ItemProperty "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" BingSearchEnabled 0
 ```
 
-If your Windows system has some more restriction in place (e.g. your home directory is on a network drive), the PowerShell script may not load at all. A quick and dirty solution for that is to place the `profile.ps1` into `C:\Windows\System32\WindowsPowerShell\v1.0` instead of `%USERPROFILE%\Documents\PowerShell`.
+The repository also contains an Alacritty configuration for Windows in `Windows/AppData/Roaming/alacritty/alacritty.toml` (to be placed in `%APPDATA%\alacritty`).
 
-Additionally it is advised to install the [`FiraCode Nerd Font`](https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip) if you have installed `alacritty` and use the provided configuration. It's also helpful in case you are using the provided `neovim` configuration file, since it requires the patched font to display additional icons.
+Additionally it is advised to install the [`FiraCode Nerd Font`](https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip) if you use Alacritty with the provided configuration. It's also helpful in case you are using the provided `neovim` configuration, since it requires the patched font to display additional icons.
 
 ## Using Bash
 
