@@ -339,7 +339,8 @@ function pkg_install {
     local sudo=()
     [ -n "$SUDO" ] && sudo=("$SUDO")
     if [ "$distro" == "arch" ]; then
-        if command -v yay >/dev/null 2>&1; then
+        # yay refuses to run as root; all packages are in the official repos
+        if command -v yay >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
             run_with_retry yay -S --needed --noconfirm "${names[@]}"
         else
             run_with_retry "${sudo[@]}" pacman -S --needed --noconfirm "${names[@]}"
