@@ -140,11 +140,13 @@ step_base || exit 1
 step_fish
 step_tmux
 
+neovim_asked=
 if _step_wanted NEOVIM "neovim"; then
     pkg_install neovim ninja
     step_fonts
+    neovim_asked=1
 fi
-step_neovim_config
+ASKED=$neovim_asked step_neovim_config
 
 step_docker
 step_rust
@@ -153,7 +155,7 @@ step_cxx
 if _step_wanted ALACRITTY "alacritty"; then
     pkg_install alacritty
     step_fonts
-    step_alacritty_config
+    ASKED=1 step_alacritty_config
     notify "If alacritty doesn't render the font, try: alacritty -o 'debug.renderer=\"gles2\"'"
 fi
 
