@@ -27,3 +27,9 @@ cp -rT "${SCRIPT_DIR}/.config" ~/.config
 cp -rT "${SCRIPT_DIR}/.screenlayout" ~/.screenlayout
 cp -rT "${SCRIPT_DIR}/.backgrounds" ~/.backgrounds
 cp "${SCRIPT_DIR}/.gtkrc-2.0" ~/.gtkrc-2.0
+
+# Local machine config: never overwrite an existing one
+mkdir -p ~/.config/env-setup
+if [ ! -f ~/.config/env-setup/local.conf ] && [ -f "${SCRIPT_DIR}/local.conf.example" ]; then
+    cp "${SCRIPT_DIR}/local.conf.example" ~/.config/env-setup/local.conf
+fi
