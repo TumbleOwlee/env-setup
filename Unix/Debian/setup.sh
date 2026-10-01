@@ -5,12 +5,6 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 BASE_URL="${ENV_SETUP_URL:-https://raw.githubusercontent.com/TumbleOwlee/env-setup/main}"
 DISTRO=debian
 
-JOBS=1
-NPROC=$(nproc 2>/dev/null)
-if [ -n "$NPROC" ] && [ "$NPROC" -gt 2 ]; then
-    JOBS=$((NPROC - 1))
-fi
-
 for i in "$@"; do
     case $i in
     -d | --debug)
@@ -97,23 +91,47 @@ function neovim_latest_tag {
         sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1
 }
 
-# Build neovim from the stable branch unless the latest stable is installed
+# Install the prebuilt upstream neovim release into /opt/nvim unless the latest is installed
 function neovim_upstream {
-    local tag current tmpdir rc
+    local tag current arch tmpdir rc=0
     tag="$(neovim_latest_tag)"
     current="$(nvim --version 2>/dev/null | sed -n '1s/^NVIM *//p')"
     if [ -n "$tag" ] && [ "$tag" == "$current" ]; then
         notify "Neovim $current is already the latest stable release."
         return 0
     fi
-    pkg_install ninja gettext cmake curl build-essential unzip || return 1
+    if [ -z "$tag" ] && nvim_usable; then
+        notify "Could not determine the latest neovim release, keeping the installed one."
+        return 0
+    fi
+    case "$(uname -m)" in
+    x86_64 | amd64) arch=x86_64 ;;
+    aarch64 | arm64) arch=arm64 ;;
+    *)
+        error "No upstream neovim release for $(uname -m)."
+        return 1
+        ;;
+    esac
+    pkg_install curl unzip tar || return 1
     tmpdir="$(mktemp -d)" || return 1
-    run_with_retry git clone --depth=1 --branch stable https://github.com/neovim/neovim "$tmpdir"
-    DIR="$tmpdir" run_with_retry make -j"$JOBS" CMAKE_BUILD_TYPE=RelWithDebInfo &&
-        DIR="$tmpdir" run_with_retry "${SUDO_CMD[@]}" make install
-    rc=$?
-    "${SUDO_CMD[@]}" rm -rf "$tmpdir"
+    run_with_retry curl -fsSL -o "$tmpdir/nvim.tar.gz" \
+        "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-$arch.tar.gz" &&
+        mkdir "$tmpdir/nvim" &&
+        run_with_retry tar -xzf "$tmpdir/nvim.tar.gz" -C "$tmpdir/nvim" --strip-components=1 &&
+        run_with_retry "${SUDO_CMD[@]}" rm -rf /opt/nvim &&
+        run_with_retry "${SUDO_CMD[@]}" mv "$tmpdir/nvim" /opt/nvim &&
+        run_with_retry "${SUDO_CMD[@]}" ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim ||
+        rc=1
+    rm -rf "$tmpdir"
+    hash -r
     return "$rc"
+}
+
+# Return 0 if the packaged neovim is missing or older than 0.12
+function neovim_package_too_old {
+    local ver
+    ver="$(pkg_version neovim)" || return 0
+    dpkg --compare-versions "$ver" lt 0.12
 }
 
 # Neovim
@@ -121,7 +139,10 @@ if [ -z "$SKIP_NEOVIM" ]; then
     resp=$(ask "Install neovim? [Y/n]" "Y")
     if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
         info "Install neovim"
-        if choose_source neovim "$(pkg_version neovim)"; then
+        if neovim_package_too_old; then
+            notify "Packaged neovim is missing or older than 0.12, using the upstream release."
+            neovim_upstream
+        elif choose_source neovim "$(pkg_version neovim)"; then
             neovim_upstream
         else
             pkg_install neovim
