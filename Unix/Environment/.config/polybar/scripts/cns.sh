@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 function capslock() {
 
     caps=$(xset -q | grep Caps | awk '{ print $4 }')
 
-    if [ $caps == 'off' ]; then
+    if [ "$caps" == 'off' ]; then
         echo "%{T1}%{T-}"
     else
         echo "%{T1}בּ%{T-}"
@@ -16,7 +16,7 @@ function numlock {
 
     num=$(xset -q | grep Num | awk '{ print $8 }')
 
-    if [ $num == 'off' ]; then
+    if [ "$num" == 'off' ]; then
         echo "%{T1}%{T-}"
     else
         echo "%{T1}%{T-}"
@@ -28,7 +28,7 @@ function scroll() {
 
     scroll=$(xset -q | grep Scroll | awk '{ print $12 }')
 
-    if [ $scroll == 'off' ]; then
+    if [ "$scroll" == 'off' ]; then
         echo "%{T1}%{T-}"
     else
         echo "%{T1}%{T-}"
@@ -52,4 +52,4 @@ main() {
 
 }
 
-main $1
+main "$1"
