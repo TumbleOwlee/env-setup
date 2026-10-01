@@ -1,8 +1,19 @@
 #!/bin/bash
+# Stage 2 for Arch Linux. Started by Unix/setup.sh (exec in DEBUG mode, from a
+# temp file otherwise) with DEBUG exported and the arguments passed through.
+#
+# AUR note: every package this setup installs (git, base-devel, less, neovim,
+# ninja, fish, tmux, fontconfig, unzip, docker, docker-compose, rustup, clang,
+# gcc, cmake, lldb, alacritty, git-delta, mise, zoxide, fzf, python-pipx, ...)
+# is in the official repositories (core/extra). Only yay itself comes from the
+# AUR. Therefore no AUR wrapper for root is needed: pkg_install (common.sh) uses
+# pacman when running as root, because yay refuses to run as root.
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+BASE_URL="${ENV_SETUP_URL:-https://raw.githubusercontent.com/TumbleOwlee/env-setup/main}"
 
-USER=$(whoami)
+export DISTRO=arch
+USER="$(id -un)"
 
 for i in "$@"; do
     case $i in
@@ -14,369 +25,140 @@ for i in "$@"; do
         ;;
     --skip=*)
         NAME="${i#*=}"
-        NAME="$(echo $NAME | tr '[:lower:]' '[:upper:]')"
+        NAME="$(echo "$NAME" | tr '[:lower:]' '[:upper:]')"
         export "SKIP_$NAME=YES"
         ;;
     *) ;;
     esac
 done
 
-# Include helpers
-if [ "_$DEBUG" == "_" ]; then
-    source <(curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/common.sh" 2>/dev/null) || exit
+# Load helpers and steps
+if [ -n "$DEBUG" ]; then
+    # shellcheck source=Unix/common.sh
+    source "$SCRIPT_DIR/../common.sh" || exit 1
+    # shellcheck source=Unix/steps.sh
+    source "$SCRIPT_DIR/../steps.sh" || exit 1
 else
-    source "$SCRIPT_DIR/../common.sh" || exit
+    common_tmp="$(mktemp)" || exit 1
+    if ! curl -fsSL "$BASE_URL/Unix/common.sh" -o "$common_tmp" || [ ! -s "$common_tmp" ]; then
+        rm -f "$common_tmp"
+        echo "Failed to download $BASE_URL/Unix/common.sh" >&2
+        exit 1
+    fi
+    # shellcheck disable=SC1090
+    source "$common_tmp" || exit 1
+    rm -f "$common_tmp"
+    source_remote Unix/steps.sh
 fi
 
-# Cache sudo privileges
-check_sudo
+# Print the newest non-debug yay-bin package built in <dir>
+function _yay_pkg {
+    find "$1" -maxdepth 1 -name 'yay-bin-*.pkg.tar.*' ! -name '*-debug-*' | head -n 1
+}
 
-# Ask for proxy
+# Remove the temporary build user and its sudoers drop-in
+function _yay_builder_cleanup {
+    rm -f /etc/sudoers.d/makepkg-builder
+    if getent passwd makepkg-builder >/dev/null 2>&1; then
+        userdel -r makepkg-builder >/dev/null 2>&1
+    fi
+}
+
+# Build yay as the temporary makepkg-builder user (we are root)
+function _yay_bootstrap_root {
+    local dir="$1" rc=0 pkg
+    getent passwd makepkg-builder >/dev/null 2>&1 || useradd -m makepkg-builder || return 1
+    mkdir -p /etc/sudoers.d
+    echo 'makepkg-builder ALL=(ALL) NOPASSWD: /usr/bin/pacman' >/etc/sudoers.d/makepkg-builder
+    chmod 440 /etc/sudoers.d/makepkg-builder
+    if ! visudo -cf /etc/sudoers.d/makepkg-builder >/dev/null; then
+        error "Invalid sudoers drop-in."
+        _yay_builder_cleanup
+        return 1
+    fi
+    chown -R makepkg-builder: "$dir"
+    if run_with_retry runuser -l makepkg-builder -c \
+        "git clone https://aur.archlinux.org/yay-bin.git '$dir/yay-bin' && cd '$dir/yay-bin' && makepkg -s --noconfirm"; then
+        pkg="$(_yay_pkg "$dir/yay-bin")"
+        if [ -n "$pkg" ]; then
+            run_with_retry pacman -U --noconfirm "$pkg" || rc=1
+        else
+            error "yay-bin package was not built."
+            rc=1
+        fi
+    else
+        rc=1
+    fi
+    _yay_builder_cleanup
+    return "$rc"
+}
+
+# Build yay as the current non-root user
+function _yay_bootstrap_user {
+    local dir="$1" pkg
+    run_with_retry git clone https://aur.archlinux.org/yay-bin.git "$dir/yay-bin" || return 1
+    DIR="$dir/yay-bin" run_with_retry makepkg -s --noconfirm || return 1
+    pkg="$(_yay_pkg "$dir/yay-bin")"
+    if [ -z "$pkg" ]; then
+        error "yay-bin package was not built."
+        return 1
+    fi
+    run_with_retry "$SUDO" pacman -U --noconfirm "$pkg"
+}
+
+# Install yay (AUR helper) if missing
+function install_yay {
+    command -v yay >/dev/null 2>&1 && return 0
+    info "Install yay."
+    local tmpdir rc=0
+    tmpdir="$(mktemp -d)" || return 1
+    if [ "$(id -u)" -eq 0 ]; then
+        _yay_bootstrap_root "$tmpdir" || rc=1
+    else
+        _yay_bootstrap_user "$tmpdir" || rc=1
+    fi
+    rm -rf "$tmpdir"
+    return "$rc"
+}
+
+# Cache sudo privileges, ask for proxy
+check_sudo
 check_proxy
 
-# Update and upgrade
 resp=$(ask "Update and upgrade? [Y/n]" "Y")
 if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
     info "Update and upgrade."
-    if [ -z "$SUDO" ]; then
-        run_with_retry pacman -Syyu --noconfirm
-    else
-        run_with_retry $SUDO pacman -Syyu --noconfirm
-    fi
+    # shellcheck disable=SC2086 # SUDO is empty or a single word
+    run_with_retry $SUDO pacman -Syu --noconfirm
 fi
 
-# Install yay
+# shellcheck disable=SC2086
 run_with_retry $SUDO pacman -S --needed --noconfirm git base-devel less
+install_yay || exit 1
 
-tmpdir=$(mktemp -d)
+step_base || exit 1
+step_fish
+step_tmux
 
-# Abort if root
-if [ ! -z "$(whoami)" ] && [ "$(whoami)" == "root" ]; then
-    useradd -m makepkg-builder
-    chown -R makepkg-builder:makepkg-builder "$tmpdir"
-    run_with_retry sudo -u makepkg-builder bash -c "git clone https://aur.archlinux.org/yay-bin.git $tmpdir/yay-bin"
-    DIR=$tmpdir/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry sudo -u makepkg-builder bash -c 'makepkg -s'
-    userdel -r makepkg-builder
-else
-    run_with_retry git clone https://aur.archlinux.org/yay-bin.git $tmpdir/yay-bin
-    DIR=$tmpdir/yay-bin STDOUT=/dev/null STDERR=/dev/null run_with_retry makepkg -s
+if _step_wanted NEOVIM "neovim"; then
+    pkg_install neovim ninja
+    step_fonts
+fi
+step_neovim_config
+
+step_docker
+step_rust
+step_cxx
+
+if _step_wanted ALACRITTY "alacritty"; then
+    pkg_install alacritty
+    step_fonts
+    step_alacritty_config
+    notify "If alacritty doesn't render the font, try: alacritty -o 'debug.renderer=\"gles2\"'"
 fi
 
-STDOUT=/dev/null STDERR=/dev/null run_once rm $tmpdir/yay-bin/yay-bin-debug*.pkg.tar.zst
-run_with_retry $SUDO pacman -U --noconfirm $tmpdir/yay-bin/yay-bin-*.pkg.tar.zst
-rm -rf $tmpdir
-
-# Install requirements
-info "Install requirements."
-run_with_retry yay -S --noconfirm git python python-pipx unzip wget zoxide wget less curl
-
-# Add .local/bin to PATH
-cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.local/bin' || echo 'export PATH=$PATH:~/.local/bin' >>$HOME/.bashrc
-export PATH="$PATH:~/.local/bin"
-
-# Init zoxide for bash
-info "Install zoxide"
-curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh 2>/dev/null | sh &>/dev/null
-cat $HOME/.bashrc 2>/dev/null | grep -q 'ZOXIDE INIT' || echo '
-# ZOXIDE INIT
-zoxide init --cmd cd bash | source' >>$HOME/.bashrc
-. "$HOME/.bashrc"
-
-# Update BSPWM
-if [ -d "$HOME/.config/bspwm" ]; then
-    info "Update config of BSPWM"
-    run_with_retry sed -i "s/bspc.*config.*window_gap.*/bspc config window_gap 2/g" "$HOME/.config/bspwm/bspwmrc"
-    run_with_retry sed -i "s/bspc.*config.*border_width.*/bspc config border_width 1/g" "$HOME/.config/bspwm/bspwmrc"
-fi
-
-# Install fish
-if [ -z "$SKIP_FISH" ]; then
-    resp=$(ask "Install fish shell? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install fish shell"
-        run_with_retry yay -S --noconfirm fish
-        run_with_retry $SUDO chsh -s $(which fish)
-        run_with_retry $SUDO usermod -s /usr/bin/fish $(whoami)
-
-        # Create fish configuration
-        scripts=('fish_greeting' 'fish_prompt' 'colored_cat')
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/fish/functions"
-        for sc in ${scripts[@]}; do
-            if [ "_$DEBUG" == "_" ]; then
-                run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/fish/$sc.fish" \
-                    -o "$HOME/.config/fish/functions/$sc.fish"
-            else
-                run_with_retry cp "$SCRIPT_DIR/../Configs/fish/$sc.fish" "$HOME/.config/fish/functions/$sc.fish"
-            fi
-        done
-
-        mkdir -p $HOME/.config/fish/conf.d &>/dev/null
-
-        if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
-            echo -e "shell:\n  program: /usr/bin/fish\n  args:\n    - -c\n    - tmux" >>"$HOME/.config/alacritty/alacritty.yml"
-        fi
-
-        export FISH_VERSION=$(fish --version | cut -f3- -d' ' | cut -f1 -d'.')
-
-        if [ -d "$HOME/.config/fish" ]; then
-            notify "Adding '${CYAN}$HOME/.local/bin${NONE}' to ${CYAN}\$PATH${NONE}"
-            if [ ! -z $FISH_VERSION ]; then
-                if [ $FISH_VERSION -gt 3 ]; then
-                    fish -c 'contains ~/.local/bin $PATH' || fish -c "fish_add_path -a '$HOME/.local/bin'"
-                else
-                    cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'LOCAL BIN' || echo '
-# LOCAL BIN
-contains ~/.local/bin $PATH
-or set PATH ~/.local/bin $PATH' >>$HOME/.config/fish/config.fish
-                fi
-            fi
-        fi
-
-        cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CAT ALIAS' || echo '
-# CAT ALIAS
-alias ccat=(which cat 2>/dev/null)
-alias cat=colored_cat' >>$HOME/.config/fish/config.fish
-
-        if [ ! -z "$(which zoxide 2>/dev/null)" ]; then
-            cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'ZOXIDE INIT' || echo '
-# ZOXIDE INIT
-zoxide init --cmd cd fish | source' >>$HOME/.config/fish/config.fish
-        fi
-    fi
-fi
-
-# Install tmux
-if [ -z "$SKIP_TMUX" ]; then
-    resp=$(ask "Install tmux? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install tmux"
-        run_with_retry yay -S --noconfirm tmux
-
-        # Create tmux configuration
-        if [ "_$DEBUG" == "_" ]; then
-            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/tmux/tmux.conf" \
-                -o "$HOME/.tmux.conf"
-        else
-            run_with_retry cp "$SCRIPT_DIR/../Configs/tmux/tmux.conf" "$HOME/.tmux.conf"
-        fi
-
-        if [ -d "$HOME/.config/fish" ]; then
-            echo "set -g default-shell $(which fish)" >>"$HOME/.tmux.conf"
-        fi
-    fi
-fi
-
-# Install neovim
-if [ -z "$SKIP_NEOVIM" ]; then
-    resp=$(ask "Install neovim? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install neovim"
-        run_with_retry yay -S --noconfirm ninja-build neovim
-
-        # Install NerdFont
-        tmpdir=$(mktemp -d)
-        run_with_retry wget -P $tmpdir/ https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
-        run_with_retry unzip -o $tmpdir/FiraCode.zip -x README.md LICENSE -d ~/.fonts
-        rm -rf $tmpdir
-        if [ ! -x "$(command -v fc-cache)" ]; then
-            info "Install missing fontconfig"
-            run_with_retry yay -S --noconfirm fontconfig
-        fi
-        STDOUT=/dev/null STDERR=/dev/null run_once fc-cache -fv
-
-        info "Install/update nvim configuration"
-        if [ -d "$HOME/.config/nvim" ]; then
-            if [ -d "$HOME/.config/nvim/.git" ]; then
-                (cd "$HOME/.config/nvim" && run_with_retry git pull)
-            else
-                resp=$(ask "Replace existing nvim configuration [Y/n]" "Y")
-                if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-                    STDOUT=/dev/null STDERR=/dev/null run_once rm -rf "$HOME/.config/nvim"
-                    run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
-                else
-                    info "Skip installing nvim configuration"
-                fi
-            fi
-        else
-            STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config"
-            run_with_retry git clone "https://github.com/TumbleOwlee/neovim-config" "$HOME/.config/nvim/"
-        fi
-
-        if [ -d "$HOME/.config/fish" ]; then
-            run_with_retry fish -c "alias -s vim=nvim"
-            run_with_retry fish -c "alias -s vi=nvim"
-            run_with_retry fish -c "alias -s v=nvim"
-        fi
-
-        run_with_retry nvim --headless -c 'SyncInstall' -c qall
-
-        # Install nvim lsp
-        nvim_install_lsp "lua-language-server"
-        nvim_install_lsp "python-lsp-server"
-    fi
-fi
-
-# Install docker
-if [ -z "$SKIP_DOCKER" ]; then
-    resp=$(ask "Install docker? [Y/n]" "Y")
-    if [ -z "$IS_VM" ] && [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install docker"
-        run_with_retry yay -S --noconfirm docker docker-compose
-        run_with_retry $SUDO systemctl enable --now docker
-        run_once $SUDO groupadd docker
-        run_with_retry $SUDO usermod -aG docker $USER
-    fi
-fi
-
-REQUIRE_RUST=0
-if [ -z "$SKIP_ALACRITTY" ]; then
-    # Install alacritty
-    resp_alacritty=$(ask "Install alacritty? [Y/n]" "Y")
-    if [ "_$resp_alacritty" != "_n" ] && [ "_$resp_alacritty" != "_N" ]; then
-        REQUIRE_RUST=1
-    fi
-fi
-
-# Install rust environment
-if [ $REQUIRE_RUST -eq 1 ] || [ -z "$SKIP_RUST" ]; then
-    if [ $REQUIRE_RUST -ne 1 ]; then
-        resp=$(ask "Install rust environment? [Y/n]" "Y")
-    else
-        resp="Y"
-    fi
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install rustup"
-        resp=$(ask "Install bleeding edge? [y/N]" "N")
-        if [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]; then
-            pkg="rustup-git"
-        else
-            pkg="rustup"
-        fi
-        run_with_retry yay -S --noconfirm $pkg
-
-        # Install toolchain
-        run_with_retry rustup toolchain install stable
-        run_with_retry rustup default stable
-        run_with_retry rustup component add rust-src rust-analyzer
-
-        # Install nvim lsp
-        nvim_install_lsp "rust-analyzer"
-
-        if [ -d "$HOME/.config/fish" ]; then
-            notify "Adding '${CYAN}$HOME/.cargo/bin${NONE}' to ${CYAN}\$PATH${NONE}"
-            if [ ! -z $FISH_VERSION ]; then
-                if [ $FISH_VERSION -gt 3 ]; then
-                    fish -c 'contains ~/.cargo/bin $PATH' || fish -c "fish_add_path -a '$HOME/.cargo/bin'"
-                else
-                    cat $HOME/.config/fish/config.fish 2>/dev/null | grep -q 'CARGO BIN' || echo '
-# CARGO BIN
-contains ~/.cargo/bin $PATH
-or set PATH ~/.cargo/bin $PATH' >>$HOME/.config/fish/config.fish
-                fi
-            fi
-        fi
-
-        cat $HOME/.bashrc 2>/dev/null | grep -q 'export PATH=$PATH:~/.cargo/bin' || echo 'export PATH=$PATH:~/.cargo/bin' >>$HOME/.bashrc
-        export PATH=$PATH:~/.cargo/bin
-
-        run_with_retry cargo install cross --git https://github.com/cross-rs/cross
-        run_with_retry yay -S --noconfirm clang
-        run_with_retry cargo install --locked tree-sitter-cli
-    fi
-fi
-
-# Install alacritty
-if [ -z "$SKIP_ALACRITTY" ]; then
-    # Install alacritty
-    if [ "_$resp_alacritty" != "_n" ] && [ "_$resp_alacritty" != "_N" ]; then
-        info "Install alacritty"
-        run_with_retry yay -S --noconfirm alacritty-git
-
-        if [ -f "$HOME/.config/alacritty/alacritty.yml" ]; then
-            warn "Deprecated alacritty.yml file found. Move to '$HOME/.config/alacritty/old.alacritty.yml'"
-            STDOUT=/dev/null STDERR=/dev/null run_once mv "$HOME/.config/alacritty/alacritty.yml" "$HOME/.config/alacritty/alacritty.toml"
-        fi
-
-        # Create alacritty configuration
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/alacritty"
-        if [ "_$DEBUG" == "_" ]; then
-            run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/alacritty/alacritty.toml" \
-                -o "$HOME/.config/alacritty/alacritty.toml"
-        else
-            run_with_retry cp "$SCRIPT_DIR/../Configs/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
-        fi
-    fi
-
-    # Install utility scripts
-    resp=$(ask "Install utility scripts? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        scripts=('Scripts/git-sync' 'Scripts/git-check' 'Scripts/git-hooks' 'Scripts/dbg' 'Scripts/dex/dex' 'Scripts/finance' 'Scripts/win-move')
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.local/bin"
-        for sc in ${scripts[@]}; do
-            if [ "_$DEBUG" == "_" ]; then
-                base="$(basename $sc)"
-                run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/$sc" \
-                    -o "$HOME/.local/bin/$base"
-                chmod +x "$HOME/.local/bin/$base"
-            else
-                run_with_retry cp "$SCRIPT_DIR/../$sc" "$HOME/.local/bin/"
-            fi
-        done
-    fi
-fi
-
-# Install C++ environment
-if [ -z "$SKIP_CXX" ]; then
-    resp=$(ask "Install C++ environment? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install clang, gcc, cmake"
-        run_with_retry yay -S --noconfirm clang gcc cmake
-
-        # Install nvim lsp
-        nvim_install_lsp "clangd"
-
-        resp=$(ask "Install Conan? [Y/n]" "Y")
-        if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-            run_with_retry pipx install conan
-        fi
-    fi
-fi
-
-if [ -z "$SKIP_DELTA" ]; then
-    resp=$(ask "Install delta? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install delta using yay"
-        run_with_retry yay -S --noconfirm git-delta
-
-        STDOUT=/dev/null STDERR=/dev/null run_once mkdir -p "$HOME/.config/delta"
-        STDOUT=/dev/null STDERR=/dev/null run_with_retry curl https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig -o "$HOME/.config/delta/themes.gitconfig"
-
-        if [ "_$DEBUG" == "_" ]; then
-            STDOUT=/dev/null STDERR=/dev/null run_with_retry curl "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/Configs/git/gitconfig" \
-                -o "$HOME/.gitconfig.new"
-        else
-            STDOUT=/dev/null STDERR=/dev/null run_with_retry cp "$SCRIPT_DIR/../Configs/git/gitconfig" "$HOME/.gitconfig.new"
-        fi
-
-        if [ -f "$HOME/.gitconfig.new" ]; then
-            cat "$HOME/.gitconfig.new" >>"$HOME/.gitconfig" 2>/dev/null
-            rm "$HOME/.gitconfig.new"
-        fi
-    fi
-fi
-
-if [ -z "$SKIP_MISE" ]; then
-    resp=$(ask "Install mise? [Y/n]" "Y")
-    if [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]; then
-        info "Install mise using yay"
-        run_with_retry yay -S --noconfirm mise
-    fi
-fi
-
-if [ -z "$SKIP_ALACRITTY" ]; then
-    if [ -f "$HOME/.config/alacritty" ]; then
-        warn "If alacritty doesn't show rendered font, try using this: alacritty -o 'debug.renderer=\"gles2\"'"
-    fi
-fi
+step_delta
+step_scripts
+step_mise
 
 delete_log
