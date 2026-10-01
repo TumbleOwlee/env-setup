@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 LOG_FILE="$(mktemp)"
 
 # Color codes
@@ -36,7 +38,7 @@ function ask {
         echo "$2" 1>&2
         echo "$2" >>$LOG_FILE
     else
-        read value
+        read -r value
         echo "$value" >>$LOG_FILE
         if [ "_$value" == "_" ]; then
             echo "$2"
@@ -59,14 +61,14 @@ function retry {
         tail -n 40 $LOG_FILE
         false
     else
-        read value1
+        read -r value1
         echo "$value1" >>$LOG_FILE
         if [ "_$value1" == "_y" ] || [ "_$value1" == "_Y" ]; then
             less $LOG_FILE
         fi
         echo -e -n "[${RED}?${NONE}] Retry? [Y/n] " 1>&2
         echo -e -n "[?] Retry? [Y/n] " >>$LOG_FILE
-        read value2
+        read -r value2
         echo "$value2" >>$LOG_FILE
         if [ "_$value2" == "_n" ] || [ "_$value2" == "_N" ]; then
             false
@@ -85,7 +87,7 @@ function terminate {
         exit 1
     fi
 
-    read value
+    read -r value
     echo "$value" >>$LOG_FILE
     if [ "_$value" == "_n" ] || [ "_$value" == "_N" ]; then
         false
@@ -106,278 +108,70 @@ function error {
     echo -e "[!] $@" >>$LOG_FILE
 }
 
-function sim_exit {
-    if [ -z "$1" ]; then
-        return 1
-    else
-        return $1
-    fi
+# Execute a command in a subshell. Honors STDOUT, STDERR (cout/cerr = terminal)
+# and the PIPE array. Arguments: $1 = working dir, rest = command.
+function _exec_cmd {
+    local dir="$1"
+    shift
+    (
+        cd "$dir" || exit 1
+        [ "_$STDOUT" == "_cout" ] || exec >>"$STDOUT"
+        [ "_$STDERR" == "_cerr" ] || exec 2>>"$STDERR"
+        if [ ${#PIPE[@]} -gt 0 ]; then
+            "$@" | "${PIPE[@]}"
+        else
+            "$@"
+        fi
+    )
 }
 
+# Run a command, ask to retry on failure
 function run_with_retry {
-    local cmd=""
-    for idx in $(seq $#); do
-        if [ -z "$cmd" ]; then
-            cmd="$cmd${!idx}"
-        else
-            cmd="$cmd%${!idx}"
-        fi
+    local dir="${DIR:-$(pwd)}"
+    local exitcode=0
+    STDOUT="${STDOUT:-$LOG_FILE}"
+    STDERR="${STDERR:-$LOG_FILE}"
+
+    while true; do
+        notify "Execute '${CYAN}$*${NONE}'"
+        _exec_cmd "$dir" "$@" &
+        local pid=$!
+        (
+            secs=0
+            while sleep 1; do
+                secs=$((secs + 1))
+                echo -en "\r      Progress: ${YELLOW}${secs}s${NONE}     "
+            done
+        ) &
+        local ticker=$!
+        wait "$pid"
+        exitcode=$?
+        kill "$ticker" 2>/dev/null
+        wait "$ticker" 2>/dev/null
+        echo -en "\r"
+        [ "$exitcode" -eq 0 ] && break || retry || terminate || break
     done
-    local pipe=""
-    local end=$((${#PIPE[@]} - 1))
-    for idx in $(seq 0 $end); do
-        if [ -z "$pipe" ]; then
-            pipe="$pipe${PIPE[$idx]}"
-        else
-            pipe="$pipe%${PIPE[$idx]}"
-        fi
-    done
-
-    if [ -z "$DIR" ]; then
-        DIR="$(pwd)"
-    fi
-
-    if [ -z "$STDOUT" ]; then
-        STDOUT="$LOG_FILE"
-    fi
-    if [ -z "$STDERR" ]; then
-        STDERR="$LOG_FILE"
-    fi
-
-    if [ $DRY_RUN ]; then
-        notify "Execute '${CYAN}$@${NONE}'"
-    elif [ "_$pipe" != "_" ]; then
-        local IFS='%'
-        while true; do
-            notify "Execute '${CYAN}$@${NONE}'"
-            if [ "_$STDOUT" == "_cout" ]; then
-                if [ "_$STDERR" == "_cerr" ]; then
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && ($cmd | $pipe)
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-
-                else
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && ($cmd | $pipe) 2>>$STDERR
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-                fi
-            else
-                if [ "_$STDERR" == "_cerr" ]; then
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && ($cmd | $pipe) >>$STDOUT
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-                else
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-                fi
-            fi
-        done
-    else
-        local IFS='%'
-        while true; do
-            notify "Execute '${CYAN}$@${NONE}'"
-            if [ "_$STDOUT" == "_cout" ]; then
-                if [ "_$STDERR" == "_cerr" ]; then
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && $cmd
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-                else
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && $cmd 2>>$STDERR
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-                fi
-            else
-                if [ "_$STDERR" == "_cerr" ]; then
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && $cmd >>$STDOUT
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-                else
-                    tmpfile=$(mktemp)
-                    {
-                        cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR
-                        echo -n $? >$tmpfile
-                    } &
-                    SECONDS=0
-                    while [ -z "$(cat $tmpfile)" ]; do
-                        if [ $SECONDS -gt 0 ]; then
-                            echo -en "\r      Progress: ${YELLOW}${SECONDS}s${NONE}     "
-                        fi
-                        sleep 1
-                    done
-                    echo -en "\r"
-                    exitcode=$(cat $tmpfile)
-                    rm $tmpfile
-                    sim_exit $exitcode && break || retry || terminate || break
-                fi
-            fi
-        done
-    fi
 
     unset PIPE
     unset STDOUT
     unset STDERR
+    return "$exitcode"
 }
 
+# Run a command once
 function run_once {
-    local cmd=""
-    for idx in $(seq $#); do
-        if [ "_$cmd" == "_" ]; then
-            cmd="$cmd${!idx}"
-        else
-            cmd="$cmd%${!idx}"
-        fi
-    done
-    local pipe=""
-    local end=$((${#PIPE[@]} - 1))
-    for idx in $(seq 0 $end); do
-        if [ "_$pipe" == "_" ]; then
-            pipe="$pipe${PIPE[$idx]}"
-        else
-            pipe="$pipe%${PIPE[$idx]}"
-        fi
-    done
+    local dir="${DIR:-$(pwd)}"
+    local exitcode=0
+    STDOUT="${STDOUT:-$LOG_FILE}"
+    STDERR="${STDERR:-$LOG_FILE}"
 
-    if [ -z "$DIR" ]; then
-        DIR="$(pwd)"
-    fi
-
-    if [ -z "$STDOUT" ]; then
-        STDOUT="$LOG_FILE"
-    fi
-    if [ -z "$STDERR" ]; then
-        STDERR="$LOG_FILE"
-    fi
-
-    if [ $DRY_RUN ]; then
-        notify "Execute '${CYAN}$@${NONE}'"
-    elif [ ! -z "$pipe" ]; then
-        notify "Execute '${CYAN}$@${NONE}'"
-        if [ "_$STDOUT" == "_cout" ]; then
-            if [ "_$STDERR" == "_cerr" ]; then
-                cd "$DIR" && ($cmd | $pipe)
-            else
-                cd "$DIR" && ($cmd | $pipe) 2>>$STDERR
-            fi
-        else
-            if [ "_$STDERR" == "_cerr" ]; then
-                cd "$DIR" && ($cmd | $pipe) >>$STDOUT
-            else
-                cd "$DIR" && ($cmd | $pipe) >>$STDOUT 2>>$STDERR
-            fi
-        fi
-    else
-        local IFS='%'
-        notify "Execute '${CYAN}$@${NONE}'"
-        if [ "_$STDOUT" == "_cout" ]; then
-            if [ "_$STDERR" == "_cerr" ]; then
-                cd "$DIR" && $cmd
-            else
-                cd "$DIR" && $cmd 2>>$STDERR
-            fi
-        else
-            if [ "_$STDERR" == "_cerr" ]; then
-                cd "$DIR" && $cmd >>$STDOUT
-            else
-                cd "$DIR" && $cmd >>$STDOUT 2>>$STDERR
-            fi
-        fi
-    fi
+    notify "Execute '${CYAN}$*${NONE}'"
+    _exec_cmd "$dir" "$@" || exitcode=$?
 
     unset PIPE
     unset STDOUT
     unset STDERR
+    return "$exitcode"
 }
 
 # Install neovim LSP
