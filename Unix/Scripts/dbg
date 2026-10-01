@@ -1,10 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Simple wrapper for `gdb`
 # * starts the program with gdb
 # * sets breakpoint on `main` entry point
 
 PROGRAM="$1"
-shift 1
-ARGS="$@"
+if [ -z "$PROGRAM" ]; then
+    echo "Usage: dbg <program> [args...]" 1>&2
+    exit 1
+fi
+shift
 
-gdb -ex "b main" -ex "r $ARGS" $PROGRAM
+exec gdb -ex 'b main' -ex r --args "$PROGRAM" "$@"

@@ -1,128 +1,80 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
-COMMIT_MSG_HOOK_CHECK_TAG=$(echo '#!/usr/bin/env bash\n' \
-'SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )\n' \
-'\n' \
-'OUTPUT_FILE="$1"\n' \
-'\n' \
-'if [ -z "$OUTPUT_FILE" ]; then\n' \
-'    echo -e "\e[31mERROR: Missing output file.\e[0m"\n' \
-'    exit 1\n' \
-'else\n' \
-'    REGEX="([A-Z]+-[0-9]+)"\n' \
-'    BRANCH="$(git branch --show-current)"\n' \
-'\n' \
-'    if [[ $BRANCH =~ $REGEX ]]; then\n' \
-'        HEAD="$(head -1 $OUTPUT_FILE)"\n' \
-'        echo "$HEAD" | grep -q "\[${BASH_REMATCH[1]}\]"\n' \
-'        if [ $? -ne 0 ]; then\n' \
-'            echo -e "\e[31mERROR: Commit aborted. Tag is missing in commit msg.\e[0m"\n' \
-'            exit 1\n' \
-'        fi\n' \
-'\n' \
-'        REGEX="^[[:space:]]*\[${BASH_REMATCH[1]}\][[:space:]]*$"\n' \
-'        if [[ $HEAD =~ $REGEX ]]; then\n' \
-'            echo -e "\e[31mERROR: Commit aborted. No commit message provided.\e[0m"\n' \
-'            exit 1\n' \
-'        fi\n' \
-'    fi\n' \
-'fi')
+hook_wrapper() {
+    cat <<'WRAPPER'
+#!/usr/bin/env bash
 
-PRE_COMMIT_HOOK_FOR_CLANG_FORMAT=$(echo '#!/usr/bin/env bash\n' \
-'\n' \
-'script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )\n' \
-'\n' \
-'cd "$script_dir/../"\n' \
-'\n' \
-'if [ -z "$(which clang-format)" ]; then\n' \
-'    echo -e "\\n\e[31m  ERROR: Commit aborted. Formatter clang-format is missing. Please install clang-format for style check.\e[0m\\n"\n' \
-'    exit 1\n' \
-'fi\n' \
-'\n' \
-'version=$(clang-format --version | cut -f4 -d'' '' | cut -f1 -d''.'')\n' \
-'if [ $version -lt 18 ]; then\n' \
-'    echo -e "\\n\e[31m  ERROR: Commit aborted. Only clang-format v18+ is supported. Please update clang-format.\e[0m\\n"\n' \
-'    exit 1\n' \
-'fi\n' \
-'\n' \
-'files=()\n' \
-'for file in `git diff --cached --name-only --diff-filter=ACMRT | grep -E "\.(c|cpp|cxx|cc|h|hpp|hxx)$"`; do\n' \
-'    output="$(cmp -b <(git show :${file}) <(git show :${file} | clang-format --style=file:.clang-format --Werror))"\n' \
-'    if [ $? -ne 0 ]; then\n' \
-'        files+=("${file}")\n' \
-'    fi\n' \
-'done\n' \
-'\n' \
-'if [ -n "${files}" ]; then\n' \
-'    echo -e "\n  \e[33mAffected files:\e[0m\n"\n' \
-'    for file in ${files[@]}; do\n' \
-'        printf "    - %s\n\n" "${files[@]}"\n' \
-'\n' \
-'        lnum=1\n' \
-'        while IFS= read -r line; do\n' \
-'            if [ $lnum -lt 3 ]; then\n' \
-'                echo -e "          | \e[01;97m$line\e[0m"\n' \
-'            elif [ $lnum -eq 3 ]; then\n' \
-'                echo -e "          | \e[36m$line\e[0m"\n' \
-'            elif [[ $line == +* ]]; then\n' \
-'                echo -e "          | \e[32m$line\e[0m"\n' \
-'            elif [[ $line == -* ]]; then\n' \
-'                echo -e "          | \e[31m$line\e[0m"\n' \
-'            else\n' \
-'                echo -e "          | $line"\n' \
-'            fi\n' \
-'            lnum=$((lnum+1))\n' \
-'        done < <(diff --color -u <(git show :${file}) <(git show :${file} | clang-format --style=file:.clang-format --Werror))\n' \
-'        echo\n' \
-'    done\n' \
-'    echo -e "\e[31m  ERROR: Commit aborted. Changes do not match with code style. Run clang-format first.\e[0m\\n"\n' \
-'    exit 1\n' \
-'fi')
-
-PREPARE_COMMIT_MSG_JIRA_TAG=$(echo '#!/bin/env bash\n' \
-'\n' \
-'SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )\n' \
-'\n' \
-'COMMIT_MSG="$1"\n' \
-'\n' \
-'if [ -z "$COMMIT_MSG" ]; then\n' \
-'    echo -e "\e[31mERROR: Commit aborted. Missing argument in prepare-commit-msg.\e[0m"\n' \
-'    exit 1\n' \
-'else\n' \
-'    if [ ! -z "$(cat $COMMIT_MSG)" ]; then\n' \
-'        exit 0\n' \
-'    fi\n' \
-'\n' \
-'    REGEX="([A-Z]+-[0-9]+)"\n' \
-'    BRANCH="$(/usr/bin/git branch --show-current)"\n' \
-'\n' \
-'    if [[ $BRANCH =~ $REGEX ]]; then\n' \
-'        echo "[${BASH_REMATCH[1]}] " > "$COMMIT_MSG"\n' \
-'    fi\n' \
-'fi')
-
-root_dir() {
-    ROOT_DIR="$(pwd)"
-    while true; do
-        if [ -f "${ROOT_DIR}/.git" ]; then
-            ROOT_DIR="$(cat "${ROOT_DIR}/.git" | grep gitdir | cut -f2 -d' ')"
-        elif [ -d "${ROOT_DIR}/.git" ]; then
-            echo $(realpath "${ROOT_DIR}")
-            break
-        else
-            ROOT_DIR="${ROOT_DIR}/.."
-        fi
-    done
-}
-
-ROOT_DIR=$(root_dir)
-
-if [ ! -d "${ROOT_DIR}/.git-hooks" ]; then
-    mkdir -p "${ROOT_DIR}/.git-hooks"
+if [ -x "$0.local" ]; then
+    "$0.local" "$@" || exit $?
 fi
 
-GIT_DIR=$(realpath "${ROOT_DIR}/.git")
-GIT_HOOK_DIR=$(realpath "${ROOT_DIR}/.git-hooks")
+HOOK="$(dirname "$(readlink -f "$0")")/$(basename "$0")"
+if [ -x "$HOOK" ]; then
+    "$HOOK" "$@" || exit $?
+fi
+WRAPPER
+}
+
+hook_clang_format() {
+    cat <<'HOOK'
+#!/usr/bin/env bash
+
+script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+cd "$script_dir/../" || exit 1
+
+if ! command -v clang-format > /dev/null 2>&1; then
+    echo -e "\n\e[31m  ERROR: Commit aborted. Formatter clang-format is missing. Please install clang-format for style check.\e[0m\n"
+    exit 1
+fi
+
+version=$(clang-format --version | grep -oE '[0-9]+' | head -1)
+if [ "${version:-0}" -lt 18 ]; then
+    echo -e "\n\e[31m  ERROR: Commit aborted. Only clang-format v18+ is supported. Please update clang-format.\e[0m\n"
+    exit 1
+fi
+
+files=()
+while IFS= read -r file; do
+    if ! cmp -s <(git show ":${file}") <(git show ":${file}" | clang-format --style=file:.clang-format --Werror); then
+        files+=("${file}")
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACMRT | grep -E "\.(c|cpp|cxx|cc|h|hpp|hxx)$")
+
+if [ "${#files[@]}" -gt 0 ]; then
+    echo -e "\n  \e[33mAffected files:\e[0m\n"
+    for file in "${files[@]}"; do
+        printf "    - %s\n\n" "$file"
+
+        lnum=1
+        while IFS= read -r line; do
+            if [ $lnum -lt 3 ]; then
+                echo -e "          | \e[01;97m$line\e[0m"
+            elif [ $lnum -eq 3 ]; then
+                echo -e "          | \e[36m$line\e[0m"
+            elif [[ $line == +* ]]; then
+                echo -e "          | \e[32m$line\e[0m"
+            elif [[ $line == -* ]]; then
+                echo -e "          | \e[31m$line\e[0m"
+            else
+                echo -e "          | $line"
+            fi
+            lnum=$((lnum+1))
+        done < <(diff --color -u <(git show ":${file}") <(git show ":${file}" | clang-format --style=file:.clang-format --Werror))
+        echo
+    done
+    echo -e "\e[31m  ERROR: Commit aborted. Changes do not match with code style. Run clang-format first.\e[0m\n"
+    exit 1
+fi
+HOOK
+}
+
+if ! ROOT_DIR=$(git rev-parse --show-toplevel 2>/dev/null); then
+    echo -e "\e[31mERROR: Not inside a git repository.\e[0m" 1>&2
+    exit 1
+fi
+GIT_DIR=$(realpath "$(git rev-parse --git-common-dir)")
+GIT_HOOK_DIR="${ROOT_DIR}/.git-hooks"
 
 HOOK_NAMES=(
     "applypatch-msg"
@@ -146,84 +98,55 @@ HOOK_NAMES=(
     "update"
 )
 
-cd "${ROOT_DIR}"
+cd "${ROOT_DIR}" || exit 1
 
 echo ""
 if [ -z "$1" ] || [ "$1" == "install" ]; then
     echo -e "  \e[34mInstall git hooks\e[0m\n"
 
-    echo '#!/bin/env bash
-
-    if [ -x $0.local ]; then
-        $0.local "$@" || exit $?
-    fi
-
-    HOOK="$(dirname $0)/../../.git-hooks/$(basename $0)"
-    if [ -x "$HOOK" ]; then
-        $HOOK "$@" || exit $?
-    fi
-
-    for f in ${GIT_HOOK_DIR}/*; do
-        chmod +x $f
-    done' > "${GIT_HOOK_DIR}/hooks-wrapper"
-
+    mkdir -p "${GIT_HOOK_DIR}"
+    hook_wrapper >"${GIT_HOOK_DIR}/hooks-wrapper"
     chmod +x "${GIT_HOOK_DIR}/hooks-wrapper"
 
-    echo -ne "  \e[34m    Install PREPARE_COMMIT hook for Jira tags? [Y/n] \e[0m" 1>&2
-    read value
-    if [ -z $value ] || [ "$value" == "y" ] || [ "$value" == "Y"]; then
-        echo -n "          Install hook ... "
-        (echo -e "$PREPARE_COMMIT_MSG_JIRA_TAG" > "${GIT_HOOK_DIR}/prepare-commit-msg" && chmod +x "${GIT_HOOK_DIR}/prepare-commit-msg" && echo -e "\e[32minstalled\e[0m")  || echo -e "\e[31mfailed\e[0m"
-    fi
-    echo ""
-
     echo -ne "  \e[34m    Install PRE_COMMIT hook for clang-format? [Y/n] \e[0m" 1>&2
-    read value
-    if [ -z $value ] || [ "$value" == "y" ] || [ "$value" == "Y"]; then
+    read -r value
+    if [ -z "$value" ] || [ "$value" == "y" ] || [ "$value" == "Y" ]; then
         echo -n "          Install hook ... "
-        (echo -e "$PRE_COMMIT_HOOK_FOR_CLANG_FORMAT" > "${GIT_HOOK_DIR}/pre-commit" && chmod +x "${GIT_HOOK_DIR}/pre-commit" && echo -e "\e[32minstalled\e[0m")  || echo -e "\e[31mfailed\e[0m"
-    fi
-    echo ""
-
-    echo -ne "  \e[34m    Install COMMIT_MSG hook for Jira tag check? [Y/n] \e[0m" 1>&2
-    read value
-    if [ -z $value ] || [ "$value" == "y" ] || [ "$value" == "Y"]; then
-        echo -n "          Install hook ... "
-        (echo -e "$COMMIT_MSG_HOOK_CHECK_TAG" > "${GIT_HOOK_DIR}/commit-msg" && chmod +x "${GIT_HOOK_DIR}/commit-msg" && echo -e "\e[32minstalled\e[0m")  || echo -e "\e[31mfailed\e[0m"
+        (hook_clang_format >"${GIT_HOOK_DIR}/pre-commit" && chmod +x "${GIT_HOOK_DIR}/pre-commit" && echo -e "\e[32minstalled\e[0m") || echo -e "\e[31mfailed\e[0m"
     fi
     echo ""
 
     HOOK_DIR="${GIT_DIR}/hooks"
-    cd "${HOOK_DIR}"
+    mkdir -p "${HOOK_DIR}"
 
-    for hook in ${HOOK_NAMES[@]}; do
+    for hook in "${HOOK_NAMES[@]}"; do
         echo -e "  \e[34m    Check hook $HOOK_DIR/$hook\e[0m"
-        if [ ! -h $HOOK_DIR/$hook -a -x $HOOK_DIR/$hook ]; then
+        if [ ! -h "$HOOK_DIR/$hook" ] && [ -x "$HOOK_DIR/$hook" ]; then
             echo -e "          Move existing hook $HOOK_DIR/$hook to $HOOK_DIR/$hook.local"
-            mv $HOOK_DIR/$hook $HOOK_DIR/$hook.local
+            mv "$HOOK_DIR/$hook" "$HOOK_DIR/$hook.local"
         fi
         echo -e "          Create symlink from $HOOK_DIR/$hook to ${GIT_HOOK_DIR}/hooks-wrapper"
-        ln -s -f "../../.git-hooks/hooks-wrapper" $HOOK_DIR/$hook
+        ln -s -f "${GIT_HOOK_DIR}/hooks-wrapper" "$HOOK_DIR/$hook"
         echo ""
     done
-elif [ ! -z "$1" ] && [ "$1" == "uninstall" ]; then
+elif [ "$1" == "uninstall" ]; then
     echo -e "  \e[33mUninstall git hooks\e[0m\n"
 
     if [ ! -d "${GIT_HOOK_DIR}" ]; then
-        echo -e "  \e[34m   No hooks installed."
+        echo -e "  \e[34m   No hooks installed.\e[0m"
         exit 1
     fi
 
     HOOK_DIR="${GIT_DIR}/hooks"
-    for hook in ${HOOK_NAMES[@]}; do
+    for hook in "${HOOK_NAMES[@]}"; do
         echo -e "  \e[34m    Check hook $HOOK_DIR/$hook\e[0m"
-        if [ -L  $HOOK_DIR/$hook ] && [ "$(realpath $HOOK_DIR/$hook)" == "$(realpath "$ROOT_DIR/.git-hooks/hooks-wrapper")" ]; then
+        if [ -L "$HOOK_DIR/$hook" ] && [ "$(realpath "$HOOK_DIR/$hook")" == "$(realpath "${GIT_HOOK_DIR}/hooks-wrapper")" ]; then
             echo -e "          Remove symlink $HOOK_DIR/$hook"
-            rm $HOOK_DIR/$hook
+            rm "$HOOK_DIR/$hook"
 
-            if [ -e $HOOK_DIR/$hook.local ]; then
+            if [ -e "$HOOK_DIR/$hook.local" ]; then
                 echo -e "          Restore $HOOK_DIR/$hook.local as $HOOK_DIR/$hook"
-                mv $HOOK_DIR/$hook.local $HOOK_DIR/$hook
+                mv "$HOOK_DIR/$hook.local" "$HOOK_DIR/$hook"
             fi
         else
             echo -e "          Nothing to do for $HOOK_DIR/$hook"
@@ -231,6 +154,6 @@ elif [ ! -z "$1" ] && [ "$1" == "uninstall" ]; then
         echo ""
     done
 else
-    echo -e "  \e[31mERROR: Invalid arguments specified '$@'\e[0m\n"
+    echo -e "  \e[31mERROR: Invalid arguments specified '$*'\e[0m\n"
     exit 1
 fi
