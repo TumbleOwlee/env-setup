@@ -9,10 +9,10 @@ BT_DEVICES=(
     # 'Controller|11:22:33:44:55:66'
 )
 
-# Screen size in pixels used by win-move (Super+Shift+Ctrl+u/i/o/j/k/l)
-# for the preselected window sizes.
-WIN_MOVE_WIDTH=1280
-WIN_MOVE_HEIGHT=720
+# Optional overrides of the screen size detected by win-move via xrandr.
+# Used for the preselected window sizes (Super+Shift+Ctrl+u/i/o/j/k/l).
+# WIN_MOVE_WIDTH=1280
+# WIN_MOVE_HEIGHT=720
 
 # Optional overrides. Leave commented to auto-detect.
 # Primary monitor name as shown by `bspc query -M --names`.
