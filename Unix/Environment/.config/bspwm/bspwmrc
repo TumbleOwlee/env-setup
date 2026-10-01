@@ -15,7 +15,7 @@ bspc config normal_border_color  "#073642"
 bspc config active_border_color  "#073642"
 
 # Assign application to workspaces
-bspc rule -a keepassxc desktop='III'
+bspc rule -a keepassxc desktop='3'
 
 #################################################################################
 #                                 Autostart                                     #
@@ -27,9 +27,22 @@ pgrep -x sxhkd > /dev/null || sxhkd &
 # Set display from arandr saved script
 sh ~/.screenlayout/monitor.sh &
 
-# Assign workspaces to displays
-bspc monitor DisplayPort-0 -d I II III IV V
-bspc monitor DisplayPort-2 -d VI VII VIII IX X
+# Assign workspaces to displays (spread 10 desktops over all monitors)
+set -- $(bspc query -M --names)
+n=$#
+if [ "$n" -gt 0 ]; then
+    i=0
+    for mon in "$@"; do
+        desktops=""
+        d=$((i + 1))
+        while [ "$d" -le 10 ]; do
+            desktops="$desktops $d"
+            d=$((d + n))
+        done
+        bspc monitor "$mon" -d $desktops
+        i=$((i + 1))
+    done
+fi
 
 # Bar
 ~/.config/polybar/launch.sh &
@@ -41,13 +54,13 @@ bspc monitor DisplayPort-2 -d VI VII VIII IX X
 /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
 
 # Wallpaper
-nitrogen --set-zoom-fill ~/.backgrounds/wow-horde.png &
+nitrogen --set-zoom-fill "$HOME/.backgrounds/wow-horde.jpg" &
 
 # Dex
-dex -a -s /etc/xdg/autostart/:~/.config/autostart/
+dex -a -s "/etc/xdg/autostart/:$HOME/.config/autostart/" &
 
 # Picom
-picom -CGb &
+picom -b &
 
 # Network Applet
 nm-applet --indicator &

@@ -1,0 +1,5 @@
+i3lock-color
+nitrogen
+gtk-engine-murrine
+arc-gtk-theme
+arc-x-icons-theme
