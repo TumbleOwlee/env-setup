@@ -1,10 +1,47 @@
-#!/bin/bash
-# This script is configured for a setup of two 5120x1440 screens
+#!/usr/bin/env bash
+# Move/resize the active window into a slot of a 3x2 grid (up/down x left/center/right).
+# The monitor geometry is detected via xrandr (monitor of the active window, else primary).
+# Overrides (e.g. in ~/.config/env-setup/local.conf): WIN_MOVE_WIDTH, WIN_MOVE_HEIGHT
 
 # Get position by name
 position=$1
 # Get active window id
 window_id=$(xdotool getwindowfocus)
+
+# Optional overrides
+LOCAL_CONF="$HOME/.config/env-setup/local.conf"
+# shellcheck disable=SC1090
+[ -f "$LOCAL_CONF" ] && . "$LOCAL_CONF"
+
+# Detect the geometry (WxH+X+Y) of the monitor holding the active window
+detect_monitor() {
+    local wx=0 wy=0 mon line geom w h x y
+    local mons
+    mons=$(xrandr --listmonitors 2>/dev/null | tail -n +2)
+    [ -n "$mons" ] || return 1
+
+    eval "$(xdotool getwindowgeometry --shell "$window_id" 2>/dev/null | grep -E '^(X|Y)=' | sed 's/^X=/wx=/;s/^Y=/wy=/')"
+
+    mon=""
+    while read -r line; do
+        geom=$(echo "$line" | grep -oE '[0-9]+/[0-9]+x[0-9]+/[0-9]+\+[0-9-]+\+[0-9-]+')
+        [ -n "$geom" ] || continue
+        w=$(echo "$geom" | sed -E 's:^([0-9]+)/.*:\1:')
+        h=$(echo "$geom" | sed -E 's:^[0-9]+/[0-9]+x([0-9]+)/.*:\1:')
+        x=$(echo "$geom" | sed -E 's:.*\+(-?[0-9]+)\+(-?[0-9]+)$:\1:')
+        y=$(echo "$geom" | sed -E 's:.*\+(-?[0-9]+)\+(-?[0-9]+)$:\2:')
+        # First monitor is the fallback; primary (*) preferred over it
+        if [ -z "$mon" ] || [[ $line == *"*"* && -z "$found" ]]; then
+            mon="$w $h $x $y"
+        fi
+        if [ "$wx" -ge "$x" ] && [ "$wx" -lt $((x + w)) ] && [ "$wy" -ge "$y" ] && [ "$wy" -lt $((y + h)) ]; then
+            mon="$w $h $x $y"
+            found=1
+            break
+        fi
+    done <<<"$mons"
+    [ -n "$mon" ] && echo "$mon"
+}
 
 # Move and resize window to fit specific window location
 # The focus is kept after the move/resize
@@ -18,43 +55,57 @@ apply() {
     pos_x=$3
     pos_y=$4
 
-    xdotool windowsize $window_id $width $height
-    xdotool windowmove $window_id $pos_x $pos_y
-    xdotool windowactivate $window_id
-    xdotool windowfocus $window_id
-    xdotool windowraise $window_id
+    xdotool windowsize "$window_id" "$width" "$height"
+    xdotool windowmove "$window_id" "$pos_x" "$pos_y"
+    xdotool windowactivate "$window_id"
+    xdotool windowfocus "$window_id"
+    xdotool windowraise "$window_id"
 }
 
 # Configuration of the display
-display_width=5120
-display_height=1440
+display_width=""
+display_height=""
+origin_x=0
+origin_y=0
+if mon=$(detect_monitor); then
+    read -r display_width display_height origin_x origin_y <<<"$mon"
+fi
+display_width=${WIN_MOVE_WIDTH:-${display_width:-5120}}
+display_height=${WIN_MOVE_HEIGHT:-${display_height:-1440}}
 
 # Top bar height
 top_bar_height=20
 # Padding between windows
 padding=4
-# Center window 
-center_width=2460
-center_height=$(($display_height-$top_bar_height-3*$padding))
+# Center window (about 48% of the display width)
+center_width=$((display_width * 48 / 100))
+center_height=$((display_height - top_bar_height - 3 * padding))
 # Side window
-side_width=$((x=$display_width-$center_width-4*$padding, x/2))
-side_height=$(($display_height-$top_bar_height-3*$padding))
+side_width=$(((display_width - center_width - 4 * padding) / 2))
+side_height=$((display_height - top_bar_height - 3 * padding))
 
 # Apply the settings based on selection
+# The "down" row is the monitor below the detected one
+left_x=$((origin_x + padding))
+center_x=$((origin_x + side_width + 2 * padding))
+right_x=$((origin_x + 3 * padding + center_width + side_width))
+up_y=$((origin_y + top_bar_height + padding))
+down_y=$((origin_y + top_bar_height + padding + display_height))
+
 if [ -z "$position" ]; then
     exit 1
 elif [ "$position" == "down_center" ]; then
-    apply $center_width $center_height $(($side_width+2*$padding)) $(($display_height+$top_bar_height+$padding))
+    apply $center_width $center_height $center_x $down_y
 elif [ "$position" == "down_left" ]; then
-    apply $side_width $side_height $padding $(($top_bar_height+$padding+$display_height))
+    apply $side_width $side_height $left_x $down_y
 elif [ "$position" == "down_right" ]; then
-    apply $side_width $side_height $((3*$padding+$center_width+$side_width)) $(($top_bar_height+$padding+$display_height))
+    apply $side_width $side_height $right_x $down_y
 elif [ "$position" == "up_center" ]; then
-    apply $center_width $center_height $(($side_width+2*$padding)) $(($top_bar_height+$padding))
+    apply $center_width $center_height $center_x $up_y
 elif [ "$position" == "up_left" ]; then
-    apply $side_width $side_height $padding $(($top_bar_height+$padding))
+    apply $side_width $side_height $left_x $up_y
 elif [ "$position" == "up_right" ]; then
-    apply $side_width $side_height $((3*$padding+$center_width+$side_width)) $(($top_bar_height+$padding))
+    apply $side_width $side_height $right_x $up_y
 else
     exit 1
 fi

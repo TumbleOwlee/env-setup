@@ -1,10 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Application: Git-Sync
 # Description: Synchronize all local branches by fetching remotes and perform fast-forwarding
 # Uage: git sync
 
-RED=31
 GREEN=32
 YELLOW=33
 
@@ -15,13 +14,13 @@ progress_bar() {
     value=$4
     maxvalue=$5
 
-    percent=$(($value * 100 / $maxvalue))
-    bars=$(($percent * $length / 100))
+    percent=$((value * 100 / maxvalue))
+    bars=$((percent * length / 100))
 
     LINE="\r\e[0;33m > Progress \e[0m"
     LINE="$LINE\e[0;${basecolor}m[\e[0m"
-    for bar in $(seq $length); do
-        if [ $bar -gt $bars ]; then
+    for bar in $(seq "$length"); do
+        if [ "$bar" -gt "$bars" ]; then
             LINE="$LINE "
         else
             LINE="$LINE\e[0;${barcolor}m#\e[0m"
@@ -34,7 +33,7 @@ progress_bar() {
 
 curbranch=$(git rev-parse --abbrev-ref HEAD)
 
-git fetch -a &>/dev/null
+git fetch --all --prune &>/dev/null
 
 count=1
 maxcount=0
@@ -44,42 +43,39 @@ done
 
 whitespace="                                 "
 
-last_count=9999999
 for branch in $(git for-each-ref refs/heads --format="%(refname:short)"); do
-    upbranch=$(git config --get branch.$branch.merge | sed 's:refs/heads/::');
-
     progress_bar 20 $YELLOW $GREEN $count $maxcount
 
-    if [ "$branch" = "$upbranch" ]; then
+    # Skip branches without an upstream
+    if git rev-parse --verify --quiet "$branch@{u}" >/dev/null; then
+        upstream=$(git rev-parse --abbrev-ref "$branch@{u}")
         if [ "$branch" = "$curbranch" ]; then
-            b1="$(git log -n 1 --pretty=format:"%H" $branch 2>/dev/null)"
-            b2="$(git log -n 1 --pretty=format:"%H" origin/$upbranch 2>/dev/null)"
-            if [ ! -z "$b1" ] && [ ! -z "$b2" ] && [ "$b1" != "$b2" ]; then
+            b1="$(git log -n 1 --pretty=format:"%H" "$branch" 2>/dev/null)"
+            b2="$(git log -n 1 --pretty=format:"%H" "$branch@{u}" 2>/dev/null)"
+            if [ -n "$b1" ] && [ -n "$b2" ] && [ "$b1" != "$b2" ]; then
                 echo -en "\e[0;33m: Fast forwarding '$branch' ... \e[0m"
-                git merge --ff-only origin/$upbranch &>/dev/null
-                if [ $? -ne 0 ]; then
-                    echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
-                    echo -e "\e[0;31mfailure\e[0m$whitespace"
-                else
+                if git merge --ff-only "$branch@{u}" &>/dev/null; then
                     echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
                     echo -e "\e[0;32msuccess\e[0m$whitespace"
+                else
+                    echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
+                    echo -e "\e[0;31mfailure\e[0m$whitespace"
                 fi
             fi
         else
-            b1="$(git log -n 1 --pretty=format:"%H" $branch 2>/dev/null)"
-            b2="$(git log -n 1 --pretty=format:"%H" origin/$upbranch 2>/dev/null)"
-            b1t="$(git log -n 1 --pretty=format:"%at" $branch 2>/dev/null)"
-            b2t="$(git log -n 1 --pretty=format:"%at" origin/$upbranch 2>/dev/null)"
-            if [ ! -z "$b1" ] && [ ! -z "$b2" ] && [ "$b1" != "$b2" ]; then
+            b1="$(git log -n 1 --pretty=format:"%H" "$branch" 2>/dev/null)"
+            b2="$(git log -n 1 --pretty=format:"%H" "$branch@{u}" 2>/dev/null)"
+            b1t="$(git log -n 1 --pretty=format:"%at" "$branch" 2>/dev/null)"
+            b2t="$(git log -n 1 --pretty=format:"%at" "$branch@{u}" 2>/dev/null)"
+            if [ -n "$b1" ] && [ -n "$b2" ] && [ "$b1" != "$b2" ]; then
                 echo -en "\e[0;33m: Fast forwarding '$branch' ... \e[0m"
-                if [ $b1t -lt $b2t ]; then
-                    git fetch . origin/$upbranch:$branch &>/dev/null
-                    if [ $? -ne 0 ]; then
-                        echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
-                        echo -e "\e[0;31mfailure\e[0m$whitespace"
-                    else
+                if [ "$b1t" -lt "$b2t" ]; then
+                    if git fetch . "$upstream:$branch" &>/dev/null; then
                         echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
                         echo -e "\e[0;32msuccess\e[0m$whitespace"
+                    else
+                        echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
+                        echo -e "\e[0;31mfailure\e[0m$whitespace"
                     fi
                 else
                     echo -en "\r\e[0;33m > Fast forwarding '$branch' ... \e[0m"
@@ -89,5 +85,5 @@ for branch in $(git for-each-ref refs/heads --format="%(refname:short)"); do
         fi
     fi
     count=$((count + 1))
-done;
+done
 echo ""
