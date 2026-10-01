@@ -148,7 +148,7 @@ if [ -z "$SKIP_NEOVIM" ]; then
             pkg_install neovim
         fi
         step_fonts
-        step_neovim_config
+        ASKED=1 step_neovim_config
     fi
 fi
 
@@ -202,7 +202,7 @@ function alacritty_build {
 
 if [ "$REQUIRE_RUST" -eq 1 ]; then
     alacritty_build
-    step_alacritty_config
+    ASKED=1 step_alacritty_config
 fi
 
 step_delta

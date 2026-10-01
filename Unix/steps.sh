@@ -19,9 +19,11 @@ function _steps_user {
 }
 
 # Return 0 if the step <NAME> is not skipped and the user confirms <label>
+# With ASKED=1 the caller already got a yes for this tool: no second prompt.
 function _step_wanted {
     local var="SKIP_$1" resp
     [ -z "${!var}" ] || return 1
+    [ "${ASKED:-}" != "1" ] || return 0
     resp=$(ask "Install $2? [Y/n]" "Y")
     [ "_$resp" != "_n" ] && [ "_$resp" != "_N" ]
 }
