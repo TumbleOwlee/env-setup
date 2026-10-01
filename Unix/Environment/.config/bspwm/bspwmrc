@@ -27,9 +27,42 @@ pgrep -x sxhkd > /dev/null || sxhkd &
 # Set display from arandr saved script
 sh ~/.screenlayout/monitor.sh &
 
-# Assign workspaces to displays
-bspc monitor DisplayPort-0 -d I II III IV V
-bspc monitor DisplayPort-2 -d VI VII VIII IX X
+# Assign workspaces to displays (contiguous blocks of the 10 Roman desktops)
+MONITOR_PRIMARY=""
+# shellcheck disable=SC1090,SC1091
+[ -f "$HOME/.config/env-setup/local.conf" ] && . "$HOME/.config/env-setup/local.conf"
+
+# Monitor order: MONITOR_PRIMARY first (if set), then bspc order
+mons=""
+if [ -n "$MONITOR_PRIMARY" ]; then
+    mons="$MONITOR_PRIMARY"
+fi
+for m in $(bspc query -M --names); do
+    [ "$m" = "$MONITOR_PRIMARY" ] || mons="$mons $m"
+done
+# shellcheck disable=SC2086
+set -- $mons
+n=$#
+if [ "$n" -gt 0 ]; then
+    base=$((10 / n))
+    extra=$((10 % n))
+    idx=0
+    start=1
+    for mon in "$@"; do
+        count=$base
+        [ "$idx" -lt "$extra" ] && count=$((base + 1))
+        desktops=""
+        d=$start
+        while [ "$d" -lt $((start + count)) ]; do
+            desktops="$desktops $(echo "I II III IV V VI VII VIII IX X" | cut -d' ' -f"$d")"
+            d=$((d + 1))
+        done
+        # shellcheck disable=SC2086
+        bspc monitor "$mon" -d $desktops
+        start=$((start + count))
+        idx=$((idx + 1))
+    done
+fi
 
 # Bar
 ~/.config/polybar/launch.sh &
@@ -41,13 +74,13 @@ bspc monitor DisplayPort-2 -d VI VII VIII IX X
 /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
 
 # Wallpaper
-nitrogen --set-zoom-fill ~/.backgrounds/wow-horde.png &
+nitrogen --set-zoom-fill "$HOME/.backgrounds/wow-horde.jpg" &
 
 # Dex
-dex -a -s /etc/xdg/autostart/:~/.config/autostart/
+dex -a -s "/etc/xdg/autostart/:$HOME/.config/autostart/" &
 
 # Picom
-picom -CGb &
+picom -b &
 
 # Network Applet
 nm-applet --indicator &
