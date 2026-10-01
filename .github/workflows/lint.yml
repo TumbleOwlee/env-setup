@@ -1,0 +1,49 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shfmt shellcheck
+
+      - name: Collect files
+        run: |
+          # Select tracked files: *.sh, shell shebang, or bspwmrc.
+          # Exclude sxhkdrc and .workflow/. Newline-separated list goes to a file.
+          list="$RUNNER_TEMP/lint-files.txt"
+          : > "$list"
+          while IFS= read -r file; do
+              case "$file" in
+                  .workflow/* | */sxhkdrc) continue ;;
+              esac
+              [[ -f "$file" && ! -L "$file" ]] || continue
+              if [[ "$file" == *.sh || "$file" == */bspwmrc ]] ||
+                  head -n 1 "$file" | grep -Eq '^#!.*(ba)?sh'; then
+                  printf '%s\n' "$file" >> "$list"
+              fi
+          done < <(git ls-files)
+          sort -u -o "$list" "$list"
+          echo "Files to lint:"
+          cat "$list"
+
+      - name: Run shfmt
+        run: xargs -d '\n' -r -a "$RUNNER_TEMP/lint-files.txt" shfmt -d -i 4
+
+      - name: Run shellcheck
+        if: success() || failure()
+        run: xargs -d '\n' -r -a "$RUNNER_TEMP/lint-files.txt" shellcheck -x
