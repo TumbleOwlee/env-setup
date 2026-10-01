@@ -1,0 +1,76 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shfmt shellcheck
+
+      - name: Collect files
+        id: collect
+        run: |
+          files_to_lint=()
+
+          # Add all .sh files, excluding .workflow/
+          while IFS= read -r file; do
+              [[ "$file" == .workflow/* ]] && continue
+              files_to_lint+=("$file")
+          done < <(git ls-files | grep '\.sh$' || true)
+
+          # Add files with shell shebang that don't end in .sh, excluding .workflow/ and sxhkdrc
+          while IFS= read -r file; do
+              [[ "$file" == .workflow/* ]] && continue
+              [[ "$file" == "Unix/Environment/.config/sxhkd/sxhkdrc" ]] && continue
+              if head -1 "$file" 2>/dev/null | grep -q "^#!.*\b\(ba\)\?sh\b"; then
+                  files_to_lint+=("$file")
+              fi
+          done < <(git ls-files | grep -v '\.sh$' || true)
+
+          # Always add bspwmrc if not already present
+          bspwmrc_found=false
+          for f in "${files_to_lint[@]}"; do
+              if [[ "$f" == "Unix/Environment/.config/bspwm/bspwmrc" ]]; then
+                  bspwmrc_found=true
+                  break
+              fi
+          done
+          if [[ "$bspwmrc_found" == false ]]; then
+              files_to_lint+=("Unix/Environment/.config/bspwm/bspwmrc")
+          fi
+
+          # Sort and deduplicate
+          files_list=$(printf '%s\n' "${files_to_lint[@]}" | sort -u)
+
+          # Save to output
+          echo "files_list<<EOF" >> $GITHUB_OUTPUT
+          echo "$files_list" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run shfmt
+        run: |
+          files="${{ steps.collect.outputs.files_list }}"
+          if [[ -n "$files" ]]; then
+              echo "$files" | xargs shfmt -d -i 4
+          fi
+
+      - name: Run shellcheck
+        run: |
+          files="${{ steps.collect.outputs.files_list }}"
+          if [[ -n "$files" ]]; then
+              echo "$files" | xargs shellcheck -x
+          fi
