@@ -387,7 +387,7 @@ function pkg_version {
 # Ask whether to use the upstream release; returns 0 for upstream
 function choose_source {
     local resp
-    resp=$(ask "Use upstream release instead of packaged $1 $2? [y/N]" "N")
+    resp=$(ask "Use upstream release instead of packaged $1 $2? [Y/n]" "Y")
     [ "_$resp" == "_y" ] || [ "_$resp" == "_Y" ]
 }
 
