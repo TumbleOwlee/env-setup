@@ -14,5 +14,3 @@
     width = -2
 [merge]
     conflictstyle = zdiff3
-[gpg]
-    program = gpg

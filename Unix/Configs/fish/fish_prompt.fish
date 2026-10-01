@@ -6,8 +6,8 @@ function fish_prompt --description 'Write out the prompt'
         set git_branch (set_color blue)"$git_branch"
         set -l git_status
         if not command git diff-index --quiet HEAD 2>/dev/null --
-            if set -l count (command git rev-list --count --left-right $upstream...HEAD 2>/dev/null)
-                echo $count | read -l ahead behind
+            if set -l count (command git rev-list --left-right --count 'HEAD...@{u}' 2>/dev/null)
+                echo $count | read -l ahead behind  # left = ahead, right = behind
                 if test "$ahead" -gt 0
                     set git_status "$git_status"(set_color red)⬆
                 end
@@ -17,7 +17,7 @@ function fish_prompt --description 'Write out the prompt'
             end
             for i in (git status --porcelain | string sub -l 2 | sort | uniq)
                 switch $i
-                    case "."
+                    case "A*"
                         set git_status "$git_status"(set_color green)'+'
                     case " D"
                         set git_status "$git_status"(set_color red)'x'
