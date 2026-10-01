@@ -5,7 +5,7 @@ function colored_cat
     if test $argc -gt 0
         if test "$argv[1]" = "--version"
             /usr/bin/cat --version
-            exit 0
+            return 0
         end
 
         # Get maximal length
@@ -14,7 +14,6 @@ function colored_cat
             set -l len (string length $var)
             if test $len -gt $length
                 set length $len
-                echo "$length"
             end
         end
 
