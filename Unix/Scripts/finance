@@ -12,11 +12,9 @@ from argparse import ArgumentParser
 def import_library(module):
     try:
         return importlib.import_module(module)
-    except ImportError as error:
-        instance = subprocess.run(['python3', '-m', 'pip', 'install', module])
-        if instance.returncode != 0:
-            raise error
-        return importlib.import_module(module)
+    except ImportError:
+        print(f"Failed to import {module}. Please install: python-{module} / python3-{module}")
+        sys.exit(1)
 
 
 Terminal = import_library('blessings').Terminal
@@ -208,7 +206,7 @@ if __name__ == "__main__":
     add_parser.add_argument(
         "DESCRIPTION", help="Description of service to pay for.")
     add_parser.add_argument(
-        "FREQUENCY", help="Frequency of the payment (monthly=1, biweekly=2, weekly=3, yearly=4).")
+        "FREQUENCY", help="Frequency of the payment (monthly=1, biweekly=2, weekly=3, yearly=4, halfyearly=5, quarterly=6).")
     add_parser.add_argument(
         "COST", help="Payment cost of the item.")
     list_parser = subparsers.add_parser(name="list")

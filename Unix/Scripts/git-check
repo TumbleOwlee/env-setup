@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
 # for exit
 import sys
@@ -14,7 +14,7 @@ from rich.table import Table
 # Regex
 import re
 # datetime parsing
-import dateutil
+from dateutil import parser
 import datetime
 
 # Customize theme of inquirer
@@ -54,7 +54,7 @@ def get_sorted_branches(since: str | None, remote: bool):
         sys.exit(1)
 
     if since is not None:
-        since = dateutil.parser.parse(
+        since = parser.parse(
             since, default=datetime.datetime(1978, 1, 1, 0, 0))
 
     branches = dict()
@@ -63,7 +63,7 @@ def get_sorted_branches(since: str | None, remote: bool):
             line = line[1:]
         branch = line.strip()
         b = branch.split(' ')
-        date = dateutil.parser.parse(' '.join(b[0:2]))
+        date = parser.parse(' '.join(b[0:2]))
         if since is None or date > since:
             if remote:
                 n = b[3].split('/')[0]
@@ -153,21 +153,14 @@ def display_table(table: Table, branches: [(str, str | None, str, str)], merged:
         row = [tag, b[0].strftime("%Y-%m-%d %H:%M:%S"), b[1], b[2]]
         for m in merged:
             local = b[2] in m[1]
-            remote = True if b[1] is None else b[1] + "/" + b[2] in m[1]
-            if local == remote:
-                if local:
-                    entry = "[green]Yes[/green]"
-                else:
-                    entry = "[red]No[/red]"
-
-            entry = None
+            entry = "[green]Yes[/green]" if local else "[red]No[/red]"
 
             if b[1]:
                 br = b[1] + "/" + b[2]
                 if br in m[1]:
-                    entry = "[green]Yes[/green]" if entry is None else f"{entry} / [green]Yes[/green]"
+                    entry += " / [green]Yes[/green]"
                 else:
-                    entry = "[red]No[/red]" if entry is None else f"{entry} / [red]No[/red]"
+                    entry += " / [red]No[/red]"
             row.append(entry)
         table.add_row(*row)
     console.print(table)
