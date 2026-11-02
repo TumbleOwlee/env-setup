@@ -257,6 +257,7 @@ function step_neovim_config {
     fi
 
     if nvim_usable; then
+        tree_sitter_install || warn "tree-sitter CLI missing, treesitter parsers will not build."
         run_once nvim --headless -c 'SyncInstall' -c qall
         run_with_retry nvim --headless -c 'SyncInstall' -c qall
         nvim_install_lsp "lua-language-server"
@@ -266,10 +267,8 @@ function step_neovim_config {
     fi
 }
 
-# Rust toolchain and cargo tools
-function step_rust {
-    _step_wanted RUST "rust environment" || return 0
-    info "Install rust"
+# Install rustup and the stable toolchain, put cargo on PATH (no prompt, ignores SKIP_RUST)
+function rust_toolchain {
     if ! command -v rustup >/dev/null 2>&1; then
         if _use_upstream rustup rustup; then
             PIPE=(sh -s -- -y --no-modify-path)
@@ -284,17 +283,29 @@ function step_rust {
     *":$HOME/.cargo/bin:"*) ;;
     *) export PATH="$PATH:$HOME/.cargo/bin" ;;
     esac
-
     run_with_retry rustup toolchain install stable || return 1
     run_with_retry rustup default stable
+}
+
+# tree-sitter CLI, required by nvim-treesitter to build parsers
+function tree_sitter_install {
+    command -v tree-sitter >/dev/null 2>&1 && return 0
+    # cargo links with cc, nvim-treesitter compiles the parsers with it
+    command -v cc >/dev/null 2>&1 || pkg_install gcc || return 1
+    rust_toolchain || return 1
+    run_with_retry cargo install --locked tree-sitter-cli
+}
+
+# Rust toolchain and cargo tools
+function step_rust {
+    _step_wanted RUST "rust environment" || return 0
+    info "Install rust"
+    rust_toolchain || return 1
     run_with_retry rustup component add rust-src rust-analyzer
 
     pkg_install libclang
     if ! command -v cross >/dev/null 2>&1; then
         run_with_retry cargo install cross --git https://github.com/cross-rs/cross
-    fi
-    if ! command -v tree-sitter >/dev/null 2>&1; then
-        run_with_retry cargo install --locked tree-sitter-cli
     fi
     nvim_install_lsp "rust-analyzer"
 }

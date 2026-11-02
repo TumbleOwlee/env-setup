@@ -69,12 +69,12 @@ On Arch additionally `base-devel` and `yay` (built from the AUR, as a temporary 
 | --- | --- |
 | `fish` | Fish shell as login shell, prompt/greeting/`colored_cat` functions |
 | `tmux` | tmux and its configuration |
-| `neovim` | Neovim, ninja, [neovim-config](https://github.com/TumbleOwlee/neovim-config) (plugins and the LSPs `lua-language-server`, `python-lsp-server` via Mason) |
+| `neovim` | Neovim, ninja, [neovim-config](https://github.com/TumbleOwlee/neovim-config) (plugins and the LSPs `lua-language-server`, `python-lsp-server` via Mason), `tree-sitter-cli` (installs the rust toolchain even with `--skip=rust`) |
 | `fonts` | FiraCode Nerd Font (asked as part of `neovim` and `alacritty`) |
 | `docker` | docker, compose (+ buildx if available), user added to the `docker` group |
-| `rust` | rustup with the stable toolchain, `rust-src`, `rust-analyzer`, libclang, `cross`, `tree-sitter-cli` |
+| `rust` | rustup with the stable toolchain, `rust-src`, `rust-analyzer`, libclang, `cross`. With `--skip=rust`, `neovim` and the Debian/Ubuntu `alacritty` build still install rustup and the stable toolchain, nothing else |
 | `cxx` | clang, gcc, cmake, lldb (+ `clang-format` on Debian/Ubuntu), optionally Conan via pipx |
-| `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu (this requires rust and installs it even with `--skip=rust`) |
+| `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu (this installs the rust toolchain even with `--skip=rust`) |
 | `delta` | git-delta and its git configuration |
 | `mise` | mise |
 | `scripts` | `git-sync`, `git-check`, `git-hooks`, `dbg`, `finance`, `win-move` in `~/.local/bin` |

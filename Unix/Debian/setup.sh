@@ -154,23 +154,7 @@ fi
 
 step_docker
 
-# Alacritty decides whether rust is required
-REQUIRE_RUST=0
-if [ -z "$SKIP_ALACRITTY" ]; then
-    resp_alacritty=$(ask "Install alacritty? [Y/n]" "Y")
-    if [ "_$resp_alacritty" != "_n" ] && [ "_$resp_alacritty" != "_N" ]; then
-        REQUIRE_RUST=1
-    fi
-fi
-
-if [ "$REQUIRE_RUST" -eq 1 ]; then
-    # Required by the alacritty build: no prompt, ignore a skip request
-    unset SKIP_RUST
-    NO_CONFIRM=YES step_rust
-else
-    step_rust
-fi
-
+step_rust
 step_cxx
 
 # Build alacritty from source unless it is installed already
@@ -183,10 +167,8 @@ function alacritty_build {
     info "Install alacritty"
     pkg_install cmake g++ pkg-config libfreetype6-dev libfontconfig1-dev \
         libxcb-xfixes0-dev libxkbcommon-dev python3 git || return 1
-    command -v cargo >/dev/null 2>&1 || {
-        error "cargo is required to build alacritty."
-        return 1
-    }
+    # Required by the build even with SKIP_RUST
+    rust_toolchain || return 1
     tmpdir="$(mktemp -d)" || return 1
     run_with_retry git clone --depth=1 https://github.com/alacritty/alacritty.git "$tmpdir" &&
         DIR="$tmpdir" run_with_retry cargo build --release &&
@@ -200,7 +182,7 @@ function alacritty_build {
     return "$rc"
 }
 
-if [ "$REQUIRE_RUST" -eq 1 ]; then
+if _step_wanted ALACRITTY "alacritty"; then
     alacritty_build
     ASKED=1 step_alacritty_config
 fi
