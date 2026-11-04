@@ -7,77 +7,88 @@ I created this collection since I'm usually working with various virtual machine
 
 ## Set up Unix Environment
 
-`Unix/setup.sh` is the entry point. It detects the distribution from `/etc/os-release` and runs `Unix/Arch/setup.sh` or `Unix/Debian/setup.sh`, which in turn use the shared `Unix/common.sh` and `Unix/steps.sh`.
-
 **Supported:** Arch Linux, Ubuntu LTS (22.04+), Debian stable. Running as root (e.g. in containers) works, otherwise `sudo` is required.
 
-**Prerequisites:** `bash` and an internet connection. `curl` is installed by `setup.sh` if it is missing. Run:
+**Prerequisites:** `bash`, `tar`, `gzip`, an internet connection and `curl` or `wget` for the download. Everything else is installed by the setup. The command works in every shell:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh)
+curl -fsSL https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh | bash -s --
+# or
+wget -qO- https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh | bash -s --
 ```
 
-Flags can be appended to the command, e.g. `bash <(curl -fsSL ...) --noconfirm --skip=docker`.
+Flags go at the end, e.g. `... | bash -s -- --noconfirm --skip=docker`. From a checkout run `./Unix/setup.sh`, which uses the local files.
 
-If you are behind a proxy, set `http_proxy` and `https_proxy` accordingly (the setup asks `Behind a proxy?` and aborts if they are empty). Offline installation is not supported.
+`Unix/setup.sh` downloads one tarball of the repository, so a run never mixes files of different commits, and starts `Unix/lib/main.sh`. Set `ENV_SETUP_REF` to install a branch, tag or commit other than `main`, and `ENV_SETUP_REPO` to use a fork.
 
-If you cloned the repository, use only local files with:
-
-```bash
-./Unix/setup.sh --debug
-```
+If you are behind a proxy, set `http_proxy` and `https_proxy`. Offline installation is not supported.
 
 ### Flags
 
 | Flag | Effect |
 | --- | --- |
-| `-d`, `--debug` | Use the files of the local checkout instead of downloading them. |
-| `-n`, `--noconfirm` | Answer every prompt with its default (also makes apt non-interactive on Debian/Ubuntu). |
-| `--skip=<name>` | Skip a part. Can be given multiple times. |
+| `-n`, `--noconfirm` | Answer every question with its default. Implied if there is no terminal. |
+| `-v`, `--verbose` | Print the command output instead of the status line. |
+| `--skip=a,b` | Don't install these modules. |
+| `--include=a,b` | Install these modules, even if off by default or left out by `--minimal`. |
+| `--only=a,b` | Install only these modules and what they depend on. |
+| `--minimal` | Smallest result, see [Development image](#development-image). |
+| `--dry-run` | Print the plan and exit. Changes nothing. |
+| `--list` | List the modules and exit. |
+| `--log` | Show the log of the last run and exit. |
 
-Names for `--skip`: `fish`, `tmux`, `neovim`, `docker`, `rust`, `alacritty`, `cxx`, `delta`, `mise`, `scripts`, `fonts`. `neovim` skips both the binary and the configuration.
+### How a run works
 
-The environment variable `ENV_SETUP_URL` replaces the base URL (default `https://raw.githubusercontent.com/TumbleOwlee/env-setup/main`) that files are downloaded from, e.g. for a fork or a mirror.
+1. All questions are asked first: one per module, whether to use the upstream release or the package, and whether to replace an existing non-git `~/.config/nvim`. After that the run is unattended.
+2. Each module runs in the background. In a terminal a status line with the step, the elapsed time, the command and its last output line updates every second. Without a terminal a plain status line is printed every 10 seconds.
+3. The output goes to `~/.local/state/env-setup/<timestamp>.log`. The last 5 logs are kept, use `--log` to read the latest one. A failure prints the end of the log.
+4. If a module fails, a terminal offers retry, log, skip and abort. Without a terminal it is tried once more, then an optional module is recorded and the run continues, a failed `base` ends it. Modules depending on a failed module are left out. The run ends with a summary and exits non-zero if anything is missing.
+5. Everything tools build or cache during the run goes to a work directory in `/var/tmp`, removed at the end also on failure and interrupt. This covers temporary files, `XDG_CACHE_HOME` and the cargo registry. Caches you already had stay untouched.
 
-### Prompts
+**Upstream or package:** zoxide, rustup, delta, mise and (Debian/Ubuntu) neovim default to the upstream release. In a terminal you are asked if the package manager offers them too; `--noconfirm` uses upstream.
 
-Every optional part asks `Install <part>? [Y/n]` (default yes). Besides that the setup asks:
+**Neovim plugins:** a plugin that keeps failing to install or is damaged (no commit or missing tracked files), e.g. because a network problem or standby interrupted its clone, is moved to `~/.local/share/nvim/lazy-failed.<timestamp>` and cloned again. The summary lists it. Delete that directory once you know it holds nothing you need.
 
-* `Behind a proxy? [y/N]`
-* `Update and upgrade? [Y/n]`
-* `Use upstream release instead of packaged <tool> <version>? [y/N]` for zoxide, rustup, delta, mise and (Debian/Ubuntu) neovim. The default is the distribution package. If the package manager has no such package, the upstream release is used without asking.
-* `Install Conan? [Y/n]` as part of the C++ environment
-* `Replace existing nvim configuration? [Y/n]` if `~/.config/nvim` exists and is not a git checkout
+**Neovim on Debian/Ubuntu:** the neovim configuration requires Neovim 0.12 or newer. The upstream prebuilt release goes to `/opt/nvim` (linked to `/usr/local/bin/nvim`). If the package is older than 0.12, it is not offered. On Arch the package is used.
 
-If a command fails you are asked whether to show the log and whether to retry or terminate. With `--noconfirm` a failure prints the log tail and aborts.
+## Modules
 
-**Neovim on Debian/Ubuntu:** the neovim configuration requires Neovim 0.12 or newer. If the packaged neovim is older, the upstream prebuilt release is installed into `/opt/nvim` (linked to `/usr/local/bin/nvim`) without asking. Otherwise you are asked whether to use the package or the upstream release; `--noconfirm` picks the package. If the installed neovim is too old, the plugin synchronization is skipped with a warning. On Arch the package is used.
-
-## Packages
-
-Package names are mapped per distribution (e.g. `fd-find` and `ninja-build` on Debian). The steps are idempotent, so the script can be run again to update.
-
-**Always installed:**
-* Git, Python (+ `python3-venv` on Debian), pipx, Unzip, Wget, Less, Curl, GPG, FZF
-* Zoxide (package or upstream installer)
-
-On Arch additionally `base-devel` and `yay` (built from the AUR, as a temporary build user when running as root).
-
-**Optional parts:**
-
-| Part | Installs |
+| Module | Installs |
 | --- | --- |
+| `upgrade` | System upgrade |
+| `base` | Required. Git, Python (+ `python3-venv` on Debian), pipx, Unzip, Wget, Less, Curl, GPG, FZF, CA certificates, zoxide |
 | `fish` | Fish shell as login shell, prompt/greeting/`colored_cat` functions |
 | `tmux` | tmux and its configuration |
-| `neovim` | Neovim, ninja, [neovim-config](https://github.com/TumbleOwlee/neovim-config) (plugins and the LSPs `lua-language-server`, `python-lsp-server` via Mason), `tree-sitter-cli` (installs the rust toolchain even with `--skip=rust`) |
-| `fonts` | FiraCode Nerd Font (asked as part of `neovim` and `alacritty`) |
+| `neovim` | Neovim, ninja, [neovim-config](https://github.com/TumbleOwlee/neovim-config) (plugins and the LSPs `lua-language-server`, `python-lsp-server` via Mason), `tree-sitter-cli` (needs rustup and the stable toolchain) |
+| `fonts` | FiraCode Nerd Font |
 | `docker` | docker, compose (+ buildx if available), user added to the `docker` group |
-| `rust` | rustup with the stable toolchain, `rust-src`, `rust-analyzer`, libclang, `cross`. With `--skip=rust`, `neovim` and the Debian/Ubuntu `alacritty` build still install rustup and the stable toolchain, nothing else |
-| `cxx` | clang, gcc, cmake, lldb (+ `clang-format` on Debian/Ubuntu), optionally Conan via pipx |
-| `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu (this installs the rust toolchain even with `--skip=rust`) |
+| `rust` | rustup with the stable toolchain, `rustfmt`, `clippy`, `rust-src`, `rust-analyzer` |
+| `rust-cross` | libclang, `cross` |
+| `cxx` | clang, gcc, make, cmake, lldb (+ `clang-format` on Debian/Ubuntu) |
+| `conan` | Conan via pipx |
+| `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu |
 | `delta` | git-delta and its git configuration |
 | `mise` | mise |
 | `scripts` | `git-sync`, `git-check`, `git-hooks`, `dbg`, `finance`, `win-move` in `~/.local/bin` |
+| `yay` | Arch only. `base-devel` and `yay` (built from the AUR, as a temporary build user when running as root) |
+| `desktop` | Arch only, off by default. See [Desktop Environment](#desktop-environment-bspwm-arch) |
+
+### Adding a module
+
+Add one file to `Unix/modules/`. It is found automatically, the options are documented at `module` in `Unix/lib/main.sh` and the helpers in `Unix/lib/helpers.sh`:
+
+```bash
+#!/bin/bash
+# tmux and its configuration.
+
+module tmux --desc "tmux" --packages "tmux" --after "fish"
+
+function tmux_install {
+    put "Configs/tmux/tmux.conf" "$HOME/.tmux.conf" 644 backup
+}
+```
+
+`--packages` takes logical names; add a mapping to `pkg_name` if they differ per distribution. An install function runs with `set -e` and without a terminal, so it can't prompt: ask questions in `<name>_prepare`. It must be safe to run again, because a retry starts the module over. Use `run` for commands to show them in the status line. Put temporary files into `$TMPDIR` and don't delete them, the work directory is removed at the end. Never delete by glob in a shared location or anything the setup didn't create: move things to a backup instead.
 
 ### Written files and backups
 
@@ -98,17 +109,32 @@ Files managed by the setup are rewritten on every run and must not be edited.
 
 Before an existing file is replaced (`~/.tmux.conf`, `alacritty.toml`, `alacritty.yml`, a non-git `~/.config/nvim`) a copy is saved as `<file>.bak.<YYYYmmddHHMMSS>`. Blocks appended to `~/.bashrc` and `~/.config/fish/config.fish` by older versions of these scripts are removed automatically, after saving a backup of the file in the same way.
 
-## Desktop Environment (bspwm, Arch)
+## Development image
 
-`Unix/Environment/install.sh` installs the bspwm based desktop (bspwm, sxhkd, polybar, rofi, dunst, picom, ...). It is not part of `setup.sh`; run it separately on Arch from a checkout:
+The `Dockerfile` builds a minimal development image with a non-root user (`dev`, with passwordless `sudo`) on `debian:<version>-slim`:
 
 ```bash
-./Unix/Environment/install.sh
+docker build --build-arg DEBIAN_VERSION=13 -t dev-env .   # default: stable
+docker run --rm -it -v "$PWD":/work -w /work dev-env
 ```
 
-It installs the packages in `packages.txt` with pacman and the ones in `aur-packages.txt` with `yay` (only a warning if `yay` is missing), then copies `.config`, `.screenlayout`, `.backgrounds` and `.gtkrc-2.0` into your home directory, **overwriting existing files of the same name**.
+Further build arguments are `DEV_USER` and `SETUP_FLAGS`, e.g. `--build-arg SETUP_FLAGS=--include=docker,mise`.
 
-Machine specific settings live in `~/.config/env-setup/local.conf`. The installer creates it from `Unix/Environment/local.conf.example` if it does not exist and never overwrites it. The file is sourced by bash and supports:
+The image uses `setup.sh --minimal`, which also works outside of Docker:
+
+* Leaves out `alacritty`, `docker`, `fonts`, `mise`, `rust-cross` and `yay` unless they are given with `--include`.
+* Installs no recommended apt packages and only the minimal rust profile with the components of the `rust` module.
+* Wipes the system wide package caches (apt lists and archives, or the pacman cache and sync database) and removes the log after a successful run. On a real machine this also removes the packages pacman could roll back to.
+
+Run `sudo apt-get update` in the container before installing further packages.
+
+## Desktop Environment (bspwm, Arch)
+
+The `desktop` module installs the bspwm based desktop (bspwm, sxhkd, polybar, rofi, dunst, picom, ...). It is off by default: a terminal asks for it with default no, otherwise use `--include=desktop`. It's only available on Arch.
+
+It installs the packages in `Unix/Environment/packages.txt` with pacman and the ones in `aur-packages.txt` with `yay` (not as root: the summary lists them instead, as it does if `yay` fails, because AUR packages can break independently of this setup), then copies `.config`, `.screenlayout`, `.backgrounds` and `.gtkrc-2.0` into your home directory, **overwriting existing files of the same name**.
+
+Machine specific settings live in `~/.config/env-setup/local.conf`. The module creates it from `Unix/Environment/local.conf.example` if it does not exist and never overwrites it. The file is sourced by bash and supports:
 
 | Variable | Purpose |
 | --- | --- |
@@ -124,6 +150,8 @@ All overrides except `BT_DEVICES` are optional; unset values are auto-detected.
 ## Development
 
 The workflow `.github/workflows/lint.yml` runs `shfmt -d -i 4` and `shellcheck -x` on all tracked shell scripts (`*.sh`, shell shebangs and `bspwmrc`). Use 4 spaces for indentation.
+
+`Unix/tests/engine.sh` tests the engine with fixture modules; it installs nothing and needs root or passwordless sudo. The workflow `.github/workflows/test.yml` runs it, a real install on Arch and Debian and builds the image with a size limit.
 
 ## Set up Windows Environment
 

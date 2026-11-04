@@ -1,0 +1,61 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test the engine
+        run: docker run --rm -v "$PWD":/repo:ro debian:stable-slim bash /repo/Unix/tests/engine.sh
+
+  install:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["archlinux:latest", "debian:stable-slim", "ubuntu:latest"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install as root
+        run: docker run --rm -v "$PWD":/repo:ro "${{ matrix.image }}" bash /repo/Unix/setup.sh --noconfirm --skip=alacritty
+
+  image:
+    runs-on: ubuntu-latest
+    env:
+      MAX_IMAGE_MB: 3000
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build --progress=plain -t dev-env .
+
+      - name: Check the size
+        run: |
+          size="$(docker image inspect dev-env --format '{{.Size}}')"
+          echo "Image size: $((size / 1024 / 1024)) MB"
+          [ "$((size / 1024 / 1024))" -le "$MAX_IMAGE_MB" ]
+
+      - name: Check the tools
+        run: |
+          docker run --rm dev-env bash -lc '
+              set -e
+              export PATH="$PATH:$HOME/.local/bin:$HOME/.cargo/bin"
+              for tool in fish tmux nvim git rustc cargo clang g++ cmake conan delta zoxide; do
+                  command -v "$tool"
+              done
+              [ ! -e "$HOME/.cache" ] && [ ! -e "$HOME/.cargo/registry" ]
+          '
