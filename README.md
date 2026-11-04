@@ -69,6 +69,9 @@ If you are behind a proxy, set `http_proxy` and `https_proxy`. Offline installat
 | `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu |
 | `delta` | git-delta and its git configuration |
 | `mise` | mise |
+| `claude` | [Claude Code](https://claude.com/claude-code) via the native installer (`~/.local/bin/claude`, updates itself) |
+| `rtk` | [rtk](https://github.com/rtk-ai/rtk) in `~/.local/bin` and its global Claude Code hook (`rtk init -g`) |
+| `caveman` | [caveman](https://github.com/JuliusBrussee/caveman) as Claude Code plugin in the user scope. Needs `claude` |
 | `scripts` | `git-sync`, `git-check`, `git-hooks`, `dbg`, `finance`, `win-move` in `~/.local/bin` |
 | `yay` | Arch only. `base-devel` and `yay` (built from the AUR, as a temporary build user when running as root) |
 | `desktop` | Arch only, off by default. See [Desktop Environment](#desktop-environment-bspwm-arch) |
@@ -106,6 +109,7 @@ Files managed by the setup are rewritten on every run and must not be edited.
 | `~/.config/alacritty/alacritty.toml` | Repository configuration. An old `alacritty.yml` is renamed. |
 | `~/.config/nvim` | Clone of neovim-config, updated with `git pull --ff-only`. |
 | `~/.local/share/fonts/FiraCode` | Nerd font. |
+| `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude/RTK.md` | Hook and instructions added by `rtk init -g`, which keeps the rest of the files. |
 
 Before an existing file is replaced (`~/.tmux.conf`, `alacritty.toml`, `alacritty.yml`, a non-git `~/.config/nvim`) a copy is saved as `<file>.bak.<YYYYmmddHHMMSS>`. Blocks appended to `~/.bashrc` and `~/.config/fish/config.fish` by older versions of these scripts are removed automatically, after saving a backup of the file in the same way.
 
@@ -122,7 +126,7 @@ Further build arguments are `DEV_USER` and `SETUP_FLAGS`, e.g. `--build-arg SETU
 
 The image uses `setup.sh --minimal`, which also works outside of Docker:
 
-* Leaves out `alacritty`, `docker`, `fonts`, `mise`, `rust-cross` and `yay` unless they are given with `--include`.
+* Leaves out `alacritty`, `caveman`, `claude`, `docker`, `fonts`, `mise`, `rtk`, `rust-cross` and `yay` unless they are given with `--include`.
 * Installs no recommended apt packages and only the minimal rust profile with the components of the `rust` module.
 * Wipes the system wide package caches (apt lists and archives, or the pacman cache and sync database) and removes the log after a successful run. On a real machine this also removes the packages pacman could roll back to.
 
