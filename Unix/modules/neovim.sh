@@ -154,6 +154,7 @@ function _neovim_setup {
     if ! command -v tree-sitter >/dev/null 2>&1; then
         cargo_install --locked tree-sitter-cli
     fi
+    add_command_to_path tree-sitter
     _neovim_sync
     nvim_mason lua-language-server
     nvim_mason python-lsp-server

@@ -44,6 +44,7 @@ function delta_install {
             pkg_install delta
         fi
     fi
+    add_command_to_path delta
     download https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig "$HOME/.config/delta/themes.gitconfig"
     put "Configs/git/gitconfig" "$target" 644
     regex="^$(printf '%s' "$target" | sed 's/[][\.*^$/]/\\&/g')\$"

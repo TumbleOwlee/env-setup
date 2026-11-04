@@ -55,21 +55,62 @@ function base_install {
     fi
 
     _migrate_legacy_blocks
+    _migrate_paths
 
+    # pipx and the upstream zoxide install into ~/.local/bin
+    add_to_path "${PIPX_BIN_DIR:-$HOME/.local/bin}"
+    add_command_to_path zoxide
+
+    # POSIX sh: ~/.profile is also read by sh, e.g. for a graphical login
     write_owned "$HOME/.config/env-setup/bashrc.sh" <<'SNIPPET'
 # Managed by env-setup, rewritten on every run. Do not edit.
-for _env_setup_dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
-    case ":$PATH:" in
-    *":$_env_setup_dir:"*) ;;
-    *) PATH="$PATH:$_env_setup_dir" ;;
+# Adds the directories in ~/.config/env-setup/paths to PATH.
+if [ -f "$HOME/.config/env-setup/paths" ]; then
+    while IFS= read -r _env_setup_dir; do
+        [ -n "$_env_setup_dir" ] || continue
+        case ":$PATH:" in
+        *":$_env_setup_dir:"*) ;;
+        *) PATH="$PATH:$_env_setup_dir" ;;
+        esac
+    done <"$HOME/.config/env-setup/paths"
+    unset _env_setup_dir
+    export PATH
+fi
+if [ -n "${BASH_VERSION:-}" ]; then
+    case "$-" in
+    *i*)
+        if command -v zoxide >/dev/null 2>&1; then
+            eval "$(zoxide init --cmd cd bash)"
+        fi
+        ;;
     esac
-done
-unset _env_setup_dir
-export PATH
-if command -v zoxide >/dev/null 2>&1; then
-    eval "$(zoxide init --cmd cd bash)"
 fi
 SNIPPET
-    touch "$HOME/.bashrc"
-    ensure_line "$HOME/.bashrc" '[ -f ~/.config/env-setup/bashrc.sh ] && . ~/.config/env-setup/bashrc.sh'
+    _source_snippet "$HOME/.bashrc"
+    # Login shells, also non-interactive ones like 'bash -lc' or 'ssh host cmd' with
+    # a login shell. bash reads ~/.bash_profile instead of ~/.profile if it exists.
+    _source_snippet "$HOME/.profile"
+    if [ -f "$HOME/.bash_profile" ]; then
+        _source_snippet "$HOME/.bash_profile"
+    fi
+}
+
+# Source the snippet at the end of a shell startup file: _source_snippet <file>
+function _source_snippet {
+    touch "$1"
+    ensure_line "$1" '[ -f ~/.config/env-setup/bashrc.sh ] && . ~/.config/env-setup/bashrc.sh'
+}
+
+# Older versions always added ~/.local/bin and ~/.cargo/bin. Keep the existing ones
+# for the first run with the paths file, as tools might have been installed there.
+function _migrate_paths {
+    local d
+    if [ -f "$PATHS_FILE" ] || [ ! -f "$HOME/.config/env-setup/bashrc.sh" ]; then
+        return 0
+    fi
+    for d in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+        if [ -d "$d" ]; then
+            add_to_path "$d"
+        fi
+    done
 }

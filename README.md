@@ -64,7 +64,7 @@ If you are behind a proxy, set `http_proxy` and `https_proxy`. Offline installat
 | `docker` | docker, compose (+ buildx if available), user added to the `docker` group |
 | `rust` | rustup with the stable toolchain, `rustfmt`, `clippy`, `rust-src`, `rust-analyzer` |
 | `rust-cross` | libclang, `cross` |
-| `cxx` | clang, gcc, make, cmake, lldb (+ `clang-format` on Debian/Ubuntu) |
+| `cxx` | clang, gcc, make, cmake, ninja, lldb (+ `clang-format` on Debian/Ubuntu) |
 | `conan` | Conan via pipx |
 | `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu |
 | `delta` | git-delta and its git configuration |
@@ -91,7 +91,7 @@ function tmux_install {
 }
 ```
 
-`--packages` takes logical names; add a mapping to `pkg_name` if they differ per distribution. An install function runs with `set -e` and without a terminal, so it can't prompt: ask questions in `<name>_prepare`. It must be safe to run again, because a retry starts the module over. Use `run` for commands to show them in the status line. Put temporary files into `$TMPDIR` and don't delete them, the work directory is removed at the end. Never delete by glob in a shared location or anything the setup didn't create: move things to a backup instead.
+`--packages` takes logical names; add a mapping to `pkg_name` if they differ per distribution. An install function runs with `set -e` and without a terminal, so it can't prompt: ask questions in `<name>_prepare`. It must be safe to run again, because a retry starts the module over. Use `run` for commands to show them in the status line. A tool installed into the home directory must be put on PATH: `add_to_path <dir>`, or `add_command_to_path <cmd>` to add its directory only if it isn't a system package. Put temporary files into `$TMPDIR` and don't delete them, the work directory is removed at the end. Never delete by glob in a shared location or anything the setup didn't create: move things to a backup instead.
 
 ### Written files and backups
 
@@ -99,7 +99,8 @@ Files managed by the setup are rewritten on every run and must not be edited.
 
 | File | Content |
 | --- | --- |
-| `~/.config/env-setup/bashrc.sh` | PATH (`~/.local/bin`, `~/.cargo/bin`) and zoxide for bash. Sourced from one line the setup appends to `~/.bashrc`. |
+| `~/.config/env-setup/paths` | The directories added to PATH, one per line. A module adds the directory it installs into, e.g. `~/.local/bin` for `scripts` and `claude` or `~/.cargo/bin` for `rust`. Lines are only added, delete one you don't want. |
+| `~/.config/env-setup/bashrc.sh` | Adds the directories of `paths` to PATH and sets up zoxide in interactive bash. Sourced from one line the setup appends to `~/.bashrc`, `~/.profile` and an existing `~/.bash_profile`, so login shells get PATH too. |
 | `~/.config/fish/conf.d/env-setup.fish` | The same for fish, plus the `cat` alias and `vim`/`vi`/`v` abbreviations for nvim. |
 | `~/.config/fish/functions/` | `fish_greeting`, `fish_prompt`, `colored_cat`. |
 | `~/.config/tmux/env-setup.local.conf` | Sets fish as tmux `default-shell`. Sourced by `~/.tmux.conf`. |

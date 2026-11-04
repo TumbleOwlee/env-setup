@@ -175,6 +175,26 @@ function ensure_line {
     fi
 }
 
+# Directories that new shells add to PATH, one per line. Read by the snippets of
+# the base and fish modules, so a module only registers what it installs into.
+PATHS_FILE="$HOME/.config/env-setup/paths"
+
+# Add a directory to PATH of new shells: add_to_path <dir>
+function add_to_path {
+    mkdir -p "$(dirname "$PATHS_FILE")"
+    ensure_line "$PATHS_FILE" "$1"
+}
+
+# Add the directory of a command to PATH if it's inside the home directory, e.g. a
+# tool installed into ~/.local/bin instead of a package: add_command_to_path <cmd>
+function add_command_to_path {
+    local p
+    p="$(command -v "$1")" || return 0
+    case "$p" in
+    "$HOME"/*) add_to_path "$(dirname "$p")" ;;
+    esac
+}
+
 # Write stdin to <dest> only if the content differs (keeps the file untouched otherwise).
 # The temporary file goes away with the work directory, like everything in TMPDIR.
 function write_owned {
@@ -211,6 +231,7 @@ function cargo_cached {
 
 # Install a cargo tool into ~/.cargo/bin
 function cargo_install {
+    add_to_path "$HOME/.cargo/bin"
     cargo_cached install --root "$HOME/.cargo" "$@"
 }
 

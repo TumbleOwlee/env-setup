@@ -19,12 +19,12 @@ function fish_install {
 
     write_owned "$HOME/.config/fish/conf.d/env-setup.fish" <<'SNIPPET'
 # Managed by env-setup, rewritten on every run. Do not edit.
-if functions -q fish_add_path
-    fish_add_path -g $HOME/.local/bin $HOME/.cargo/bin
-else
-    for dir in $HOME/.local/bin $HOME/.cargo/bin
-        contains $dir $PATH; or set PATH $dir $PATH
-    end
+# Adds the directories in ~/.config/env-setup/paths to PATH.
+if test -f $HOME/.config/env-setup/paths
+    while read -l dir
+        test -n "$dir"; or continue
+        contains -- $dir $PATH; or set -gx PATH $dir $PATH
+    end <$HOME/.config/env-setup/paths
 end
 if command -q zoxide
     zoxide init --cmd cd fish | source

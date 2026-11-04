@@ -24,6 +24,8 @@ function rustup_install {
             pkg_install rustup
         fi
     fi
+    # rustup's proxies (cargo, rustc, ...) and the tools of 'cargo install'
+    add_to_path "${CARGO_HOME:-$HOME/.cargo}/bin"
     run rustup toolchain install stable --profile "$profile"
     run rustup default stable
 }
@@ -37,4 +39,5 @@ function rust_cross_install {
     if ! command -v cross >/dev/null 2>&1; then
         cargo_install cross --git https://github.com/cross-rs/cross
     fi
+    add_command_to_path cross
 }

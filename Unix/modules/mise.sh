@@ -10,12 +10,12 @@ function mise_prepare {
 }
 
 function mise_install {
-    if command -v mise >/dev/null 2>&1; then
-        return 0
+    if ! command -v mise >/dev/null 2>&1; then
+        if use_upstream mise; then
+            run_installer https://mise.run
+        else
+            pkg_install mise
+        fi
     fi
-    if use_upstream mise; then
-        run_installer https://mise.run
-    else
-        pkg_install mise
-    fi
+    add_command_to_path mise
 }
