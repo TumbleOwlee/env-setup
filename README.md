@@ -124,6 +124,8 @@ docker run --rm -it -v "$PWD":/work -w /work dev-env
 
 Further build arguments are `DEV_USER` and `SETUP_FLAGS`, e.g. `--build-arg SETUP_FLAGS=--include=docker,mise`.
 
+`./docker-build.sh` asks for these settings in the terminal and builds the image: the Debian version and the modules are chosen from a list (arrow keys or `j`/`k` move, space toggles, `a` toggles all, enter confirms, `q` aborts), the user name and tag are edited in place. The selected modules are passed as `--only=... --include=...`, so their dependencies are added and modules left out by `--minimal` can be selected. Before building, the script shows the `docker build` command and asks for confirmation.
+
 The image uses `setup.sh --minimal`, which also works outside of Docker:
 
 * Leaves out `alacritty`, `caveman`, `claude`, `docker`, `fonts`, `mise`, `rtk`, `rust-cross` and `yay` unless they are given with `--include`.
