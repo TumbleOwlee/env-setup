@@ -46,6 +46,7 @@ function pkg_name {
         fi
         ;;
     delta) arch=git-delta ;;
+    pkg-config) arch=pkgconf ;;
     libclang) arch=clang deb=libclang-dev ;;
     esac
     if [ "$DISTRO" == "arch" ]; then

@@ -2,7 +2,7 @@
 # C++ toolchain and Conan.
 
 module cxx --desc "C++ environment" --after "neovim" \
-    --packages "clang gcc make cmake ninja lldb" --packages-debian "g++ libc6-dev clang-format"
+    --packages "clang gcc make cmake ninja lldb autoconf automake libtool pkg-config" --packages-debian "g++ libc6-dev clang-format"
 module conan --desc "Conan" --deps "cxx"
 
 function cxx_install {

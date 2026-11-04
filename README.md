@@ -64,7 +64,7 @@ If you are behind a proxy, set `http_proxy` and `https_proxy`. Offline installat
 | `docker` | docker, compose (+ buildx if available), user added to the `docker` group |
 | `rust` | rustup with the stable toolchain, `rustfmt`, `clippy`, `rust-src`, `rust-analyzer` |
 | `rust-cross` | libclang, `cross` |
-| `cxx` | clang, gcc, make, cmake, ninja, lldb (+ `clang-format` on Debian/Ubuntu) |
+| `cxx` | clang, gcc, make, cmake, ninja, lldb, autoconf, automake, libtool, pkg-config (+ `clang-format` on Debian/Ubuntu) |
 | `conan` | Conan via pipx |
 | `alacritty` | Alacritty and its configuration. Packaged on Arch, built from source on Debian/Ubuntu |
 | `delta` | git-delta and its git configuration |
