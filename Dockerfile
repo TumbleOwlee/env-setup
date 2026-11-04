@@ -14,7 +14,7 @@ ENV LANG=C.UTF-8
 
 # A single RUN and a bind mount instead of COPY: what is deleted at the end of a
 # layer doesn't count, what was added by an earlier layer stays in the image.
-RUN --mount=type=bind,source=Unix,target=/tmp/env-setup/Unix \
+RUN --mount=type=bind,source=Unix,target=/tmp/dotstrap/Unix \
     set -e; \
     apt-get update; \
     apt-get install -y --no-install-recommends sudo; \
@@ -23,7 +23,7 @@ RUN --mount=type=bind,source=Unix,target=/tmp/env-setup/Unix \
     echo "$DEV_USER ALL=(ALL) NOPASSWD:ALL" >"/etc/sudoers.d/$DEV_USER"; \
     chmod 440 "/etc/sudoers.d/$DEV_USER"; \
     runuser -u "$DEV_USER" -- env HOME="/home/$DEV_USER" \
-        bash /tmp/env-setup/Unix/setup.sh --noconfirm --minimal $SETUP_FLAGS
+        bash /tmp/dotstrap/Unix/setup.sh --noconfirm --minimal $SETUP_FLAGS
 
 # The shell startup files add these too, but 'docker run <image> <cmd>' reads none
 ENV PATH=${PATH}:/home/${DEV_USER}/.local/bin:/home/${DEV_USER}/.cargo/bin

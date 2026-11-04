@@ -17,13 +17,13 @@ function desktop_install {
         fi
     fi
 
-    mkdir -p "$HOME/.config" "$HOME/.screenlayout" "$HOME/.backgrounds" "$HOME/.config/env-setup"
+    mkdir -p "$HOME/.config" "$HOME/.screenlayout" "$HOME/.backgrounds" "$HOME/.config/dotstrap"
     cp -rT "$env/.config" "$HOME/.config"
     cp -rT "$env/.screenlayout" "$HOME/.screenlayout"
     cp -rT "$env/.backgrounds" "$HOME/.backgrounds"
     cp "$env/.gtkrc-2.0" "$HOME/.gtkrc-2.0"
     # Local machine config: never overwrite an existing one
-    if [ ! -f "$HOME/.config/env-setup/local.conf" ]; then
-        cp "$env/local.conf.example" "$HOME/.config/env-setup/local.conf"
+    if [ ! -f "$HOME/.config/dotstrap/local.conf" ]; then
+        cp "$env/local.conf.example" "$HOME/.config/dotstrap/local.conf"
     fi
 }

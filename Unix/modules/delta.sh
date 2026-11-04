@@ -35,8 +35,13 @@ function _delta_upstream {
     fi
 }
 
+# Print a regex that matches exactly the given path
+function _delta_path_regex {
+    printf '^%s$' "$(printf '%s' "$1" | sed 's/[][\.*^$/]/\\&/g')"
+}
+
 function delta_install {
-    local target="$HOME/.config/git/env-setup.gitconfig" regex
+    local target="$HOME/.config/git/dotstrap.gitconfig" old="$HOME/.config/git/env-setup.gitconfig" regex
     if ! command -v delta >/dev/null 2>&1; then
         if use_upstream delta; then
             _delta_upstream
@@ -47,6 +52,12 @@ function delta_install {
     add_command_to_path delta
     download https://raw.githubusercontent.com/dandavison/delta/main/themes.gitconfig "$HOME/.config/delta/themes.gitconfig"
     put "Configs/git/gitconfig" "$target" 644
-    regex="^$(printf '%s' "$target" | sed 's/[][\.*^$/]/\\&/g')\$"
+    regex="$(_delta_path_regex "$target")"
     run git config --global --replace-all include.path "$target" "$regex"
+    # The file from when this project was called env-setup
+    regex="$(_delta_path_regex "$old")"
+    if git config --global --get-all include.path "$regex" >/dev/null; then
+        run git config --global --unset-all include.path "$regex"
+    fi
+    rm -f -- "$old"
 }

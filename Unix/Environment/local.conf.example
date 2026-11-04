@@ -1,5 +1,5 @@
-# env-setup local configuration.
-# Copy to ~/.config/env-setup/local.conf and edit. This file is sourced by
+# dotstrap local configuration.
+# Copy to ~/.config/dotstrap/local.conf and edit. This file is sourced by
 # bash, so use shell syntax. install.sh never overwrites an existing local.conf.
 
 # Bluetooth devices shown in the rofi bluetooth menu (Super+Shift+b).

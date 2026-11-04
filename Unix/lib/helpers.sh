@@ -178,12 +178,41 @@ function ensure_line {
 
 # Directories that new shells add to PATH, one per line. Read by the snippets of
 # the base and fish modules, so a module only registers what it installs into.
-PATHS_FILE="$HOME/.config/env-setup/paths"
+PATHS_FILE="$HOME/.config/dotstrap/paths"
 
 # Add a directory to PATH of new shells: add_to_path <dir>
 function add_to_path {
     mkdir -p "$(dirname "$PATHS_FILE")"
     ensure_line "$PATHS_FILE" "$1"
+}
+
+# This project was called env-setup. Move its configuration directory. The link stays,
+# since files installed by modules that are not part of this run still use the old path.
+function migrate_config_dir {
+    local old="$HOME/.config/env-setup" new="$HOME/.config/dotstrap"
+    if [ -L "$old" ] || [ ! -d "$old" ]; then
+        return 0
+    fi
+    if [ -e "$new" ]; then
+        note "Both $old and $new exist. Move what you still need by hand, the old one is not used anymore."
+        return 0
+    fi
+    mv -- "$old" "$new"
+    ln -s dotstrap "$old"
+}
+
+# Update the line of a shell startup file that sources the old snippet, in place so that
+# it keeps its position: migrate_source_line <file>
+function migrate_source_line {
+    local tmp="$TMPDIR/source-line-$RANDOM"
+    local old='[ -f ~/.config/env-setup/bashrc.sh ] && . ~/.config/env-setup/bashrc.sh'
+    local new='[ -f ~/.config/dotstrap/bashrc.sh ] && . ~/.config/dotstrap/bashrc.sh'
+    if ! grep -qxF -- "$old" "$1" 2>/dev/null; then
+        return 0
+    fi
+    awk -v old="$old" -v new="$new" '$0 == old { print new; next } { print }' "$1" >"$tmp"
+    backup_file "$1"
+    cat "$tmp" >"$1"
 }
 
 # Add the directory of a command to PATH if it's inside the home directory, e.g. a

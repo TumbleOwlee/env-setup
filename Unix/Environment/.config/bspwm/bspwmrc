@@ -30,7 +30,7 @@ sh ~/.screenlayout/monitor.sh &
 # Assign workspaces to displays (contiguous blocks of the 10 Roman desktops)
 MONITOR_PRIMARY=""
 # shellcheck disable=SC1090,SC1091
-[ -f "$HOME/.config/env-setup/local.conf" ] && . "$HOME/.config/env-setup/local.conf"
+[ -f "$HOME/.config/dotstrap/local.conf" ] && . "$HOME/.config/dotstrap/local.conf"
 
 # Monitor order: MONITOR_PRIMARY first (if set), then bspc order
 mons=""

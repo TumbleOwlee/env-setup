@@ -1,6 +1,8 @@
-# Environment Setup
+![Banner](./images/dotstrap-banner.svg)
 
-[![Lint](https://github.com/TumbleOwlee/env-setup/actions/workflows/lint.yml/badge.svg)](https://github.com/TumbleOwlee/env-setup/actions/workflows/lint.yml)
+# Dotstrap - From a bare machine to a full development environment
+
+[![Lint](https://github.com/TumbleOwlee/dotstrap/actions/workflows/lint.yml/badge.svg)](https://github.com/TumbleOwlee/dotstrap/actions/workflows/lint.yml)
 
 This repository contains various scripts and configuration that I use in my various environments - private or work, bare metal or virtual machine.
 I created this collection since I'm usually working with various virtual machines and I want to have my environment set as fast as possible while providing the same user experience on each of them. Everything is done using only Bash since it's the common base of every Unix install. Of course it would be fancier using e.g. Python's full capabilities.
@@ -12,14 +14,14 @@ I created this collection since I'm usually working with various virtual machine
 **Prerequisites:** `bash`, `tar`, `gzip`, an internet connection and `curl` or `wget` for the download. Everything else is installed by the setup. The command works in every shell:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh | bash -s --
+curl -fsSL https://raw.githubusercontent.com/TumbleOwlee/dotstrap/main/Unix/setup.sh | bash -s --
 # or
-wget -qO- https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh | bash -s --
+wget -qO- https://raw.githubusercontent.com/TumbleOwlee/dotstrap/main/Unix/setup.sh | bash -s --
 ```
 
 Flags go at the end, e.g. `... | bash -s -- --noconfirm --skip=docker`. From a checkout run `./Unix/setup.sh`, which uses the local files.
 
-`Unix/setup.sh` downloads one tarball of the repository, so a run never mixes files of different commits, and starts `Unix/lib/main.sh`. Set `ENV_SETUP_REF` to install a branch, tag or commit other than `main`, and `ENV_SETUP_REPO` to use a fork.
+`Unix/setup.sh` downloads one tarball of the repository, so a run never mixes files of different commits, and starts `Unix/lib/main.sh`. Set `DOTSTRAP_REF` to install a branch, tag or commit other than `main`, and `DOTSTRAP_REPO` to use a fork.
 
 If you are behind a proxy, set `http_proxy` and `https_proxy`. Offline installation is not supported.
 
@@ -41,7 +43,7 @@ If you are behind a proxy, set `http_proxy` and `https_proxy`. Offline installat
 
 1. All questions are asked first: a list to select the modules from (arrow keys or `j`/`k` move, space toggles, `a` toggles all, enter confirms, `q` aborts; what a selected module depends on is added), whether to use the upstream release or the package, and whether to replace an existing non-git `~/.config/nvim`. After that the run is unattended. The list is not shown with `--only`, and modules already settled by `--skip`, `--include` or `--minimal` are not in it.
 2. Each module runs in the background. In a terminal a status line with the step, the elapsed time, the command and its last output line updates every second. Without a terminal a plain status line is printed every 10 seconds.
-3. The output goes to `~/.local/state/env-setup/<timestamp>.log`. The last 5 logs are kept, use `--log` to read the latest one. A failure prints the end of the log.
+3. The output goes to `~/.local/state/dotstrap/<timestamp>.log`. The last 5 logs are kept, use `--log` to read the latest one. A failure prints the end of the log.
 4. If a module fails, a terminal offers retry, log, skip and abort. Without a terminal it is tried once more, then an optional module is recorded and the run continues, a failed `base` ends it. Modules depending on a failed module are left out. The run ends with a summary and exits non-zero if anything is missing.
 5. Everything tools build or cache during the run goes to a work directory in `/var/tmp`, removed at the end also on failure and interrupt. This covers temporary files, `XDG_CACHE_HOME` and the cargo registry. Caches you already had stay untouched.
 
@@ -97,15 +99,17 @@ function tmux_install {
 
 Files managed by the setup are rewritten on every run and must not be edited.
 
+This project used to be called `env-setup`. A run on a machine set up back then moves `~/.config/env-setup` to `~/.config/dotstrap` and the logs to `~/.local/state/dotstrap`, and updates the line in the shell startup files. The modules that run replace their files of the old name. `~/.config/env-setup` stays as a link, because the files of modules that didn't run still use it. Delete it once you have run every module you use. `ENV_SETUP_REF`, `ENV_SETUP_REPO` and `ENV_SETUP_MODULES` are now `DOTSTRAP_REF`, `DOTSTRAP_REPO` and `DOTSTRAP_MODULES`.
+
 | File | Content |
 | --- | --- |
-| `~/.config/env-setup/paths` | The directories added to PATH, one per line. A module adds the directory it installs into, e.g. `~/.local/bin` for `scripts` and `claude` or `~/.cargo/bin` for `rust`. Lines are only added, delete one you don't want. |
-| `~/.config/env-setup/bashrc.sh` | Adds the directories of `paths` to PATH and sets up zoxide in interactive bash. Sourced from one line the setup appends to `~/.bashrc`, `~/.profile` and an existing `~/.bash_profile`, so login shells get PATH too. |
-| `~/.config/fish/conf.d/env-setup.fish` | The same for fish, plus the `cat` alias and `vim`/`vi`/`v` abbreviations for nvim. |
+| `~/.config/dotstrap/paths` | The directories added to PATH, one per line. A module adds the directory it installs into, e.g. `~/.local/bin` for `scripts` and `claude` or `~/.cargo/bin` for `rust`. Lines are only added, delete one you don't want. |
+| `~/.config/dotstrap/bashrc.sh` | Adds the directories of `paths` to PATH and sets up zoxide in interactive bash. Sourced from one line the setup appends to `~/.bashrc`, `~/.profile` and an existing `~/.bash_profile`, so login shells get PATH too. |
+| `~/.config/fish/conf.d/dotstrap.fish` | The same for fish, plus the `cat` alias and `vim`/`vi`/`v` abbreviations for nvim. |
 | `~/.config/fish/functions/` | `fish_greeting`, `fish_prompt`, `colored_cat`. |
-| `~/.config/tmux/env-setup.local.conf` | Sets fish as tmux `default-shell`. Sourced by `~/.tmux.conf`. |
+| `~/.config/tmux/dotstrap.local.conf` | Sets fish as tmux `default-shell`. Sourced by `~/.tmux.conf`. |
 | `~/.tmux.conf` | Repository configuration. |
-| `~/.config/git/env-setup.gitconfig` | Delta settings, added to the global git config through an `include.path` entry. |
+| `~/.config/git/dotstrap.gitconfig` | Delta settings, added to the global git config through an `include.path` entry. |
 | `~/.config/delta/themes.gitconfig` | Delta themes. |
 | `~/.config/alacritty/alacritty.toml` | Repository configuration. An old `alacritty.yml` is renamed. |
 | `~/.config/nvim` | Clone of neovim-config, updated with `git pull --ff-only`. |
@@ -141,7 +145,7 @@ The `desktop` module installs the bspwm based desktop (bspwm, sxhkd, polybar, ro
 
 It installs the packages in `Unix/Environment/packages.txt` with pacman and the ones in `aur-packages.txt` with `yay` (not as root: the summary lists them instead, as it does if `yay` fails, because AUR packages can break independently of this setup), then copies `.config`, `.screenlayout`, `.backgrounds` and `.gtkrc-2.0` into your home directory, **overwriting existing files of the same name**.
 
-Machine specific settings live in `~/.config/env-setup/local.conf`. The module creates it from `Unix/Environment/local.conf.example` if it does not exist and never overwrites it. The file is sourced by bash and supports:
+Machine specific settings live in `~/.config/dotstrap/local.conf`. The module creates it from `Unix/Environment/local.conf.example` if it does not exist and never overwrites it. The file is sourced by bash and supports:
 
 | Variable | Purpose |
 | --- | --- |
@@ -171,10 +175,10 @@ mkdir $home\Scripts
 mkdir $home\Documents\WindowsPowerShell
 
 # Wrapper to provide `Connect-SSH` in PowerShell for easy SSH connection
-curl.exe -fsSL "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Scripts/connect.py" -o "$home\Scripts\connect.py"
+curl.exe -fsSL "https://raw.githubusercontent.com/TumbleOwlee/dotstrap/main/Windows/Scripts/connect.py" -o "$home\Scripts\connect.py"
 
 # Install PowerShell profile that provides the aliases for all functions
-curl.exe -fsSL "https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Windows/Documents/WindowsPowerShell/profile.ps1" -o "$home\Documents\WindowsPowerShell\profile.ps1"
+curl.exe -fsSL "https://raw.githubusercontent.com/TumbleOwlee/dotstrap/main/Windows/Documents/WindowsPowerShell/profile.ps1" -o "$home\Documents\WindowsPowerShell\profile.ps1"
 
 # Disable Bing Search in start menu
 Set-ItemProperty "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" BingSearchEnabled 0

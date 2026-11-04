@@ -1,8 +1,8 @@
 #!/bin/bash
 # Entry point. Standalone, so it also works piped into bash:
-#   curl -fsSL https://raw.githubusercontent.com/TumbleOwlee/env-setup/main/Unix/setup.sh | bash -s -- [flags]
+#   curl -fsSL https://raw.githubusercontent.com/TumbleOwlee/dotstrap/main/Unix/setup.sh | bash -s -- [flags]
 # Uses the files next to it in a checkout, otherwise downloads one tarball of
-# ENV_SETUP_REF. Everything is inside main so a truncated download can't run partially.
+# DOTSTRAP_REF. Everything is inside main so a truncated download can't run partially.
 
 function fetch_to {
     if command -v curl >/dev/null 2>&1; then
@@ -31,8 +31,8 @@ function main {
         fi
     done
 
-    url="${ENV_SETUP_REPO:-https://github.com/TumbleOwlee/env-setup}/archive/${ENV_SETUP_REF:-main}.tar.gz"
-    DOWNLOAD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/env-setup-download.XXXXXX")" || exit 1
+    url="${DOTSTRAP_REPO:-https://github.com/TumbleOwlee/dotstrap}/archive/${DOTSTRAP_REF:-main}.tar.gz"
+    DOWNLOAD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dotstrap-download.XXXXXX")" || exit 1
     trap 'rm -rf -- "$DOWNLOAD_DIR"' EXIT
     if ! fetch_to "$url" "$DOWNLOAD_DIR/repo.tar.gz"; then
         echo "Failed to download $url" >&2

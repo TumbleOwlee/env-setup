@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # BT_DEVICES is a bash array of 'Name|AA:BB:CC:DD:EE:FF' entries,
-# defined in ~/.config/env-setup/local.conf
+# defined in ~/.config/dotstrap/local.conf
 BT_DEVICES=()
 # shellcheck source=/dev/null
-[ -f "$HOME/.config/env-setup/local.conf" ] && . "$HOME/.config/env-setup/local.conf"
+[ -f "$HOME/.config/dotstrap/local.conf" ] && . "$HOME/.config/dotstrap/local.conf"
 
 if [ "${#BT_DEVICES[@]}" -eq 0 ]; then
     echo "no devices configured" | rofi -dmenu -i -p "Bluetooth" \

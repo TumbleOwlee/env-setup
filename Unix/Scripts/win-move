@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Move/resize the active window into a slot of a 3x2 grid (up/down x left/center/right).
 # The monitor geometry is detected via xrandr (monitor of the active window, else primary).
-# Overrides (e.g. in ~/.config/env-setup/local.conf): WIN_MOVE_WIDTH, WIN_MOVE_HEIGHT
+# Overrides (e.g. in ~/.config/dotstrap/local.conf): WIN_MOVE_WIDTH, WIN_MOVE_HEIGHT
 
 # Get position by name
 position=$1
@@ -9,7 +9,7 @@ position=$1
 window_id=$(xdotool getwindowfocus)
 
 # Optional overrides
-LOCAL_CONF="$HOME/.config/env-setup/local.conf"
+LOCAL_CONF="$HOME/.config/dotstrap/local.conf"
 # shellcheck disable=SC1090
 [ -f "$LOCAL_CONF" ] && . "$LOCAL_CONF"
 

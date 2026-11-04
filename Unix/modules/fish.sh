@@ -17,14 +17,14 @@ function fish_install {
         put "Configs/fish/$fn.fish" "$HOME/.config/fish/functions/$fn.fish" 644
     done
 
-    write_owned "$HOME/.config/fish/conf.d/env-setup.fish" <<'SNIPPET'
-# Managed by env-setup, rewritten on every run. Do not edit.
-# Adds the directories in ~/.config/env-setup/paths to PATH.
-if test -f $HOME/.config/env-setup/paths
+    write_owned "$HOME/.config/fish/conf.d/dotstrap.fish" <<'SNIPPET'
+# Managed by dotstrap, rewritten on every run. Do not edit.
+# Adds the directories in ~/.config/dotstrap/paths to PATH.
+if test -f $HOME/.config/dotstrap/paths
     while read -l dir
         test -n "$dir"; or continue
         contains -- $dir $PATH; or set -gx PATH $dir $PATH
-    end <$HOME/.config/env-setup/paths
+    end <$HOME/.config/dotstrap/paths
 end
 if command -q zoxide
     zoxide init --cmd cd fish | source
@@ -37,4 +37,6 @@ if command -q nvim
     abbr -a v nvim
 end
 SNIPPET
+    # The snippet from when this project was called env-setup
+    rm -f -- "$HOME/.config/fish/conf.d/env-setup.fish"
 }

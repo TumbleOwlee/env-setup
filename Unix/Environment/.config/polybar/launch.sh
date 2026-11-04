@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Optional overrides: MONITOR_PRIMARY, WLAN_IF, BATTERY, ADAPTER, BACKLIGHT
-local_conf="${XDG_CONFIG_HOME:-$HOME/.config}/env-setup/local.conf"
+local_conf="${XDG_CONFIG_HOME:-$HOME/.config}/dotstrap/local.conf"
 if [ -f "$local_conf" ]; then
     # shellcheck source=/dev/null
     . "$local_conf"

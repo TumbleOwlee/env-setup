@@ -2,7 +2,7 @@
 
 # Lay out all connected outputs left to right at their preferred mode.
 # MONITOR_PRIMARY (from local.conf) selects the primary output.
-local_conf="${XDG_CONFIG_HOME:-$HOME/.config}/env-setup/local.conf"
+local_conf="${XDG_CONFIG_HOME:-$HOME/.config}/dotstrap/local.conf"
 if [ -f "$local_conf" ]; then
     # shellcheck source=/dev/null
     . "$local_conf"

@@ -18,7 +18,7 @@ function check {
 
 # Run the setup without terminal: engine <flags>. Sets OUT and RC.
 function engine {
-    OUT="$(setsid -w env HOME="$HOME_DIR" PATH="$SANDBOX/bin:$PATH" ENV_SETUP_MODULES="$MODULES" XDG_STATE_HOME= \
+    OUT="$(setsid -w env HOME="$HOME_DIR" PATH="$SANDBOX/bin:$PATH" DOTSTRAP_MODULES="$MODULES" XDG_STATE_HOME= \
         timeout 20 bash "$SETUP" "$@" 2>&1 </dev/null)"
     RC=$?
 }
@@ -69,28 +69,28 @@ check "failure without terminal retries exactly once" '[ "$(grep -c "trying once
 check "failure shows the log" '[[ "$OUT" == *"last lines of"* ]]'
 check "set -e stops a failing module" '[ ! -e "$HOME_DIR/after-false" ]'
 check "dependent of a failed module is left out" '[ ! -e "$HOME_DIR/needs-broken" ]'
-check "other modules continue after a failure" '[ -e "$HOME_DIR/.local/state/env-setup" ] && [[ "$OUT" == *needs-good*done* ]]'
-check "log survives a failure" 'compgen -G "$HOME_DIR/.local/state/env-setup/*.log" >/dev/null'
+check "other modules continue after a failure" '[ -e "$HOME_DIR/.local/state/dotstrap" ] && [[ "$OUT" == *needs-good*done* ]]'
+check "log survives a failure" 'compgen -G "$HOME_DIR/.local/state/dotstrap/*.log" >/dev/null'
 
 rm -rf -- "${HOME_DIR:?}"
-mkdir -p "$HOME_DIR/.local/state/env-setup"
-echo mine >"$HOME_DIR/.local/state/env-setup/mine.log"
+mkdir -p "$HOME_DIR/.local/state/dotstrap"
+echo mine >"$HOME_DIR/.local/state/dotstrap/mine.log"
 for i in 1 2 3 4 5 6 7; do
-    : >"$HOME_DIR/.local/state/env-setup/20200101-00000$i.log"
+    : >"$HOME_DIR/.local/state/dotstrap/20200101-00000$i.log"
 done
 engine --only=good
-check "old logs are pruned" '[ ! -e "$HOME_DIR/.local/state/env-setup/20200101-000001.log" ]'
-check "other files next to the logs stay" '[ -e "$HOME_DIR/.local/state/env-setup/mine.log" ]'
+check "old logs are pruned" '[ ! -e "$HOME_DIR/.local/state/dotstrap/20200101-000001.log" ]'
+check "other files next to the logs stay" '[ -e "$HOME_DIR/.local/state/dotstrap/mine.log" ]'
 check "success exits 0" '[ "$RC" -eq 0 ]'
-check "log survives success" 'compgen -G "$HOME_DIR/.local/state/env-setup/*.log" >/dev/null'
+check "log survives success" 'compgen -G "$HOME_DIR/.local/state/dotstrap/*.log" >/dev/null'
 check "no caches in the home directory" '[ ! -e "$HOME_DIR/.cache" ]'
-check "work directory is removed" '! compgen -G "/var/tmp/env-setup.*" >/dev/null'
+check "work directory is removed" '! compgen -G "/var/tmp/dotstrap.*" >/dev/null'
 
 cat >"$MODULES/b.sh" <<'FIXTURE'
 module hang
 function hang_install { echo $$ >"$HOME/hang.pid"; sh -c 'echo $$ >"$HOME/hang-child.pid"; exec sleep 300'; }
 FIXTURE
-setsid env HOME="$HOME_DIR" ENV_SETUP_MODULES="$MODULES" bash "$SETUP" --only=hang >/dev/null 2>&1 </dev/null &
+setsid env HOME="$HOME_DIR" DOTSTRAP_MODULES="$MODULES" bash "$SETUP" --only=hang >/dev/null 2>&1 </dev/null &
 ENGINE=$!
 for _ in $(seq 1 50); do
     [ -s "$HOME_DIR/hang-child.pid" ] && break
@@ -99,7 +99,7 @@ done
 kill -TERM "$ENGINE" 2>/dev/null
 sleep 1
 check "SIGTERM stops the running module with its children" '! kill -0 "$(cat "$HOME_DIR/hang-child.pid")" 2>/dev/null'
-check "SIGTERM removes the work directory" '! compgen -G "/var/tmp/env-setup.*" >/dev/null'
+check "SIGTERM removes the work directory" '! compgen -G "/var/tmp/dotstrap.*" >/dev/null'
 
 # A plugin that keeps failing is moved and cloned again, names from the output are not trusted
 mkdir -p "$SANDBOX/bin" "$HOME_DIR/.local/share/nvim/lazy/broken" "$HOME_DIR/.local/share/nvim/keep"
@@ -123,6 +123,31 @@ check "broken plugin is replaced and the run succeeds" '[ "$RC" -eq 0 ] && [ ! -
 check "broken plugin is moved, not deleted" 'compgen -G "$HOME_DIR/.local/share/nvim/lazy-failed.*/broken/partial" >/dev/null'
 check "unsafe plugin name is ignored" '[ -e "$HOME_DIR/.local/share/nvim/keep/mine" ]'
 
+# A machine set up when this project was called env-setup
+rm -rf -- "${HOME_DIR:?}"
+mkdir -p "$HOME_DIR/.config/env-setup" "$HOME_DIR/.local/state/env-setup"
+echo mine >"$HOME_DIR/.config/env-setup/local.conf"
+: >"$HOME_DIR/.local/state/env-setup/20200101-000001.log"
+printf '%s\n' 'first' '[ -f ~/.config/env-setup/bashrc.sh ] && . ~/.config/env-setup/bashrc.sh' 'last' >"$HOME_DIR/.bashrc"
+cat >"$MODULES/d.sh" <<'FIXTURE'
+module rename
+function rename_install { migrate_config_dir; migrate_source_line "$HOME/.bashrc"; }
+FIXTURE
+engine --only=rename
+check "rename: the configuration is moved" '[ "$RC" -eq 0 ] && [ "$(cat "$HOME_DIR/.config/dotstrap/local.conf")" == mine ]'
+check "rename: the old path still works" '[ "$(cat "$HOME_DIR/.config/env-setup/local.conf")" == mine ] && [ -L "$HOME_DIR/.config/env-setup" ]'
+check "rename: the logs are moved" '[ -e "$HOME_DIR/.local/state/dotstrap/20200101-000001.log" ] && [ ! -e "$HOME_DIR/.local/state/env-setup" ]'
+check "rename: the source line is replaced in place" '[ "$(sed -n 2p "$HOME_DIR/.bashrc")" == "[ -f ~/.config/dotstrap/bashrc.sh ] && . ~/.config/dotstrap/bashrc.sh" ] && [ "$(wc -l <"$HOME_DIR/.bashrc")" -eq 3 ]'
+check "rename: the startup file is backed up" 'grep -q env-setup "$HOME_DIR"/.bashrc.bak.*'
+engine --only=rename
+check "rename: a second run changes nothing" '[ "$RC" -eq 0 ] && [ -L "$HOME_DIR/.config/env-setup" ] && [ "$(compgen -G "$HOME_DIR/.bashrc.bak.*" | wc -l)" -eq 1 ]'
+rm -rf -- "${HOME_DIR:?}"
+mkdir -p "$HOME_DIR/.config/env-setup" "$HOME_DIR/.config/dotstrap"
+echo old >"$HOME_DIR/.config/env-setup/local.conf"
+echo new >"$HOME_DIR/.config/dotstrap/local.conf"
+engine --only=rename
+check "rename: an existing new directory is not touched" '[ "$(cat "$HOME_DIR/.config/dotstrap/local.conf")" == new ] && [ "$(cat "$HOME_DIR/.config/env-setup/local.conf")" == old ] && [[ "$OUT" == *"Both "* ]]'
+
 # The module list needs a terminal. The keys are sent once the package lists are refreshed,
 # which directly precedes it. Sets OUT and RC: engine_tty <keys> <flags>
 function engine_tty {
@@ -130,7 +155,7 @@ function engine_tty {
     shift
     rm -rf -- "${HOME_DIR:?}"
     mkdir -p "$HOME_DIR"
-    cmd="$(printf '%q ' env HOME="$HOME_DIR" PATH="$SANDBOX/bin:$PATH" ENV_SETUP_MODULES="$SANDBOX/menu" XDG_STATE_HOME= \
+    cmd="$(printf '%q ' env HOME="$HOME_DIR" PATH="$SANDBOX/bin:$PATH" DOTSTRAP_MODULES="$SANDBOX/menu" XDG_STATE_HOME= \
         timeout --foreground 20 bash "$SETUP" "$@")"
     OUT="$(
         {

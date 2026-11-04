@@ -55,6 +55,7 @@ function base_install {
     fi
 
     _migrate_legacy_blocks
+    migrate_config_dir
     _migrate_paths
 
     # pipx and the upstream zoxide install into ~/.local/bin
@@ -62,18 +63,18 @@ function base_install {
     add_command_to_path zoxide
 
     # POSIX sh: ~/.profile is also read by sh, e.g. for a graphical login
-    write_owned "$HOME/.config/env-setup/bashrc.sh" <<'SNIPPET'
-# Managed by env-setup, rewritten on every run. Do not edit.
-# Adds the directories in ~/.config/env-setup/paths to PATH.
-if [ -f "$HOME/.config/env-setup/paths" ]; then
-    while IFS= read -r _env_setup_dir; do
-        [ -n "$_env_setup_dir" ] || continue
+    write_owned "$HOME/.config/dotstrap/bashrc.sh" <<'SNIPPET'
+# Managed by dotstrap, rewritten on every run. Do not edit.
+# Adds the directories in ~/.config/dotstrap/paths to PATH.
+if [ -f "$HOME/.config/dotstrap/paths" ]; then
+    while IFS= read -r _dotstrap_dir; do
+        [ -n "$_dotstrap_dir" ] || continue
         case ":$PATH:" in
-        *":$_env_setup_dir:"*) ;;
-        *) PATH="$PATH:$_env_setup_dir" ;;
+        *":$_dotstrap_dir:"*) ;;
+        *) PATH="$PATH:$_dotstrap_dir" ;;
         esac
-    done <"$HOME/.config/env-setup/paths"
-    unset _env_setup_dir
+    done <"$HOME/.config/dotstrap/paths"
+    unset _dotstrap_dir
     export PATH
 fi
 if [ -n "${BASH_VERSION:-}" ]; then
@@ -98,14 +99,15 @@ SNIPPET
 # Source the snippet at the end of a shell startup file: _source_snippet <file>
 function _source_snippet {
     touch "$1"
-    ensure_line "$1" '[ -f ~/.config/env-setup/bashrc.sh ] && . ~/.config/env-setup/bashrc.sh'
+    migrate_source_line "$1"
+    ensure_line "$1" '[ -f ~/.config/dotstrap/bashrc.sh ] && . ~/.config/dotstrap/bashrc.sh'
 }
 
 # Older versions always added ~/.local/bin and ~/.cargo/bin. Keep the existing ones
 # for the first run with the paths file, as tools might have been installed there.
 function _migrate_paths {
     local d
-    if [ -f "$PATHS_FILE" ] || [ ! -f "$HOME/.config/env-setup/bashrc.sh" ]; then
+    if [ -f "$PATHS_FILE" ] || [ ! -f "$HOME/.config/dotstrap/bashrc.sh" ]; then
         return 0
     fi
     for d in "$HOME/.local/bin" "$HOME/.cargo/bin"; do

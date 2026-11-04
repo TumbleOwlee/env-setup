@@ -6,8 +6,8 @@
 set -o pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-MODULES_DIR="${ENV_SETUP_MODULES:-$ROOT/modules}"
-LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/env-setup"
+MODULES_DIR="${DOTSTRAP_MODULES:-$ROOT/modules}"
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dotstrap"
 KEEP_LOGS=5
 
 # shellcheck source=Unix/lib/ui.sh
@@ -372,7 +372,7 @@ function show_last_log {
 
 function init_run {
     local stamp logs i
-    WORK="$(mktemp -d /var/tmp/env-setup.XXXXXX 2>/dev/null || mktemp -d "${TMPDIR:-/tmp}/env-setup.XXXXXX")" ||
+    WORK="$(mktemp -d /var/tmp/dotstrap.XXXXXX 2>/dev/null || mktemp -d "${TMPDIR:-/tmp}/dotstrap.XXXXXX")" ||
         die "Can't create a work directory."
     mkdir -p "$WORK/tmp" "$WORK/cache" "$WORK/cargo"
     STATE_FILE="$WORK/state"
@@ -389,6 +389,10 @@ function init_run {
     export GIT_TERMINAL_PROMPT=0
 
     stamp="$(date +%Y%m%d-%H%M%S)"
+    # The logs from when this project was called env-setup
+    if [ -d "${LOG_DIR%/*}/env-setup" ] && [ ! -L "${LOG_DIR%/*}/env-setup" ] && [ ! -e "$LOG_DIR" ]; then
+        mv -- "${LOG_DIR%/*}/env-setup" "$LOG_DIR" 2>/dev/null
+    fi
     if mkdir -p "$LOG_DIR" 2>/dev/null; then
         LOG_FILE="$LOG_DIR/$stamp.log"
         # Only files named like our logs, sorted by time through their names
@@ -418,7 +422,7 @@ function on_signal {
 # Delete the work directory, and nothing but a directory named like one created by init_run
 function _remove_work {
     case "$WORK" in
-    */env-setup.??????) ;;
+    */dotstrap.??????) ;;
     *) return 0 ;;
     esac
     if [ -d "$WORK" ] && [ ! -L "$WORK" ]; then

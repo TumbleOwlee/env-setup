@@ -1,0 +1,86 @@
+<svg width="100%" viewBox="0 0 684 232" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Dotstrap banner</title>
+<desc>A wide README banner: a small terminal window stands on a steel rail, listing .config, .tmux.conf and .gitconfig with green check marks; to the right are the wordmark dotstrap, a tagline, and tags for fish, tmux, neovim, rust, docker and desktop.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#1A1F24"/>
+<stop offset="1" stop-color="#0C0F12"/>
+</linearGradient>
+<linearGradient id="titlebar" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#444B52"/>
+<stop offset="1" stop-color="#2A3036"/>
+</linearGradient>
+<linearGradient id="brass" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#7E6040"/>
+<stop offset="0.35" stop-color="#DDBA80"/>
+<stop offset="0.6" stop-color="#C49A63"/>
+<stop offset="1" stop-color="#6E5236"/>
+</linearGradient>
+</defs>
+
+<rect x="6" y="6" width="668" height="228" rx="22" fill="url(#bg)" stroke="#12161A" stroke-width="2"/>
+<rect x="14" y="14" width="652" height="212" rx="16" fill="none" stroke="#E0CDB4" stroke-opacity="0.12" stroke-width="1"/>
+
+<g fill="#C49A63" fill-opacity="0.09">
+<circle cx="572" cy="32" r="3.5"/><circle cx="590" cy="32" r="3.5"/><circle cx="608" cy="32" r="3.5"/><circle cx="626" cy="32" r="3.5"/><circle cx="644" cy="32" r="3.5"/>
+<circle cx="590" cy="50" r="3.5"/><circle cx="608" cy="50" r="3.5"/><circle cx="626" cy="50" r="3.5"/><circle cx="644" cy="50" r="3.5"/>
+<circle cx="626" cy="68" r="3.5"/><circle cx="644" cy="68" r="3.5"/>
+<circle cx="644" cy="86" r="3.5"/>
+</g>
+
+<ellipse cx="118" cy="116" rx="96" ry="104" fill="#C9A87E" fill-opacity="0.04"/>
+<ellipse cx="118" cy="207.5" rx="80" ry="1.8" fill="#000000" fill-opacity="0.35"/>
+
+<rect x="62" y="196" width="14" height="12" fill="url(#brass)" stroke="#12161A" stroke-width="1"/>
+<rect x="160" y="196" width="14" height="12" fill="url(#brass)" stroke="#12161A" stroke-width="1"/>
+
+<rect x="32" y="36" width="172" height="162" rx="9" fill="#14181C" stroke="#12161A" stroke-width="1"/>
+<path d="M32 58 V45 Q32 36 41 36 H195 Q204 36 204 45 V58 Z" fill="url(#titlebar)" stroke="#12161A" stroke-width="1"/>
+<rect x="32" y="36" width="172" height="162" rx="9" fill="none" stroke="#6E5F4E" stroke-width="1"/>
+<circle cx="46" cy="47" r="3.5" fill="#C49A63"/>
+<circle cx="58" cy="47" r="3.5" fill="#6E5F4E"/>
+<circle cx="70" cy="47" r="3.5" fill="#8FB39A"/>
+
+<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="13">
+<text x="44" y="82" fill="#9C8A72">$ <tspan fill="#E7D8C2">setup.sh</tspan></text>
+<text x="53" y="108" fill="#E7D8C2">config</text>
+<text x="53" y="130" fill="#E7D8C2">tmux.conf</text>
+<text x="53" y="152" fill="#E7D8C2">gitconfig</text>
+<text x="44" y="180" fill="#9C8A72">$</text>
+</g>
+<circle cx="48" cy="105.5" r="2.5" fill="#C49A63"/>
+<circle cx="48" cy="127.5" r="2.5" fill="#C49A63"/>
+<circle cx="48" cy="149.5" r="2.5" fill="#C49A63"/>
+<g fill="none" stroke="#8FB39A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M174 103 L178 107 L186 98"/>
+<path d="M174 125 L178 129 L186 120"/>
+<path d="M174 147 L178 151 L186 142"/>
+</g>
+<rect x="58" y="169" width="8" height="14" fill="#8FB39A"/>
+
+<line x1="216" y1="58" x2="216" y2="184" stroke="#C49A63" stroke-opacity="0.18" stroke-width="1"/>
+
+<text x="234" y="102" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="54" font-weight="500" letter-spacing="3" fill="#E7D8C2"><tspan fill="#C49A63">dot</tspan>strap</text>
+<text x="236" y="134" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" letter-spacing="2" fill="#9C8A72">bare machine · full dev environment</text>
+
+<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="11" letter-spacing="1">
+<rect x="234" y="152" width="44" height="20" rx="5" fill="#272C32" stroke="#6E5F4E" stroke-width="1"/>
+<text x="256" y="166" text-anchor="middle" fill="#C49A63">fish</text>
+<rect x="288" y="152" width="44" height="20" rx="5" fill="#272C32" stroke="#6E5F4E" stroke-width="1"/>
+<text x="310" y="166" text-anchor="middle" fill="#C49A63">tmux</text>
+<rect x="342" y="152" width="60" height="20" rx="5" fill="#272C32" stroke="#6E5F4E" stroke-width="1"/>
+<text x="372" y="166" text-anchor="middle" fill="#C49A63">neovim</text>
+<rect x="412" y="152" width="44" height="20" rx="5" fill="#272C32" stroke="#6E5F4E" stroke-width="1"/>
+<text x="434" y="166" text-anchor="middle" fill="#C49A63">rust</text>
+<rect x="466" y="152" width="60" height="20" rx="5" fill="#272C32" stroke="#6E5F4E" stroke-width="1"/>
+<text x="496" y="166" text-anchor="middle" fill="#C49A63">docker</text>
+<rect x="536" y="152" width="68" height="20" rx="5" fill="#272C32" stroke="#6E5F4E" stroke-width="1"/>
+<text x="570" y="166" text-anchor="middle" fill="#8FB39A">desktop</text>
+</g>
+
+<rect x="40" y="208" width="600" height="6" rx="3" fill="#444B52" stroke="#262C31" stroke-width="1"/>
+<rect x="44" y="209" width="592" height="1.5" rx="1" fill="#5E6970"/>
+<circle cx="70" cy="211" r="2.5" fill="#20262B"/>
+<circle cx="380" cy="211" r="2.5" fill="#20262B"/>
+<circle cx="600" cy="211" r="2.5" fill="#20262B"/>
+</svg>
