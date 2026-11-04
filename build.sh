@@ -12,8 +12,8 @@ else
     BOLD='' DIM='' GREEN='' CYAN='' NONE=''
 fi
 
-# Filled by list_modules and read by _menu
-LABELS=() CHECKED=() CURSOR=0 KEY=""
+# Filled by main and read by _menu
+LABELS=() HINTS=() CHECKED=() CURSOR=0 KEY=""
 
 function die {
     printf '[!] %s\n' "$*" >&2
@@ -83,32 +83,81 @@ function _answered {
     printf '%s?%s %s %s%s%s\n' "$GREEN" "$NONE" "$1" "$CYAN" "$2" "$NONE" >/dev/tty
 }
 
-# A list of LABELS below <question>, moved through with the arrow keys or j/k.
-# multi: space toggles CHECKED, a toggles all. Sets CURSOR. The list is removed
-# afterwards: _menu <single|multi> <question> <hint>
+# Print the terminal size as "rows cols", 24x80 if unknown
+function _term_size {
+    local size
+    size="$(stty size </dev/tty 2>/dev/null)" || size=""
+    if [[ "$size" =~ ^[0-9]+\ [0-9]+$ ]]; then
+        echo "$size"
+    else
+        echo "24 80"
+    fi
+}
+
+# A list of LABELS (with dim HINTS) below <question>, moved through with the arrow keys
+# or j/k. multi: space toggles CHECKED, a toggles all. Sets CURSOR. Only as many entries
+# as fit into the terminal are shown and every line is cut to its width, so that the
+# list can be redrawn in place. It is removed afterwards: _menu <single|multi> <question> <hint>
 function _menu {
-    local mode="$1" question="$2" hint="$3" n=${#LABELS[@]} i mark first=1
+    local mode="$1" question="$2" hint="$3" n=${#LABELS[@]} i mark rows cols
+    local top=0 height drawn=0 avail label more
     CURSOR=0
-    printf '\e[?25l%s?%s %s %s%s%s\n' "$GREEN" "$NONE" "$question" "$DIM" "$hint" "$NONE" >/dev/tty
+    read -r rows cols <<<"$(_term_size)"
+    question="? $question"
+    hint="${hint:0:$((cols - 2 - ${#question} > 0 ? cols - 2 - ${#question} : 0))}"
+    printf '\e[?25l%s?%s%s %s%s%s\n' "$GREEN" "$NONE" "${question:1:$((cols - 2))}" "$DIM" "$hint" "$NONE" >/dev/tty
     while true; do
-        if [ -z "$first" ]; then
-            printf '\e[%dA' "$n" >/dev/tty
+        read -r rows cols <<<"$(_term_size)"
+        # Keep the question, the 'more' line and one spare line visible
+        height=$((rows - 3 < n ? rows - 3 : n))
+        if [ "$height" -lt 1 ]; then
+            height=1
         fi
-        first=""
-        for ((i = 0; i < n; i++)); do
-            mark=""
-            if [ "$mode" == multi ]; then
-                mark="[ ] "
-                if [ "${CHECKED[i]}" == 1 ]; then
-                    mark="[${GREEN}x${NONE}] "
+        if [ "$CURSOR" -lt "$top" ]; then
+            top=$CURSOR
+        elif [ "$CURSOR" -ge $((top + height)) ]; then
+            top=$((CURSOR - height + 1))
+        fi
+        if [ "$top" -gt $((n - height)) ]; then
+            top=$((n - height))
+        fi
+        if [ "$drawn" -gt 0 ]; then
+            printf '\e[%dA' "$drawn" >/dev/tty
+        fi
+        drawn=0
+        {
+            for ((i = top; i < top + height; i++)); do
+                mark=""
+                avail=$((cols - 3))
+                if [ "$mode" == multi ]; then
+                    mark="[ ] "
+                    if [ "${CHECKED[i]}" == 1 ]; then
+                        mark="[${GREEN}x${NONE}] "
+                    fi
+                    avail=$((avail - 4))
                 fi
+                label="${LABELS[i]:0:$((avail > 0 ? avail : 0))}"
+                avail=$((avail - ${#label} - 1))
+                hint=""
+                if [ "$avail" -gt 0 ]; then
+                    hint="${HINTS[i]:-}"
+                    hint="${hint:0:avail}"
+                fi
+                if [ "$i" -eq "$CURSOR" ]; then
+                    printf '\r\e[K%s>%s %s%s%s%s %s%s%s\n' "$CYAN" "$NONE" "$mark" "$BOLD" "$label" "$NONE" "$DIM" "$hint" "$NONE"
+                else
+                    printf '\r\e[K  %s%s %s%s%s\n' "$mark" "$label" "$DIM" "$hint" "$NONE"
+                fi
+                drawn=$((drawn + 1))
+            done
+            if [ "$height" -lt "$n" ]; then
+                more="  ${top} more above, $((n - top - height)) more below"
+                printf '\r\e[K%s%s%s\n' "$DIM" "${more:0:$((cols - 1))}" "$NONE"
+                drawn=$((drawn + 1))
             fi
-            if [ "$i" -eq "$CURSOR" ]; then
-                printf '\r\e[K%s>%s %s%s%s%s\n' "$CYAN" "$NONE" "$mark" "$BOLD" "${LABELS[i]}" "$NONE"
-            else
-                printf '\r\e[K  %s%s\n' "$mark" "${LABELS[i]}"
-            fi
-        done >/dev/tty
+            # Lines left over from a taller terminal
+            printf '\e[J'
+        } >/dev/tty
         read_key
         case "$KEY" in
         up) CURSOR=$(((CURSOR + n - 1) % n)) ;;
@@ -133,7 +182,7 @@ function _menu {
         quit) exit 1 ;;
         esac
     done
-    printf '\e[%dA\r\e[J\e[?25h' "$((n + 1))" >/dev/tty
+    printf '\e[%dA\r\e[J\e[?25h' "$((drawn + 1))" >/dev/tty
 }
 
 # Read a line with an editable default: ask_text <question> <default>, sets REPLY
@@ -149,7 +198,7 @@ function confirm {
 }
 
 function main {
-    local version user tag shown flags list name desc on i
+    local version user uid gid tag shown flags list name desc on i
     local names=() selected=() versions=(stable 13 12 testing)
 
     command -v docker >/dev/null 2>&1 || die "docker is not installed."
@@ -158,7 +207,8 @@ function main {
     fi
     trap 'printf "\e[?25h" >/dev/tty; stty echo </dev/tty 2>/dev/null || true' EXIT
 
-    LABELS=("stable   current stable release" "13       trixie" "12       bookworm" "testing  next release")
+    LABELS=("stable  " "13      " "12      " "testing ")
+    HINTS=("current stable release" "trixie" "bookworm" "next release")
     _menu single "Debian version" "(up/down, enter)"
     version="${versions[CURSOR]}"
     _answered "Debian version" "$version"
@@ -166,14 +216,25 @@ function main {
     ask_text "User name:" dev
     user="$REPLY"
     [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ ]] || die "Invalid user name '$user'."
+    # Your own ids give the user access to the files you mount, root gets the default
+    uid="$(id -u)" gid="$(id -g)"
+    if [ "$uid" -eq 0 ]; then
+        uid=1000 gid=1000
+    fi
+    ask_text "User id:" "$uid"
+    uid="$REPLY"
+    ask_text "Group id:" "$gid"
+    gid="$REPLY"
+    [[ "$uid" =~ ^[1-9][0-9]*$ && "$gid" =~ ^[1-9][0-9]*$ ]] || die "Invalid user or group id."
     ask_text "Image tag:" dev-env
     tag="$REPLY"
     [ -n "$tag" ] || die "The image tag is empty."
 
-    LABELS=() CHECKED=()
+    LABELS=() HINTS=() CHECKED=()
     while IFS=$'\t' read -r name desc on; do
         names+=("$name")
-        LABELS+=("$(printf '%-11s %s%s%s' "$name" "$DIM" "$desc" "$NONE")")
+        LABELS+=("$(printf '%-11s' "$name")")
+        HINTS+=("$desc")
         CHECKED+=("$on")
     done < <(list_modules)
     _menu multi "Modules" "(space toggles, a all, enter; base and dependencies are added)"
@@ -197,6 +258,8 @@ function main {
     local cmd=(docker build
         --build-arg "DEBIAN_VERSION=$version"
         --build-arg "DEV_USER=$user"
+        --build-arg "DEV_UID=$uid"
+        --build-arg "DEV_GID=$gid"
         --build-arg "SETUP_FLAGS=$flags"
         -t "$tag" "$ROOT")
     shown=""

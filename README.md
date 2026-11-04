@@ -123,9 +123,9 @@ docker build --build-arg DEBIAN_VERSION=13 -t dev-env .   # default: stable
 docker run --rm -it -v "$PWD":/work -w /work dev-env
 ```
 
-Further build arguments are `DEV_USER` and `SETUP_FLAGS`, e.g. `--build-arg SETUP_FLAGS=--include=docker,mise`.
+Further build arguments are `DEV_USER`, `DEV_UID`, `DEV_GID` (default 1000) and `SETUP_FLAGS`, e.g. `--build-arg SETUP_FLAGS=--include=docker,mise`. Set the ids to the ones of your host user (`id -u`, `id -g`) to have access to the files you mount. `~/.local/bin` and `~/.cargo/bin` of the user are in the `PATH` of the image, so the tools are also found by `docker run <image> <cmd>`, which reads no shell startup files.
 
-`./docker-build.sh` asks for these settings in the terminal and builds the image: the Debian version and the modules are chosen from a list (arrow keys or `j`/`k` move, space toggles, `a` toggles all, enter confirms, `q` aborts), the user name and tag are edited in place. The selected modules are passed as `--only=... --include=...`, so their dependencies are added and modules left out by `--minimal` can be selected. Before building, the script shows the `docker build` command and asks for confirmation.
+`./build.sh` asks for these settings in the terminal and builds the image: the Debian version and the modules are chosen from a list (arrow keys or `j`/`k` move, space toggles, `a` toggles all, enter confirms, `q` aborts), the user name, ids (default: yours) and tag are edited in place. The selected modules are passed as `--only=... --include=...`, so their dependencies are added and modules left out by `--minimal` can be selected. Before building, the script shows the `docker build` command and asks for confirmation.
 
 The image uses `setup.sh --minimal`, which also works outside of Docker:
 
