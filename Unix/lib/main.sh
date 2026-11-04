@@ -12,6 +12,8 @@ KEEP_LOGS=5
 
 # shellcheck source=Unix/lib/ui.sh
 source "$ROOT/lib/ui.sh"
+# shellcheck source=Unix/lib/menu.sh
+source "$ROOT/lib/menu.sh"
 # shellcheck source=Unix/lib/helpers.sh
 source "$ROOT/lib/helpers.sh"
 
@@ -23,7 +25,7 @@ declare -A SKIP=() INCLUDE=() ONLY=()
 M_NAMES=()
 declare -A M_DESC=() M_DEPS=() M_AFTER=() M_PKGS=() M_DISTROS=() M_FLAGS=()
 # Plan and results
-declare -A WANT=() VISITED=() RESULT=()
+declare -A WANT=() VISITED=() RESULT=() ANSWER=()
 ORDER=()
 
 function usage {
@@ -100,7 +102,7 @@ function detect_distro {
 }
 
 # Register a module. Options ending in -arch or -debian only count on that distro.
-#   --desc TEXT       Shown in prompts and --list
+#   --desc TEXT       Shown in the module list and --list
 #   --packages LIST   Logical packages installed before <name>_install
 #   --deps LIST       Modules that must be installed first
 #   --after LIST      Run after these modules if they are installed too
@@ -202,21 +204,80 @@ function _close_over_deps {
     done
 }
 
+# Return 0 unless the distro or the flags rule out the module
+function _allowed {
+    local name="$1"
+    available "$name" || return 1
+    has_flag "$name" required && return 0
+    [ -z "${SKIP[$name]:-}" ] || return 1
+    if [ ${#ONLY[@]} -gt 0 ] && [ -z "${ONLY[$name]:-}" ]; then
+        return 1
+    fi
+    if [ -n "$MINIMAL" ] && has_flag "$name" no-minimal && [ -z "${INCLUDE[$name]:-}" ]; then
+        return 1
+    fi
+}
+
+# Return 0 if neither the module nor one of its dependencies is ruled out
+function _installable {
+    local dep
+    _allowed "$1" || return 1
+    for dep in ${M_DEPS[$1]:-}; do
+        has_flag "$dep" internal && continue
+        _installable "$dep" || return 1
+    done
+}
+
+# Let the user select from the modules that are still open: sets ANSWER[name]=1 or 0.
+# Without a terminal or with --only nothing is asked. What a selected module depends on
+# is selected too, so that a dependency that was switched off doesn't leave it out.
+function choose_modules {
+    local name i names=() chosen=()
+    local -A picked=()
+    if [ -z "$INTERACTIVE" ] || [ ${#ONLY[@]} -gt 0 ]; then
+        return 0
+    fi
+    LABELS=() HINTS=() CHECKED=()
+    for name in "${M_NAMES[@]}"; do
+        if has_flag "$name" internal || has_flag "$name" required || [ -n "${INCLUDE[$name]:-}" ]; then
+            continue
+        fi
+        _installable "$name" || continue
+        names+=("$name")
+        LABELS+=("$(printf '%-11s' "$name")")
+        HINTS+=("${M_DESC[$name]:-}")
+        if has_flag "$name" optional; then
+            CHECKED+=(0)
+        else
+            CHECKED+=(1)
+        fi
+    done
+    [ ${#names[@]} -gt 0 ] || return 0
+    _menu multi "Modules" "(space toggles, a all, enter, q aborts; dependencies are added)"
+    for ((i = 0; i < ${#names[@]}; i++)); do
+        if [ "${CHECKED[i]}" == 1 ]; then
+            picked["${names[i]}"]=1
+        fi
+    done
+    _close_over_deps picked
+    for name in "${names[@]}"; do
+        ANSWER["$name"]="${picked[$name]:-0}"
+        if [ "${ANSWER[$name]}" == 1 ]; then
+            chosen+=("$name")
+        fi
+    done
+    _answered "Modules" "${chosen[*]:-none of them}"
+    printf '[?] Modules: %s\n' "${chosen[*]:-none of them}" >>"$LOG_FILE"
+}
+
 # Decide about one module, its dependencies first: WANT[name]=1 or 0
 function decide {
-    local name="$1" dep prompt="Y" hint="[Y/n]"
+    local name="$1" dep
     [ -z "${WANT[$name]:-}" ] || return 0
     WANT["$name"]=0
-    available "$name" || return 0
-    if ! has_flag "$name" required; then
-        [ -z "${SKIP[$name]:-}" ] || return 0
-        if [ ${#ONLY[@]} -gt 0 ] && [ -z "${ONLY[$name]:-}" ]; then
-            return 0
-        fi
-        if [ -n "$MINIMAL" ] && has_flag "$name" no-minimal && [ -z "${INCLUDE[$name]:-}" ]; then
-            return 0
-        fi
-    fi
+    _allowed "$name" || return 0
+    # Switched off in the list: nothing to say about its dependencies
+    [ "${ANSWER[$name]:-}" != 0 ] || return 0
     for dep in ${M_DEPS[$name]:-}; do
         has_flag "$dep" internal && continue
         decide "$dep"
@@ -229,10 +290,8 @@ function decide {
         WANT["$name"]=1
         return 0
     fi
-    if has_flag "$name" optional; then
-        prompt=N hint="[y/N]"
-    fi
-    if confirm "Install ${M_DESC[$name]:-$name}? $hint" "$prompt"; then
+    # Selected in the list, or nothing was asked and the default applies
+    if [ -n "${ANSWER[$name]:-}" ] || ! has_flag "$name" optional; then
         WANT["$name"]=1
     fi
 }
@@ -254,6 +313,7 @@ function resolve_plan {
     local name dep changed=1
     _close_over_deps INCLUDE
     _close_over_deps ONLY
+    choose_modules
     for name in "${M_NAMES[@]}"; do
         has_flag "$name" internal || decide "$name"
     done
@@ -370,6 +430,7 @@ function _remove_work {
 
 function cleanup {
     local rc=$?
+    menu_restore
     stop_child
     if [ -n "$TAIL_PID" ]; then
         sleep 0.2

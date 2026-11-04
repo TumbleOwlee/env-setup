@@ -39,7 +39,7 @@ If you are behind a proxy, set `http_proxy` and `https_proxy`. Offline installat
 
 ### How a run works
 
-1. All questions are asked first: one per module, whether to use the upstream release or the package, and whether to replace an existing non-git `~/.config/nvim`. After that the run is unattended.
+1. All questions are asked first: a list to select the modules from (arrow keys or `j`/`k` move, space toggles, `a` toggles all, enter confirms, `q` aborts; what a selected module depends on is added), whether to use the upstream release or the package, and whether to replace an existing non-git `~/.config/nvim`. After that the run is unattended. The list is not shown with `--only`, and modules already settled by `--skip`, `--include` or `--minimal` are not in it.
 2. Each module runs in the background. In a terminal a status line with the step, the elapsed time, the command and its last output line updates every second. Without a terminal a plain status line is printed every 10 seconds.
 3. The output goes to `~/.local/state/env-setup/<timestamp>.log`. The last 5 logs are kept, use `--log` to read the latest one. A failure prints the end of the log.
 4. If a module fails, a terminal offers retry, log, skip and abort. Without a terminal it is tried once more, then an optional module is recorded and the run continues, a failed `base` ends it. Modules depending on a failed module are left out. The run ends with a summary and exits non-zero if anything is missing.
@@ -137,7 +137,7 @@ Run `sudo apt-get update` in the container before installing further packages.
 
 ## Desktop Environment (bspwm, Arch)
 
-The `desktop` module installs the bspwm based desktop (bspwm, sxhkd, polybar, rofi, dunst, picom, ...). It is off by default: a terminal asks for it with default no, otherwise use `--include=desktop`. It's only available on Arch.
+The `desktop` module installs the bspwm based desktop (bspwm, sxhkd, polybar, rofi, dunst, picom, ...). It is off by default: select it in the module list or use `--include=desktop`. It's only available on Arch.
 
 It installs the packages in `Unix/Environment/packages.txt` with pacman and the ones in `aur-packages.txt` with `yay` (not as root: the summary lists them instead, as it does if `yay` fails, because AUR packages can break independently of this setup), then copies `.config`, `.screenlayout`, `.backgrounds` and `.gtkrc-2.0` into your home directory, **overwriting existing files of the same name**.
 

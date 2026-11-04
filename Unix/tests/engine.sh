@@ -123,4 +123,73 @@ check "broken plugin is replaced and the run succeeds" '[ "$RC" -eq 0 ] && [ ! -
 check "broken plugin is moved, not deleted" 'compgen -G "$HOME_DIR/.local/share/nvim/lazy-failed.*/broken/partial" >/dev/null'
 check "unsafe plugin name is ignored" '[ -e "$HOME_DIR/.local/share/nvim/keep/mine" ]'
 
+# The module list needs a terminal. The keys are sent once the package lists are refreshed,
+# which directly precedes it. Sets OUT and RC: engine_tty <keys> <flags>
+function engine_tty {
+    local keys="$1" cmd
+    shift
+    rm -rf -- "${HOME_DIR:?}"
+    mkdir -p "$HOME_DIR"
+    cmd="$(printf '%q ' env HOME="$HOME_DIR" PATH="$SANDBOX/bin:$PATH" ENV_SETUP_MODULES="$SANDBOX/menu" XDG_STATE_HOME= \
+        timeout --foreground 20 bash "$SETUP" "$@")"
+    OUT="$(
+        {
+            for _ in $(seq 1 100); do
+                [ -e "$HOME_DIR/synced" ] && break
+                sleep 0.1
+            done
+            sleep 0.5
+            printf '%b' "$keys"
+            sleep 1
+        } | script -qefc "$cmd" /dev/null 2>&1
+    )"
+    RC=$?
+}
+
+mkdir -p "$SANDBOX/menu"
+cat >"$SANDBOX/bin/apt-get" <<'FIXTURE'
+#!/bin/bash
+touch "$HOME/synced"
+FIXTURE
+chmod +x "$SANDBOX/bin/apt-get"
+cat >"$SANDBOX/bin/pacman" <<'FIXTURE'
+#!/bin/bash
+touch "$HOME/synced"
+FIXTURE
+chmod +x "$SANDBOX/bin/pacman"
+cat >"$SANDBOX/menu/a.sh" <<'FIXTURE'
+module dep --desc "dep"
+function dep_install { touch "$HOME/dep"; }
+module top --deps "dep" --desc "top"
+function top_install { touch "$HOME/top"; }
+module plain --desc "plain"
+function plain_install { touch "$HOME/plain"; }
+module off --optional --desc "off"
+function off_install { touch "$HOME/off"; }
+FIXTURE
+
+engine_tty '\n'
+check "list: enter takes the defaults" '[ "$RC" -eq 0 ] && [ -e "$HOME_DIR/dep" ] && [ -e "$HOME_DIR/top" ] && [ -e "$HOME_DIR/plain" ] && [ ! -e "$HOME_DIR/off" ]'
+check "list: asks once and not per module" '[[ "$OUT" == *"Modules"* ]] && [[ "$OUT" != *"Install "* ]]'
+# Off: dep (still needed by top) and plain. On: off.
+engine_tty ' jj j \n'
+check "list: the selection is installed" '[ "$RC" -eq 0 ] && [ -e "$HOME_DIR/top" ] && [ ! -e "$HOME_DIR/plain" ]'
+check "list: optional modules can be selected" '[ -e "$HOME_DIR/off" ]'
+check "list: a selected module pulls in a dependency switched off" '[ -e "$HOME_DIR/dep" ]'
+# Off: dep and top
+engine_tty ' j \n'
+check "list: nothing about a dependency if both are off" '[ "$RC" -eq 0 ] && [ ! -e "$HOME_DIR/top" ] && [[ "$OUT" != *"Leaving out"* ]]'
+engine_tty '\n' --skip=dep
+check "list: a module left out by --skip is said to be" '[ ! -e "$HOME_DIR/top" ] && [[ "$OUT" == *"Leaving out top"* ]]'
+engine_tty 'q'
+check "list: q aborts and installs nothing" '[ "$RC" -eq 1 ] && [ ! -e "$HOME_DIR/plain" ]'
+check "list: the cursor is back after an abort" '[[ "${OUT##*$'"'"'\e[?25l'"'"'}" == *$'"'"'\e[?25h'"'"'* ]]'
+engine_tty '\x03'
+check "list: an interrupt ends the run" '[ "$RC" -eq 130 ] && [ ! -e "$HOME_DIR/plain" ]'
+check "list: the cursor is back after an interrupt" '[[ "${OUT##*$'"'"'\e[?25l'"'"'}" == *$'"'"'\e[?25h'"'"'* ]]'
+engine_tty '' --only=plain
+check "list: not shown with --only" '[ "$RC" -eq 0 ] && [ -e "$HOME_DIR/plain" ] && [[ "$OUT" != *"Modules"* ]]'
+engine_tty '\n' --noconfirm
+check "list: not shown with --noconfirm" '[ "$RC" -eq 0 ] && [ -e "$HOME_DIR/plain" ] && [[ "$OUT" != *"Modules"* ]]'
+
 exit "$FAILED"

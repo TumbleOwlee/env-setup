@@ -4,9 +4,9 @@
 # status line. Requires LOG_FILE, STATE_FILE, VERBOSE and INTERACTIVE from main.sh.
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-    NONE=$'\e[0m' RED=$'\e[31m' GREEN=$'\e[32m' YELLOW=$'\e[33m' CYAN=$'\e[36m'
+    NONE=$'\e[0m' RED=$'\e[31m' GREEN=$'\e[32m' YELLOW=$'\e[33m' CYAN=$'\e[36m' BOLD=$'\e[1m' DIM=$'\e[2m'
 else
-    NONE='' RED='' GREEN='' YELLOW='' CYAN=''
+    NONE='' RED='' GREEN='' YELLOW='' CYAN='' BOLD='' DIM=''
 fi
 
 # Seconds between status lines if stdout is no terminal (a terminal gets one per second)
