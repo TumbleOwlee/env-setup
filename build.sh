@@ -23,7 +23,7 @@ function die {
 # Print "name<TAB>desc<TAB>1|0" for every module that can be chosen for the image,
 # 1 if it is in the default image. The module files only define functions apart
 # from 'module', so they are sourced with a 'module' that records the options.
-# shellcheck disable=SC2317 # module is called by the sourced files
+# shellcheck disable=SC2317,SC2329 # module is called by the sourced files
 function list_modules {
     (
         function module {
